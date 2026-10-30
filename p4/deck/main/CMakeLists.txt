@@ -4,7 +4,7 @@ idf_component_register(
          "../../../src/wsola.cpp"
          "../../../src/dj2go.cpp" "../../../src/deck_event.cpp"
     INCLUDE_DIRS "." "../../../src" "third_party/minimp3"
-    REQUIRES usb esp_timer esp_driver_i2s esp_driver_i2c esp_driver_gpio esp_driver_sdmmc esp_driver_spi esp_lcd fatfs sdmmc)
+    REQUIRES usb esp_timer esp_driver_i2s esp_driver_i2c esp_driver_gpio esp_driver_sdmmc esp_driver_spi esp_driver_uart esp_lcd fatfs sdmmc)
 # wsola.cpp builds without Arduino/audio-tools in this mode.
 target_compile_definitions(${COMPONENT_LIB} PRIVATE WSOLA_NATIVE)
 # minimp3: MP3 only, no stdio/mmap file helpers (we stream via callbacks).

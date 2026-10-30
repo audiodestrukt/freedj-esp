@@ -7,6 +7,8 @@
 #include "esp_log.h"
 #include "esp_lvgl_port.h"
 #include "display.h"
+#include "esp_heap_caps.h"
+#include "stream.h"
 
 namespace ui {
 
@@ -16,7 +18,7 @@ static const char* TAG = "ui";
 //   y   0.. 34  track name ............................. state chip
 //   y  36.. 90  elapsed (big)      -remaining           tempo % / KEY
 //   y  98..112  progress bar with cue marker
-//   y 120..264  track list
+//   y 120..264  track list, or the scrolling waveform while playing
 //   y 270..316  [ CUE ] [ PLAY ] [ LOAD ]
 constexpr int kMargin = 10;
 constexpr int kBarY = 100, kBarH = 10, kBarW = display::W - 2 * kMargin;
@@ -40,6 +42,22 @@ static SelectFn s_onSelect;
 static lv_obj_t *s_name, *s_state, *s_time, *s_remain, *s_tempo, *s_key;
 static lv_obj_t *s_bar, *s_cueMark, *s_list, *s_cueBtn, *s_playBtn;
 static std::vector<lv_obj_t*> s_rows;
+
+// Scrolling waveform: playhead fixed in the middle, track moves right to
+// left. Shown while playing, unless the list was used in the last few
+// seconds. Drawn into a canvas straight from the stream's peak bins.
+constexpr int kWaveY = 132, kWaveH = 100;
+constexpr int kBinsPerPx = 4;                  // 512 frames/px: ~5.6 s across at 44.1 kHz
+constexpr uint32_t kListLingerMs = 3000;
+static const TrackStream* s_stream;
+static lv_obj_t* s_wave;
+static uint16_t* s_waveBuf;                    // RGB565, W x kWaveH, PSRAM
+static uint32_t s_lastListUse;                 // lv_tick of last select/scroll
+static bool s_waveShown;
+static uint32_t s_waveFrames, s_waveT0;         // fps measurement
+static volatile int s_waveTest;                 // see cycleWaveTestMode()
+
+int cycleWaveTestMode() { s_waveTest = (s_waveTest + 1) % 3; return s_waveTest; }
 
 void publish(const State& s)
 {
@@ -71,6 +89,8 @@ static void onCue(lv_event_t* e)
     if (c == LV_EVENT_PRESSED) send(deck::Type::Cue, true);
     else if (c == LV_EVENT_RELEASED || c == LV_EVENT_PRESS_LOST) send(deck::Type::Cue, false);
 }
+
+static void onWaveTap(lv_event_t*) { s_lastListUse = lv_tick_get(); }
 
 static void onPlay(lv_event_t*) { send(deck::Type::PlayPause, true); }
 static void onLoad(lv_event_t*) { send(deck::Type::Load, true); }
@@ -189,9 +209,80 @@ static void build(const std::vector<std::string>& tracks, const char* prefix)
         lv_label_set_text(l, "  no tracks on the SD card");
     }
 
+    s_waveBuf = (uint16_t*)heap_caps_malloc(display::W * kWaveH * 2, MALLOC_CAP_SPIRAM);
+    s_wave = lv_canvas_create(scr);
+    lv_canvas_set_buffer(s_wave, s_waveBuf, display::W, kWaveH, LV_COLOR_FORMAT_RGB565);
+    lv_obj_set_pos(s_wave, 0, kWaveY);
+    lv_obj_set_clickable(s_wave, true);
+    lv_obj_add_event_cb(s_wave, onWaveTap, LV_EVENT_CLICKED, nullptr);
+    lv_obj_set_hidden(s_wave, true);
+
     s_cueBtn  = button(scr, "CUE",  kMargin,       onCue,  LV_EVENT_ALL);
     s_playBtn = button(scr, "PLAY", kMargin + 157, onPlay, LV_EVENT_PRESSED);
     button(scr, "LOAD", kMargin + 314, onLoad, LV_EVENT_CLICKED);
+}
+
+static void drawWave(const State& s)
+{
+    const int W = display::W, mid = kWaveH / 2;
+    const uint16_t bg = lv_color_to_u16(kBg), played = lv_color_to_u16(lv_color_hex(0x27466F)),
+                   ahead = lv_color_to_u16(lv_color_hex(0x4FA3FF)), axis = lv_color_to_u16(kPanel);
+    const size_t framesPerPx = TrackStream::kPeakFrames * kBinsPerPx;
+    const long centre = (long)(s.frame / framesPerPx);
+    const long bins = (long)s_stream->peakBins();
+    static int16_t h[display::W];
+    static uint16_t col[display::W];
+    for (int x = 0; x < W; x++) {
+        const long px = centre + (x - W / 2);
+        int p = 0;
+        if (px >= 0) for (long b = px * kBinsPerPx, e = b + kBinsPerPx; b < e && b < bins; b++) {
+            const int v = s_stream->peak(b);
+            if (v > p) p = v;
+        }
+        h[x] = (int16_t)(p * (mid - 2) / 255);
+        col[x] = px < centre ? played : ahead;
+    }
+    for (int y = 0; y < kWaveH; y++) {
+        uint16_t* row = s_waveBuf + y * W;
+        const int dy = abs(y - mid);
+        for (int x = 0; x < W; x++) row[x] = dy <= h[x] ? col[x] : (dy == 0 ? axis : bg);
+    }
+    // Cue marker, then the playhead on top.
+    if (s.loaded) {
+        const long cx = (long)(s.cueFrame / framesPerPx) - centre + W / 2;
+        if (cx >= 0 && cx < W) for (int y = 0; y < kWaveH; y++) s_waveBuf[y * W + cx] = lv_color_to_u16(kOrange);
+    }
+    for (int y = 0; y < kWaveH; y++) {
+        s_waveBuf[y * W + W / 2 - 1] = 0xFFFF;
+        s_waveBuf[y * W + W / 2] = 0xFFFF;
+    }
+    if (s_waveTest == 0) lv_obj_invalidate(s_wave);
+
+    s_waveFrames++;
+    const uint32_t now = lv_tick_get();
+    if (now - s_waveT0 >= 5000) {
+        ESP_LOGI(TAG, "waveform %.1f fps", s_waveFrames * 1000.0f / (now - s_waveT0));
+        s_waveFrames = 0;
+        s_waveT0 = now;
+    }
+}
+
+// Runs as fast as LVGL can flush; only redraws while the waveform is up.
+static void waveTick(lv_timer_t*)
+{
+    State s;
+    taskENTER_CRITICAL(&s_mux);
+    s = s_pub;
+    taskEXIT_CRITICAL(&s_mux);
+    const bool want = s.loaded && s.playing && lv_tick_elaps(s_lastListUse) > kListLingerMs;
+    if (want != s_waveShown) {
+        s_waveShown = want;
+        lv_obj_set_hidden(s_wave, !want);
+        lv_obj_set_hidden(s_list, want);
+        s_waveFrames = 0;
+        s_waveT0 = lv_tick_get();
+    }
+    if (want && s_waveTest != 2) drawWave(s);
 }
 
 static void refresh(lv_timer_t*)
@@ -248,6 +339,7 @@ static void refresh(lv_timer_t*)
         lv_obj_set_style_bg_color(s_cueBtn, s.loaded && (!s.playing || s.previewing) ? kOrange : kPanel, 0);
     }
 
+    if (!s_first && s.selected != o.selected) s_lastListUse = lv_tick_get();
     if ((s_first || s.selected != o.selected) && !s_rows.empty()) {
         if (o.selected >= 0 && o.selected < (int)s_rows.size()) lv_obj_set_checked(s_rows[o.selected], false);
         if (s.selected >= 0 && s.selected < (int)s_rows.size()) {
@@ -260,14 +352,17 @@ static void refresh(lv_timer_t*)
     s_first = false;
 }
 
-bool begin(const std::vector<std::string>& tracks, const char* prefix, EventFn onEvent, SelectFn onSelect)
+bool begin(const std::vector<std::string>& tracks, const char* prefix, const TrackStream& stream,
+           EventFn onEvent, SelectFn onSelect)
 {
+    s_stream = &stream;
     s_onEvent = onEvent;
     s_onSelect = onSelect;
     if (!display::begin()) { ESP_LOGE(TAG, "no screen"); return false; }
     lvgl_port_lock(0);
     build(tracks, prefix);
     lv_timer_create(refresh, 50, nullptr);
+    lv_timer_create(waveTick, 5, nullptr);
     lvgl_port_unlock();
     ESP_LOGI(TAG, "deck screen up, %u track(s)", (unsigned)tracks.size());
     return true;

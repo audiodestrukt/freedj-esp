@@ -31,3 +31,8 @@ CONFIG_LV_DEF_REFR_PERIOD=20
 
 # The app outgrew 1 MB with LVGL; 16 MB flash has room.
 CONFIG_PARTITION_TABLE_SINGLE_APP_LARGE=y
+
+# Audio runs per-sample code every block; -Og was too slow. Bigger L2 so the
+# UI on core 0 does not evict the audio path (both cores share it).
+CONFIG_COMPILER_OPTIMIZATION_PERF=y
+CONFIG_CACHE_L2_CACHE_256KB=y

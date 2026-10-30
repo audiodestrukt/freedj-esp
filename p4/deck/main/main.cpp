@@ -15,13 +15,17 @@
 //   channel volume   level
 
 #include <math.h>
+#include <stdint.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
+#include "freertos/semphr.h"
 #include "freertos/task.h"
 #include "esp_log.h"
 #include "esp_timer.h"
+#include "driver/uart.h"
 
 #include "audio_out.h"
 #include "deck_event.h"
@@ -190,6 +194,39 @@ static bool renderKeylock(Deck& d, float speed, int16_t* out)
     return true;
 }
 
+// Click detector on what actually goes to the DAC. A clean signal changes
+// slope smoothly; a dropout, a missed block or a bad splice makes the second
+// difference spike far above its running average. Exact on a test tone
+// (sine.wav); on music, sharp transients can count too, so treat it as a
+// hint there. Only measures while playing continuously.
+struct ClickProbe {
+    int16_t p1 = 0, p2 = 0;
+    int     primed = 0;      // samples of history so far
+    float   avg = 0;         // running mean |second difference|
+    uint32_t clicks = 0;
+    int     worst = 0;       // largest |second difference| seen in a click
+
+    void reset() { primed = 0; }
+    void feed(const int16_t* lr, int frames)
+    {
+        for (int i = 0; i < frames; i++) {
+            const int x = lr[2 * i];
+            if (primed >= 2) {
+                const int d2 = abs(x - 2 * p1 + p2);
+                if (primed > 2000 && d2 > 1500 && d2 > 8 * avg) {
+                    clicks++;
+                    if (d2 > worst) worst = d2;
+                }
+                avg += (d2 - avg) * 0.001f;
+            }
+            if (primed <= 2000) primed++;
+            p2 = p1;
+            p1 = x;
+        }
+    }
+};
+static ClickProbe s_clicks;
+
 static void onUiEvent(const deck::Event& e) { xQueueSend(s_events, &e, 0); }
 static void onUiSelect(int index) { xQueueSend(s_select, &index, 0); }
 
@@ -207,22 +244,61 @@ static void publishState(const Deck& d)
         u.pos = d.pos / rate;
         u.len = s_stream.seconds();
         u.cue = d.cue / rate;
+        u.frame = (size_t)d.pos;
+        u.cueFrame = (size_t)d.cue;
         strlcpy(u.name, s_stream.name(), sizeof u.name);
     }
     u.tempoPct = (d.tempo - 1.0f) * 100.0f;
     ui::publish(u);
 }
 
+static SemaphoreHandle_t s_audioUp;
+
+// Audio health over one ~2 s period, measured in the audio task and printed
+// by reporterTask. realtime = frames sent to the DAC / frames it must have
+// played in that wall time; under 100 % means gaps of silence.
+struct Report {
+    int64_t  t0 = 0, t1 = 0;
+    int64_t  blocks = 0, workSumUs = 0, workMaxUs = 0, minSlackUs = INT64_MAX;
+    bool     playing = false, keylock = false;
+    float    pos = 0, speedPct = 0;
+    uint32_t underruns = 0, clicks = 0;
+    int      clickWorst = 0;
+};
+static QueueHandle_t s_report;   // length 1, overwritten
+
+static void reporterTask(void*)
+{
+    Report r;
+    for (;;) {
+        xQueueReceive(s_report, &r, portMAX_DELAY);
+        if (!r.playing) continue;
+        const double realtime = 100.0 * r.blocks * kBlock / ((r.t1 - r.t0) * (kRate / 1e6));
+        ESP_LOGI(TAG, "%s  %d:%04.1f / %d:%04.1f  %+.2f %%%s  buffered %.0f s  underruns %u",
+                 s_stream.name(), (int)r.pos / 60, fmodf(r.pos, 60),
+                 (int)s_stream.seconds() / 60, fmodf(s_stream.seconds(), 60), r.speedPct,
+                 r.keylock ? "  keylock" : "", s_stream.buffered() / 44100.0, (unsigned)r.underruns);
+        ESP_LOGI(TAG, "  audio: realtime %.1f %%  block work avg %.2f / max %.2f ms (budget %.2f)  "
+                 "min slack %.1f ms  clicks %u (worst %d)",
+                 realtime, r.blocks ? r.workSumUs / 1000.0 / r.blocks : 0.0, r.workMaxUs / 1000.0,
+                 kBlock * 1000.0 / kRate, r.minSlackUs / 1000.0, (unsigned)r.clicks, r.clickWorst);
+    }
+}
+
 static void audioTask(void*)
 {
+    // Bring up I2S + codec from this task so the I2S interrupt lands on
+    // core 1 with the audio, not on core 0 behind the screen's SPI traffic.
+    if (!audio_out::begin(kRate, 70)) ESP_LOGE(TAG, "audio init failed");
+    xSemaphoreGive(s_audioUp);
     static int16_t buf[kBlock * 2];
     Deck d;
     s_wsola.begin(2);
     logSelection(d);
-    uint32_t lastReport = 0;
-    uint32_t underruns = 0;
-    uint32_t lastXruns = audio_out::xruns();
-    int64_t tWrote = esp_timer_get_time(), worstUs = 0, tXrunLog = 0;
+    uint32_t underruns = 0, clicksAtStart = 0;
+    int64_t tWrote = esp_timer_get_time();
+    Report r;
+    r.t0 = tWrote;
 
     for (;;) {
         deck::Event e;
@@ -262,35 +338,67 @@ static void audioTask(void*)
             const float g = d.gain;
             for (int i = 0; i < kBlock * 2; i++) buf[i] = (int16_t)(buf[i] * g);
             if (!d.playing) ESP_LOGI(TAG, "end of track");
+            if (fed && d.playing) s_clicks.feed(buf, kBlock); else s_clicks.reset();
         } else {
             memset(buf, 0, sizeof buf);
+            s_clicks.reset();
         }
-        // Watch for the DAC running dry: report new xruns and the slowest
-        // block of work (everything but the blocking write) since last time.
+        // Measure, but never print from here: a log line over the UART takes
+        // longer than an audio block. The reporter task prints instead.
         const int64_t workUs = esp_timer_get_time() - tWrote;
-        if (workUs > worstUs) worstUs = workUs;
-        if (audio_out::xruns() != lastXruns && esp_timer_get_time() - tXrunLog > 1000000) {
-            ESP_LOGW(TAG, "DAC ran dry %u time(s); slowest block of work %.1f ms",
-                     (unsigned)(audio_out::xruns() - lastXruns), worstUs / 1000.0);
-            lastXruns = audio_out::xruns();
-            worstUs = 0;
-            tXrunLog = esp_timer_get_time();
-        }
+        if (workUs > r.workMaxUs) r.workMaxUs = workUs;
+        r.workSumUs += workUs;
+        r.blocks++;
+        const int64_t tWrite = esp_timer_get_time();
         audio_out::write(buf, kBlock);
         tWrote = esp_timer_get_time();
+        // Time spent waiting for DMA room = slack before the DAC would starve.
+        if (tWrote - tWrite < r.minSlackUs) r.minSlackUs = tWrote - tWrite;
 
-        static int blocks;
-        if (++blocks % 4 == 0) publishState(d);  // ~43 Hz; the screen redraws at 20
+        publishState(d);  // every block (~170 Hz) so the waveform scrolls smoothly
 
-        const uint32_t now = xTaskGetTickCount();
-        if (d.playing && now - lastReport > pdMS_TO_TICKS(2000)) {
-            lastReport = now;
-            const float t = d.pos / s_stream.sampleRate();
-            ESP_LOGI(TAG, "%s  %d:%04.1f / %d:%04.1f  %+.2f %%%s  buffered %.0f s  underruns %u",
-                     s_stream.name(), (int)t / 60, fmodf(t, 60),
-                     (int)s_stream.seconds() / 60, fmodf(s_stream.seconds(), 60), (speed - 1) * 100,
-                     d.keylock ? "  keylock" : "", s_stream.buffered() / 44100.0, (unsigned)underruns);
+        if (tWrote - r.t0 >= 2000000) {
+            r.t1 = tWrote;
+            r.playing = d.playing && d.loaded;
+            r.pos = d.loaded ? d.pos / s_stream.sampleRate() : 0;
+            r.speedPct = (speed - 1) * 100;
+            r.keylock = d.keylock;
+            r.underruns = underruns;
+            r.clicks = s_clicks.clicks - clicksAtStart;
+            r.clickWorst = s_clicks.worst;
+            xQueueOverwrite(s_report, &r);
+            clicksAtStart = s_clicks.clicks;
+            s_clicks.worst = 0;
+            r = Report{};
+            r.t0 = tWrote;
         }
+    }
+}
+
+// Serial console keys, for testing without touching the hardware:
+//   1-9 select track   l load   p play/pause   c cue (press+release)
+//   k keylock          w cycle waveform test mode (normal / no flush / off)
+static void serialKeysTask(void*)
+{
+    uart_driver_install(UART_NUM_0, 256, 0, 0, nullptr, 0);
+    for (;;) {
+        uint8_t ch;
+        if (uart_read_bytes(UART_NUM_0, &ch, 1, portMAX_DELAY) != 1) continue;
+        deck::Event e;
+        e.deck = deck::DeckA;
+        e.pressed = true;
+        switch (ch) {
+        case '1' ... '9': onUiSelect(ch - '1'); continue;
+        case 'l': e.type = deck::Type::Load; break;
+        case 'p': e.type = deck::Type::PlayPause; break;
+        case 'k': e.type = deck::Type::Sync; break;
+        case 'c':
+            e.type = deck::Type::Cue; onUiEvent(e);
+            e.pressed = false; break;
+        case 'w': ESP_LOGI(TAG, "waveform test mode %d", ui::cycleWaveTestMode()); continue;
+        default: continue;
+        }
+        onUiEvent(e);
     }
 }
 
@@ -300,13 +408,17 @@ extern "C" void app_main(void)
     s_loadReq  = xQueueCreate(1, sizeof(int));
     s_loadDone = xQueueCreate(1, sizeof(bool));
     s_select   = xQueueCreate(8, sizeof(int));
-    if (!audio_out::begin(kRate, 70)) ESP_LOGE(TAG, "audio init failed");
+    s_report   = xQueueCreate(1, sizeof(Report));
     if (!sd::begin()) ESP_LOGE(TAG, "no SD card — nothing to play");
     s_stream.begin(12 * 1024 * 1024);
     library::scan(sd::kMount);
     xTaskCreatePinnedToCore(loaderTask, "loader", 32768, nullptr, 4, nullptr, 0);
+    s_audioUp = xSemaphoreCreateBinary();
     xTaskCreatePinnedToCore(audioTask, "audio", 8192, nullptr, 10, nullptr, 1);
+    xSemaphoreTake(s_audioUp, portMAX_DELAY);  // the screen's touch shares the codec's I2C bus
     usb_midi::begin(onMidiPacket);
-    ui::begin(library::tracks(), sd::kMount, onUiEvent, onUiSelect);
+    ui::begin(library::tracks(), sd::kMount, s_stream, onUiEvent, onUiSelect);
+    xTaskCreatePinnedToCore(reporterTask, "report", 4096, nullptr, 1, nullptr, 0);
+    xTaskCreatePinnedToCore(serialKeysTask, "keys", 3072, nullptr, 2, nullptr, 0);
     ESP_LOGI(TAG, "browse with the knob, LOAD A to load, PLAY to play");
 }

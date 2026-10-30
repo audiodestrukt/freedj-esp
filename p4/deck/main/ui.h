@@ -6,6 +6,8 @@
 #include <vector>
 #include "deck_event.h"
 
+class TrackStream;
+
 namespace ui {
 
 struct State {
@@ -19,17 +21,25 @@ struct State {
     float len        = 0;      // seconds
     float cue        = 0;      // seconds
     float tempoPct   = 0;      // pitch fader, percent
+    size_t frame     = 0;      // playhead, in track frames (for the waveform)
+    size_t cueFrame  = 0;
     char  name[64]   = "";
 };
 
 using EventFn  = void (*)(const deck::Event&);
 using SelectFn = void (*)(int index);
 
-// Starts the screen. `tracks` must outlive the UI; `prefix` is stripped
-// from each path for display. Returns false if there's no screen.
-bool begin(const std::vector<std::string>& tracks, const char* prefix, EventFn onEvent, SelectFn onSelect);
+// Starts the screen. `tracks` and `stream` must outlive the UI; `prefix` is
+// stripped from each path for display. The waveform reads the stream's
+// peaks. Returns false if there's no screen.
+bool begin(const std::vector<std::string>& tracks, const char* prefix, const TrackStream& stream,
+           EventFn onEvent, SelectFn onSelect);
 
 // Cheap and safe from any task.
 void publish(const State& s);
+
+// Test hook: 0 normal, 1 draw the waveform but don't send it to the
+// screen, 2 don't draw it at all. Returns the new mode.
+int cycleWaveTestMode();
 
 } // namespace ui

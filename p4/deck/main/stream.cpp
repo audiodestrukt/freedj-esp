@@ -1,5 +1,6 @@
 #include "stream.h"
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <strings.h>
 #include "esp_heap_caps.h"
@@ -115,6 +116,11 @@ bool TrackStream::begin(size_t windowBytes)
     cap_ = windowBytes / 4;
     ring_ = (int16_t*)heap_caps_malloc(cap_ * 4, MALLOC_CAP_SPIRAM);
     if (!ring_) { ESP_LOGE(TAG, "can't allocate %u KB window in PSRAM", (unsigned)(windowBytes / 1024)); return false; }
+    // Peaks for up to 30 min at 48 kHz (~660 KB); longer tracks just lose
+    // the waveform past that point.
+    peakCap_ = 30 * 60 * 48000 / kPeakFrames;
+    peaks_ = (uint8_t*)heap_caps_calloc(peakCap_, 1, MALLOC_CAP_SPIRAM);
+    if (!peaks_) peakCap_ = 0;
     ESP_LOGI(TAG, "window %.1f MB = %.0f s at 44.1 kHz", windowBytes / 1048576.0, cap_ / 44100.0);
     return true;
 }
@@ -126,6 +132,7 @@ void TrackStream::close()
     src_ = nullptr;
     winStart_ = winEnd_ = playhead_ = 0;
     frames_ = 0;
+    peakBins_ = 0;
 }
 
 bool TrackStream::open(const char* path)
@@ -150,6 +157,10 @@ bool TrackStream::open(const char* path)
     const char* base = strrchr(path, '/');
     snprintf(name_, sizeof name_, "%s", base ? base + 1 : path);
     winStart_ = winEnd_ = playhead_ = 0;
+    size_t bins = frames_ / kPeakFrames + 1;
+    if (bins > peakCap_) bins = peakCap_;
+    if (bins) memset(peaks_, 0, bins);
+    peakBins_ = bins;
     open_ = true;
     ESP_LOGI(TAG, "%s: %u Hz %s, %.1f s", name_, (unsigned)rate_, src->channels == 2 ? "stereo" : "mono", seconds());
     return true;
@@ -188,10 +199,17 @@ bool TrackStream::service()
     if (got == 0) { frames_ = we; return false; }  // shorter than the header said
 
     const uint16_t ch = src_->channels;
+    const size_t bins = peakBins_;
     for (size_t i = 0; i < got; i++) {
         int16_t* dst = ring_ + ((we + i) % cap_) * 2;
         if (ch == 2) { dst[0] = s_bounce[2 * i]; dst[1] = s_bounce[2 * i + 1]; }
         else         { dst[0] = dst[1] = s_bounce[i]; }
+        // Waveform peak for this frame's bin (max-merge, so re-decoding the
+        // same region after a seek is harmless).
+        const int a = abs(dst[0]) > abs(dst[1]) ? abs(dst[0]) : abs(dst[1]);
+        const uint8_t v = a >= 32640 ? 255 : (uint8_t)(a >> 7);
+        const size_t bin = (we + i) / kPeakFrames;
+        if (bin < bins && v > peaks_[bin]) peaks_[bin] = v;
     }
     winEnd_ = we + got;
     return true;

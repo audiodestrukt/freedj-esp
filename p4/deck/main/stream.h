@@ -29,6 +29,14 @@ public:
     // the filled window (caller plays silence and waits).
     bool get(size_t frame, int16_t* lr, size_t n = 1) const;
 
+    // Waveform peaks, filled in by the loader as it decodes: one byte (0..255,
+    // peak |sample| of either channel) per kPeakFrames frames of the track,
+    // indexed by absolute frame / kPeakFrames. 0 = silent or not decoded yet.
+    // Safe to read from any task.
+    static constexpr size_t kPeakFrames = 128;
+    size_t  peakBins() const { return peakBins_; }
+    uint8_t peak(size_t bin) const { return bin < peakBins_ ? peaks_[bin] : 0; }
+
     // A decoder that produces 16-bit frames sequentially and can seek by frame.
     struct Source {
         virtual ~Source() = default;
@@ -47,6 +55,9 @@ private:
     size_t   frames_ = 0;
     size_t   srcPos_ = 0;             // frame the source will decode next
     char     name_[64] = {};
+    uint8_t* peaks_ = nullptr;        // PSRAM, peakCap_ bins (allocated once)
+    size_t   peakCap_ = 0;
+    std::atomic<size_t> peakBins_{0};
     std::atomic<bool>   open_{false};
     std::atomic<size_t> winStart_{0}, winEnd_{0}, playhead_{0};
 };
