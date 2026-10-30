@@ -174,22 +174,42 @@ static bool renderPitched(Deck& d, float speed, int16_t* out)
     return true;
 }
 
-// Keylock: feed WSOLA from the stream at 1×, let it stretch to `speed`.
+// Keylock: feed WSOLA at the output rate (resampling the file to 44.1 kHz
+// first, so a 48 kHz track isn't heard 8.8 % slow and flat), let it
+// stretch to `speed`.
 static bool renderKeylock(Deck& d, float speed, int16_t* out)
 {
-    static int16_t feed[512 * 2];
+    constexpr int kFeed = 512;
+    static int16_t feed[kFeed * 2];
+    static int16_t raw[(kFeed * 3 + 4) * 2];          // file frames for one feed (rates up to 3x 44.1k)
+    const double step = (double)s_stream.sampleRate() / kRate;
     s_wsola.setSpeed(speed);
     int got = 0;
     while (got < kBlock) {
         got += s_wsola.pullFrames(out + 2 * got, kBlock - got);
         if (got >= kBlock) break;
-        const size_t at = (size_t)d.pos;
-        if (at >= s_stream.frames()) { memset(out + 2 * got, 0, (kBlock - got) * 4); d.playing = false; return true; }
-        size_t n = s_wsola.inputCapacity();
-        if (n > 512) n = 512;
-        if (n > s_stream.frames() - at) n = s_stream.frames() - at;
-        if (!s_stream.get(at, feed, n)) { memset(out + 2 * got, 0, (kBlock - got) * 4); return false; }
-        d.pos += s_wsola.pushFrames(feed, n);
+        const size_t base = (size_t)d.pos;
+        const size_t total = s_stream.frames();
+        if (base + 1 >= total) { memset(out + 2 * got, 0, (kBlock - got) * 4); d.playing = false; return true; }
+        // How many output-rate frames fit before the end of the track.
+        int n = s_wsola.inputCapacity();
+        if (n > kFeed) n = kFeed;
+        const double frac = d.pos - base;
+        const int fit = (int)((total - 1 - base - frac) / step);
+        if (n > fit) n = fit;
+        if (n <= 0) { memset(out + 2 * got, 0, (kBlock - got) * 4); d.playing = false; return true; }
+        // Linear-interpolate n frames at `step` out of a contiguous run of file frames.
+        const size_t span = (size_t)(frac + (n - 1) * step) + 2;
+        if (!s_stream.get(base, raw, span)) { memset(out + 2 * got, 0, (kBlock - got) * 4); return false; }
+        for (int i = 0; i < n; i++) {
+            const double x = frac + i * step;
+            const size_t j = (size_t)x;
+            const float f = (float)(x - j);
+            const int16_t* a0 = raw + 2 * j;
+            feed[2 * i]     = (int16_t)(a0[0] + f * (a0[2] - a0[0]));
+            feed[2 * i + 1] = (int16_t)(a0[1] + f * (a0[3] - a0[1]));
+        }
+        d.pos += s_wsola.pushFrames(feed, n) * step;
     }
     return true;
 }
@@ -318,9 +338,6 @@ static void audioTask(void*)
             if (!ok) {
                 ESP_LOGE(TAG, "load failed");
             } else {
-                if (s_stream.sampleRate() != kRate)
-                    ESP_LOGW(TAG, "%u Hz track: varispeed resamples it; keylock will play at the wrong pitch",
-                             (unsigned)s_stream.sampleRate());
                 ESP_LOGI(TAG, "ready: %s (%d:%02d) — PLAY", s_stream.name(),
                          (int)s_stream.seconds() / 60, (int)s_stream.seconds() % 60);
             }
