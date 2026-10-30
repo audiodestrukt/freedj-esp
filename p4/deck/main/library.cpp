@@ -14,7 +14,7 @@ static std::vector<std::string> s_tracks;
 static bool playable(const char* name)
 {
     const char* dot = strrchr(name, '.');
-    return dot && !strcasecmp(dot, ".wav");  // MP3 comes later
+    return dot && (!strcasecmp(dot, ".wav") || !strcasecmp(dot, ".mp3"));
 }
 
 static void walk(const std::string& dir, int depth, int maxDepth)

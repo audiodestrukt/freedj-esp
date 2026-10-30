@@ -1,5 +1,5 @@
 #pragma once
-// Streams a WAV from SD through a PSRAM window around the playhead.
+// Streams a WAV or MP3 from SD through a PSRAM window around the playhead.
 // A background task (service()) keeps ~25 s behind and the rest of the
 // window ahead filled; the audio task reads frames with get(). Track length
 // doesn't matter, and jog/cue/short seeks inside the window are instant.
@@ -7,14 +7,13 @@
 #include <atomic>
 #include <stddef.h>
 #include <stdint.h>
-#include <stdio.h>
 
 class TrackStream {
 public:
     bool begin(size_t windowBytes);   // allocate the PSRAM window once
 
     // Loader-task side.
-    bool open(const char* path);      // parse header, start filling at frame 0
+    bool open(const char* path);      // WAV or MP3 by extension; start filling at frame 0
     void close();
     bool service();                   // refill a chunk; false = nothing to do
     size_t buffered() const { return winEnd_ - winStart_; }
@@ -30,15 +29,23 @@ public:
     // the filled window (caller plays silence and waits).
     bool get(size_t frame, int16_t* lr, size_t n = 1) const;
 
+    // A decoder that produces 16-bit frames sequentially and can seek by frame.
+    struct Source {
+        virtual ~Source() = default;
+        virtual bool   seek(size_t frame) = 0;
+        virtual size_t read(int16_t* out, size_t frames) = 0;  // `channels` per frame
+        uint16_t channels = 2;
+        uint32_t rate = 0;
+        size_t   frames = 0;
+    };
+
 private:
     int16_t* ring_ = nullptr;         // interleaved stereo, cap_ frames
     size_t   cap_ = 0;
-    FILE*    f_ = nullptr;
-    long     dataOffset_ = 0;
-    uint16_t channels_ = 2;
+    Source*  src_ = nullptr;
     uint32_t rate_ = 0;
     size_t   frames_ = 0;
-    size_t   filePos_ = 0;            // frame the file pointer is at
+    size_t   srcPos_ = 0;             // frame the source will decode next
     char     name_[64] = {};
     std::atomic<bool>   open_{false};
     std::atomic<size_t> winStart_{0}, winEnd_{0}, playhead_{0};

@@ -290,7 +290,7 @@ extern "C" void app_main(void)
     if (!audio_out::begin(kRate, 70)) ESP_LOGE(TAG, "audio init failed");
     if (!sd::begin()) ESP_LOGE(TAG, "no SD card — nothing to play");
     s_stream.begin(12 * 1024 * 1024);
-    xTaskCreatePinnedToCore(loaderTask, "loader", 4096, nullptr, 4, nullptr, 0);
+    xTaskCreatePinnedToCore(loaderTask, "loader", 32768, nullptr, 4, nullptr, 0);
     xTaskCreatePinnedToCore(audioTask, "audio", 8192, nullptr, 10, nullptr, 1);
     usb_midi::begin(onMidiPacket);
     ESP_LOGI(TAG, "browse with the knob, LOAD A to load, PLAY to play");
