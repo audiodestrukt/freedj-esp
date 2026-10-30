@@ -8,3 +8,10 @@ CONFIG_USB_HOST_HUB_MULTI_LEVEL=y
 # long filenames on the SD card
 CONFIG_FATFS_LFN_HEAP=y
 CONFIG_FATFS_MAX_LFN=255
+# 32 MB in-package PSRAM (hex mode, 200 MHz) — same settings the board's
+# Linux-emulator build used. Holds the track streaming window.
+CONFIG_SPIRAM=y
+CONFIG_SPIRAM_MODE_HEX=y
+CONFIG_SPIRAM_SPEED_200M=y
+# 1 ms tick: short vTaskDelay()s in the loader must not round down to 0
+CONFIG_FREERTOS_HZ=1000
