@@ -25,6 +25,7 @@
 #include "freertos/task.h"
 #include "esp_log.h"
 #include "esp_timer.h"
+#include "esp_heap_caps.h"
 #include "driver/uart.h"
 
 #include "audio_out.h"
@@ -480,5 +481,9 @@ extern "C" void app_main(void)
     ui::begin(library::tracks(), sd::kMount, s_stream, onUiEvent, onUiSelect);
     xTaskCreatePinnedToCore(reporterTask, "report", 6144, nullptr, 1, nullptr, 0);
     xTaskCreatePinnedToCore(serialKeysTask, "keys", 3072, nullptr, 2, nullptr, 0);
+    ESP_LOGI(TAG, "memory free: internal %u KB (largest %u KB), PSRAM %u KB",
+             (unsigned)(heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024),
+             (unsigned)(heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL) / 1024),
+             (unsigned)(heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024));
     ESP_LOGI(TAG, "browse with the knob, LOAD A to load, PLAY to play");
 }
