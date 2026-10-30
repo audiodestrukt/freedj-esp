@@ -48,7 +48,12 @@ void Wsola::reset() {
 void Wsola::initHann() {
     if (hannReady_) return;
     for (int i = 0; i < FRAME_N; ++i) {
-        float w = 0.5f - 0.5f * cosf((2.0f * (float)M_PI * (float)i) / (float)(FRAME_N - 1));
+        // Periodic Hann (divide by N, not N-1): at 75 % overlap (HOP_SYN =
+        // FRAME_N / 4) four of them sum to exactly 2.0, so each window is
+        // scaled by 1/2 to make the overlap-add unity gain. Unscaled, keylock
+        // played ~6 dB hot and clipped ~13 % of samples on loud masters,
+        // heard as "louder and brighter".
+        float w = 0.5f * (0.5f - 0.5f * cosf((2.0f * (float)M_PI * (float)i) / (float)FRAME_N));
         int32_t q = (int32_t)lroundf(w * 32767.0f);
         if (q > 32767) q = 32767;
         if (q < 0)     q = 0;
