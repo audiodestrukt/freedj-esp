@@ -1,10 +1,10 @@
-// P4 deck, milestone 2: browse the SD card with the DJ2Go, stream a WAV
-// through a PSRAM window, and play it CDJ-style on the board speaker.
-// No screen yet, so the deck talks back in beeps: a tick per browse step,
-// a rising chirp when a track is ready, a low buzz when a load fails.
+// P4 deck: browse the SD card with the DJ2Go or the touch screen, stream a
+// WAV/MP3 through a PSRAM window, and play it CDJ-style on the board speaker.
+// The screen (ui.cpp) shows the list, time, tempo and state.
 //
 // Deck A controls:
-//   browse knob      move through the track list (logged)
+//   browse knob      move through the track list (also touch: tap a row,
+//                    tap it again to load)
 //   LOAD A / ENTER   load the selected track (stops the deck)
 //   PLAY             play / pause
 //   CUE              playing: jump to cue and pause
@@ -21,14 +21,15 @@
 #include "freertos/queue.h"
 #include "freertos/task.h"
 #include "esp_log.h"
+#include "esp_timer.h"
 
 #include "audio_out.h"
 #include "deck_event.h"
-#include "display.h"
 #include "dj2go.h"
 #include "library.h"
 #include "sd.h"
 #include "stream.h"
+#include "ui.h"
 #include "usb_midi.h"
 #include "wsola.h"
 
@@ -42,6 +43,7 @@ constexpr int      kScrubFrames = 441;   // paused jog: 10 ms per tick
 static QueueHandle_t s_events;      // deck::Event, USB task → audio task
 static QueueHandle_t s_loadReq;     // int track index, audio task → loader
 static QueueHandle_t s_loadDone;    // bool ok, loader → audio task
+static QueueHandle_t s_select;      // int track index, screen → audio task
 static TrackStream s_stream;        // deck A
 static dj2go::Decoder s_decoder;
 static wsola::Wsola s_wsola;        // ~40 KB, keep out of task stacks
@@ -69,37 +71,6 @@ static void loaderTask(void*)
         if (!s_stream.service()) vTaskDelay(pdMS_TO_TICKS(5) ? pdMS_TO_TICKS(5) : 1);
     }
 }
-
-// --- beeps: the only feedback without a screen -------------------------------
-struct Beep { float freq = 0; int framesLeft = 0; double phase = 0; };
-static Beep s_beeps[4];
-
-static void beep(float freq, int ms, int delayMs = 0)
-{
-    for (Beep& b : s_beeps) if (b.framesLeft <= 0) {
-        b.freq = freq; b.phase = -(double)delayMs * kRate / 1000; b.framesLeft = ms * kRate / 1000 + delayMs * kRate / 1000;
-        return;
-    }
-}
-
-static void mixBeeps(int16_t* buf)
-{
-    for (Beep& b : s_beeps) {
-        for (int i = 0; i < kBlock && b.framesLeft > 0; i++, b.framesLeft--) {
-            b.phase += 1;
-            if (b.phase <= 0) continue;  // still in its delay
-            const float v = 0.25f * sinf(2 * M_PI * b.freq * b.phase / kRate);
-            const int16_t s16 = (int16_t)(v * 32767);
-            int m = buf[2 * i] / 2 + s16;  // duck the music under the beep
-            buf[2 * i] = (int16_t)(m > 32767 ? 32767 : m < -32768 ? -32768 : m);
-            buf[2 * i + 1] = buf[2 * i];
-        }
-    }
-}
-
-static void beepReady()  { beep(880, 60); beep(1320, 90, 80); }
-static void beepFail()   { beep(300, 400); }
-static void beepTick()   { beep(2000, 12); }
 
 struct Deck {
     bool   loaded    = false;
@@ -137,7 +108,7 @@ static void apply(Deck& d, const deck::Event& e)
     using deck::Type;
     if (e.type == Type::Browse) {
         const int n = library::tracks().size();
-        if (n) { d.selected = ((d.selected + e.delta) % n + n) % n; logSelection(d); beepTick(); }
+        if (n) { d.selected = ((d.selected + e.delta) % n + n) % n; logSelection(d); }
         return;
     }
     if (e.type == Type::Load && e.pressed && (e.deck == deck::DeckA || e.deck == deck::DeckAny)) {
@@ -219,20 +190,48 @@ static bool renderKeylock(Deck& d, float speed, int16_t* out)
     return true;
 }
 
+static void onUiEvent(const deck::Event& e) { xQueueSend(s_events, &e, 0); }
+static void onUiSelect(int index) { xQueueSend(s_select, &index, 0); }
+
+static void publishState(const Deck& d)
+{
+    ui::State u;
+    u.selected = d.selected;
+    u.loaded = d.loaded;
+    u.loading = d.loading;
+    u.playing = d.playing;
+    u.previewing = d.previewing;
+    u.keylock = d.keylock;
+    if (d.loaded) {
+        const float rate = s_stream.sampleRate();
+        u.pos = d.pos / rate;
+        u.len = s_stream.seconds();
+        u.cue = d.cue / rate;
+        strlcpy(u.name, s_stream.name(), sizeof u.name);
+    }
+    u.tempoPct = (d.tempo - 1.0f) * 100.0f;
+    ui::publish(u);
+}
+
 static void audioTask(void*)
 {
     static int16_t buf[kBlock * 2];
     Deck d;
     s_wsola.begin(2);
-    library::scan(sd::kMount);
     logSelection(d);
-    beepReady();  // booted
     uint32_t lastReport = 0;
     uint32_t underruns = 0;
+    uint32_t lastXruns = audio_out::xruns();
+    int64_t tWrote = esp_timer_get_time(), worstUs = 0, tXrunLog = 0;
 
     for (;;) {
         deck::Event e;
         while (xQueueReceive(s_events, &e, 0) == pdTRUE) apply(d, e);
+        int pick;
+        while (xQueueReceive(s_select, &pick, 0) == pdTRUE)
+            if (pick >= 0 && pick < (int)library::tracks().size() && pick != d.selected) {
+                d.selected = pick; logSelection(d);
+            }
         bool ok;
         if (xQueueReceive(s_loadDone, &ok, 0) == pdTRUE) {
             d.loading = false;
@@ -242,14 +241,12 @@ static void audioTask(void*)
             s_wsola.reset();
             if (!ok) {
                 ESP_LOGE(TAG, "load failed");
-                beepFail();
             } else {
                 if (s_stream.sampleRate() != kRate)
                     ESP_LOGW(TAG, "%u Hz track: varispeed resamples it; keylock will play at the wrong pitch",
                              (unsigned)s_stream.sampleRate());
                 ESP_LOGI(TAG, "ready: %s (%d:%02d) — PLAY", s_stream.name(),
                          (int)s_stream.seconds() / 60, (int)s_stream.seconds() % 60);
-                beepReady();
             }
         }
 
@@ -268,8 +265,22 @@ static void audioTask(void*)
         } else {
             memset(buf, 0, sizeof buf);
         }
-        mixBeeps(buf);
+        // Watch for the DAC running dry: report new xruns and the slowest
+        // block of work (everything but the blocking write) since last time.
+        const int64_t workUs = esp_timer_get_time() - tWrote;
+        if (workUs > worstUs) worstUs = workUs;
+        if (audio_out::xruns() != lastXruns && esp_timer_get_time() - tXrunLog > 1000000) {
+            ESP_LOGW(TAG, "DAC ran dry %u time(s); slowest block of work %.1f ms",
+                     (unsigned)(audio_out::xruns() - lastXruns), worstUs / 1000.0);
+            lastXruns = audio_out::xruns();
+            worstUs = 0;
+            tXrunLog = esp_timer_get_time();
+        }
         audio_out::write(buf, kBlock);
+        tWrote = esp_timer_get_time();
+
+        static int blocks;
+        if (++blocks % 4 == 0) publishState(d);  // ~43 Hz; the screen redraws at 20
 
         const uint32_t now = xTaskGetTickCount();
         if (d.playing && now - lastReport > pdMS_TO_TICKS(2000)) {
@@ -283,39 +294,19 @@ static void audioTask(void*)
     }
 }
 
-// Screen bring-up: colour bars with an orientation marker, then a dot wherever
-// the screen is touched (and the coordinates in the log).
-static void screenTestTask(void*)
-{
-    const uint16_t bars[] = {0xF800, 0x07E0, 0x001F, 0xFFFF};   // red green blue white
-    for (int i = 0; i < 4; i++) display::fill(i * 120, 0, 120, display::H, bars[i]);
-    display::fill(0, 0, 40, 40, 0xFFE0);                      // yellow square = top-left
-    ESP_LOGI("display", "test: bars left→right red green blue white, yellow square top-left");
-    bool was = false;
-    for (;;) {
-        int x, y;
-        const bool down = display::touch(&x, &y);
-        if (down) {
-            display::fill(x < 4 ? 0 : x - 4, y < 4 ? 0 : y - 4, 8, 8, 0x0000);
-            if (!was) ESP_LOGI("display", "touch %d,%d", x, y);
-        }
-        was = down;
-        vTaskDelay(pdMS_TO_TICKS(20));
-    }
-}
-
 extern "C" void app_main(void)
 {
     s_events   = xQueueCreate(64, sizeof(deck::Event));
     s_loadReq  = xQueueCreate(1, sizeof(int));
     s_loadDone = xQueueCreate(1, sizeof(bool));
+    s_select   = xQueueCreate(8, sizeof(int));
     if (!audio_out::begin(kRate, 70)) ESP_LOGE(TAG, "audio init failed");
     if (!sd::begin()) ESP_LOGE(TAG, "no SD card — nothing to play");
     s_stream.begin(12 * 1024 * 1024);
+    library::scan(sd::kMount);
     xTaskCreatePinnedToCore(loaderTask, "loader", 32768, nullptr, 4, nullptr, 0);
     xTaskCreatePinnedToCore(audioTask, "audio", 8192, nullptr, 10, nullptr, 1);
     usb_midi::begin(onMidiPacket);
-    if (display::begin()) xTaskCreatePinnedToCore(screenTestTask, "screen", 4096, nullptr, 2, nullptr, 0);
-    else ESP_LOGE(TAG, "display init failed");
+    ui::begin(library::tracks(), sd::kMount, onUiEvent, onUiSelect);
     ESP_LOGI(TAG, "browse with the knob, LOAD A to load, PLAY to play");
 }

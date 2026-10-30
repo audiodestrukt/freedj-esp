@@ -8,9 +8,8 @@
 #include "esp_lcd_panel_ops.h"
 #include "esp_lcd_st7796.h"
 #include "esp_lcd_touch_ft5x06.h"
+#include "esp_lvgl_port.h"
 #include "esp_log.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/semphr.h"
 #include "audio_out.h"
 #include "board.h"
 
@@ -19,9 +18,7 @@ namespace display {
 static const char* TAG = "display";
 static esp_lcd_panel_handle_t s_panel;
 static esp_lcd_touch_handle_t s_touch;
-static SemaphoreHandle_t s_done;       // SPI finished with s_strip
-static uint16_t* s_strip;               // DMA bounce buffer, W x kStripRows
-static constexpr int kStripRows = 40;
+static constexpr int kStripRows = 40;  // LVGL draw buffer height (x2, internal DMA RAM)
 static constexpr int kSpiHz = 20 * 1000 * 1000;  // conservative for jumper wires
 
 static void probeI2c()
@@ -62,22 +59,8 @@ static void beginTouch()
     ESP_LOGI(TAG, "touch up");
 }
 
-static bool onDone(esp_lcd_panel_io_handle_t, esp_lcd_panel_io_event_data_t*, void*)
+lv_display_t* begin()
 {
-    BaseType_t woke = pdFALSE;
-    xSemaphoreGiveFromISR(s_done, &woke);
-    return woke == pdTRUE;
-}
-
-static void draw(int x, int y, int x2, int y2)
-{
-    esp_lcd_panel_draw_bitmap(s_panel, x, y, x2, y2, s_strip);
-    xSemaphoreTake(s_done, portMAX_DELAY);
-}
-
-bool begin()
-{
-    s_done = xSemaphoreCreateBinary();
     gpio_config_t bl = {};
     bl.pin_bit_mask = 1ULL << board::LCD_BL;
     bl.mode = GPIO_MODE_OUTPUT;
@@ -91,7 +74,7 @@ bool begin()
     bus.quadwp_io_num = -1;
     bus.quadhd_io_num = -1;
     bus.max_transfer_sz = W * kStripRows * 2;
-    if (spi_bus_initialize(SPI2_HOST, &bus, SPI_DMA_CH_AUTO) != ESP_OK) return false;
+    if (spi_bus_initialize(SPI2_HOST, &bus, SPI_DMA_CH_AUTO) != ESP_OK) return nullptr;
 
     esp_lcd_panel_io_handle_t io = nullptr;
     esp_lcd_panel_io_spi_config_t ioc = {};
@@ -102,64 +85,55 @@ bool begin()
     ioc.trans_queue_depth = 4;
     ioc.lcd_cmd_bits = 8;
     ioc.lcd_param_bits = 8;
-    ioc.on_color_trans_done = onDone;
-    if (esp_lcd_new_panel_io_spi((esp_lcd_spi_bus_handle_t)SPI2_HOST, &ioc, &io) != ESP_OK) return false;
+    if (esp_lcd_new_panel_io_spi((esp_lcd_spi_bus_handle_t)SPI2_HOST, &ioc, &io) != ESP_OK) return nullptr;
 
     esp_lcd_panel_dev_config_t pc = {};
     pc.reset_gpio_num = board::LCD_RST;
     pc.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_BGR;
     pc.bits_per_pixel = 16;
-    if (esp_lcd_new_panel_st7796(io, &pc, &s_panel) != ESP_OK) return false;
+    if (esp_lcd_new_panel_st7796(io, &pc, &s_panel) != ESP_OK) return nullptr;
     esp_lcd_panel_reset(s_panel);
     esp_lcd_panel_init(s_panel);
-    esp_lcd_panel_swap_xy(s_panel, true);       // landscape
-    esp_lcd_panel_mirror(s_panel, true, true);
     esp_lcd_panel_invert_color(s_panel, false);
     esp_lcd_panel_disp_on_off(s_panel, true);
-
-    s_strip = (uint16_t*)heap_caps_malloc(W * kStripRows * 2, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);
-    if (!s_strip) return false;
-    fill(0, 0, W, H, 0x0000);
-    gpio_set_level(board::LCD_BL, 1);
     ESP_LOGI(TAG, "ST7796S up: %dx%d, SPI %d MHz", W, H, kSpiHz / 1000000);
 
     probeI2c();
     beginTouch();
-    return true;
-}
 
-// Panel wants big-endian RGB565; strips are copied through the DMA buffer.
-void blit(int x, int y, int w, int h, const uint16_t* px)
-{
-    const int rows = kStripRows * W / w;
-    for (int r = 0; r < h; r += rows) {
-        const int n = h - r < rows ? h - r : rows;
-        for (int i = 0; i < n * w; i++) { uint16_t c = px[r * w + i]; s_strip[i] = (c >> 8) | (c << 8); }
-        draw(x, y + r, x + w, y + r + n);
+    lvgl_port_cfg_t lc = {};
+    lc.task_priority = 3;           // below the loader (4) on core 0
+    lc.task_stack = 8192;
+    lc.task_affinity = 0;           // keep LVGL off the audio core
+    lc.task_max_sleep_ms = 500;
+    lc.task_stack_caps = MALLOC_CAP_INTERNAL | MALLOC_CAP_DEFAULT;
+    lc.timer_period_ms = 5;
+    if (lvgl_port_init(&lc) != ESP_OK) return nullptr;
+
+    lvgl_port_display_cfg_t dc = {};
+    dc.io_handle = io;
+    dc.panel_handle = s_panel;
+    dc.buffer_size = W * kStripRows;
+    dc.double_buffer = true;
+    dc.hres = W;
+    dc.vres = H;
+    dc.rotation.swap_xy = true;     // landscape, as verified with the test bars
+    dc.rotation.mirror_x = true;
+    dc.rotation.mirror_y = true;
+    dc.color_format = LV_COLOR_FORMAT_RGB565;
+    dc.flags.buff_dma = 1;
+    dc.flags.swap_bytes = 1;        // panel takes big-endian RGB565
+    lv_display_t* disp = lvgl_port_add_disp(&dc);
+    if (!disp) return nullptr;
+
+    if (s_touch) {
+        lvgl_port_touch_cfg_t tc = {};
+        tc.disp = disp;
+        tc.handle = s_touch;
+        lvgl_port_add_touch(&tc);
     }
-}
-
-void fill(int x, int y, int w, int h, uint16_t c)
-{
-    const uint16_t be = (c >> 8) | (c << 8);
-    const int rows = kStripRows * W / w;
-    for (int i = 0; i < w * (rows < h ? rows : h); i++) s_strip[i] = be;
-    for (int r = 0; r < h; r += rows) {
-        const int n = h - r < rows ? h - r : rows;
-        draw(x, y + r, x + w, y + r + n);
-    }
-}
-
-bool touch(int* x, int* y)
-{
-    if (!s_touch) return false;
-    esp_lcd_touch_read_data(s_touch);
-    esp_lcd_touch_point_data_t p = {};
-    uint8_t cnt = 0;
-    if (esp_lcd_touch_get_data(s_touch, &p, &cnt, 1) != ESP_OK || !cnt) return false;
-    *x = p.x < W ? p.x : W - 1;
-    *y = p.y < H ? p.y : H - 1;
-    return true;
+    gpio_set_level(board::LCD_BL, 1);
+    return disp;
 }
 
 } // namespace display

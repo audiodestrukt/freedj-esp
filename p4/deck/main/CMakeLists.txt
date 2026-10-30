@@ -1,6 +1,6 @@
 # Deck event types and the DJ2Go decoder are shared with the A1S firmware (../../../src).
 idf_component_register(
-    SRCS "main.cpp" "usb_midi.cpp" "audio_out.cpp" "sd.cpp" "library.cpp" "stream.cpp" "display.cpp" "mp3_impl.c"
+    SRCS "main.cpp" "usb_midi.cpp" "audio_out.cpp" "sd.cpp" "library.cpp" "stream.cpp" "display.cpp" "ui.cpp" "mp3_impl.c"
          "../../../src/wsola.cpp"
          "../../../src/dj2go.cpp" "../../../src/deck_event.cpp"
     INCLUDE_DIRS "." "../../../src" "third_party/minimp3"
