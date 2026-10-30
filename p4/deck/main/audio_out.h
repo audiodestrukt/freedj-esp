@@ -10,4 +10,6 @@ bool begin(uint32_t sampleRate, int codecVolume /* 0..100 */);
 void write(const int16_t* interleavedLR, size_t frames);  // blocks on DMA
 // The board's internal I2C bus (GPIO 7/8), shared with the screen's touch chip.
 i2c_master_bus_handle_t i2cBus();
+// Times the DAC ran dry and played silence (audio task was late).
+uint32_t xruns();
 } // namespace audio_out

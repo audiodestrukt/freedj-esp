@@ -12,7 +12,17 @@ static const char* TAG = "audio";
 static esp_codec_dev_handle_t s_codec;
 static i2c_master_bus_handle_t s_bus;
 
+static volatile uint32_t s_xruns;
+
 i2c_master_bus_handle_t i2cBus() { return s_bus; }
+uint32_t xruns() { return s_xruns; }
+
+// The DMA ran out of queued audio and played silence (auto_clear).
+static bool IRAM_ATTR onSendOverflow(i2s_chan_handle_t, i2s_event_data_t*, void*)
+{
+    s_xruns = s_xruns + 1;
+    return false;
+}
 
 bool begin(uint32_t rate, int volume)
 {
@@ -31,6 +41,9 @@ bool begin(uint32_t rate, int volume)
     sc.gpio_cfg.dout = board::I2S_DOUT;
     sc.gpio_cfg.din  = I2S_GPIO_UNUSED;
     ESP_ERROR_CHECK(i2s_channel_init_std_mode(tx, &sc));
+    i2s_event_callbacks_t cbs = {};
+    cbs.on_send_q_ovf = onSendOverflow;
+    ESP_ERROR_CHECK(i2s_channel_register_event_callback(tx, &cbs, nullptr));
     ESP_ERROR_CHECK(i2s_channel_enable(tx));
 
     i2c_master_bus_config_t bc = {};
