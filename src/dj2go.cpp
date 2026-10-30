@@ -96,8 +96,14 @@ int Decoder::decode(uint8_t status, uint8_t d1, uint8_t d2, Event* out, int max)
                 e.delta = relative(d2);
                 if (m.deck != DeckAny && shiftHeld_[m.deck]) shiftConsumed_[m.deck] = true;
             } else {
-                float p = d2 / 127.0f;
-                e.position = m.invert ? 1.0f - p : p;
+                // Tempo faders have a centre detent that reads 63 or 64
+                // depending on the unit; both mean exactly 0 %.
+                if (m.type == Type::TempoFader && (d2 == 63 || d2 == 64)) {
+                    e.position = 0.5f;
+                } else {
+                    float p = d2 / 127.0f;
+                    e.position = m.invert ? 1.0f - p : p;
+                }
             }
             out[0] = e;
             return 1;

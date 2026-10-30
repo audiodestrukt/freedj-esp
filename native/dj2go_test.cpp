@@ -24,7 +24,10 @@ int main()
     // Startup dump captured on the P4: pitch A centre, crossfader full right.
     CHECK(run(d, 0xB0, 0x0D, 0x40, e) == 1);
     CHECK(e[0].type == Type::TempoFader && e[0].deck == deck::DeckA);
-    CHECK(std::fabs(e[0].position - (1.0f - 64 / 127.0f)) < 1e-6f);
+    CHECK(e[0].position == 0.5f);                      // centre detent
+    CHECK(run(d, 0xB0, 0x0E, 0x3F, e) == 1 && e[0].position == 0.5f);  // B centres at 63
+    CHECK(run(d, 0xB0, 0x0D, 0x00, e) == 1 && e[0].position == 1.0f);  // inverted
+    CHECK(run(d, 0xB0, 0x0D, 0x41, e) == 1 && std::fabs(e[0].position - (1.0f - 65 / 127.0f)) < 1e-6f);
     CHECK(run(d, 0xB0, 0x0A, 0x7F, e) == 1);
     CHECK(e[0].type == Type::Crossfader && e[0].deck == deck::DeckAny && e[0].position == 1.0f);
     CHECK(run(d, 0xB0, 0x0E, 0x7F, e) == 1);
