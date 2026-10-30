@@ -10,6 +10,9 @@ namespace audio_out {
 
 static const char* TAG = "audio";
 static esp_codec_dev_handle_t s_codec;
+static i2c_master_bus_handle_t s_bus;
+
+i2c_master_bus_handle_t i2cBus() { return s_bus; }
 
 bool begin(uint32_t rate, int volume)
 {
@@ -30,7 +33,6 @@ bool begin(uint32_t rate, int volume)
     ESP_ERROR_CHECK(i2s_channel_init_std_mode(tx, &sc));
     ESP_ERROR_CHECK(i2s_channel_enable(tx));
 
-    i2c_master_bus_handle_t bus = nullptr;
     i2c_master_bus_config_t bc = {};
     bc.i2c_port = I2C_NUM_0;
     bc.sda_io_num = board::I2C_SDA;
@@ -38,12 +40,12 @@ bool begin(uint32_t rate, int volume)
     bc.clk_source = I2C_CLK_SRC_DEFAULT;
     bc.glitch_ignore_cnt = 7;
     bc.flags.enable_internal_pullup = true;
-    ESP_ERROR_CHECK(i2c_new_master_bus(&bc, &bus));
+    ESP_ERROR_CHECK(i2c_new_master_bus(&bc, &s_bus));
 
     audio_codec_i2c_cfg_t ic = {};
     ic.port = I2C_NUM_0;
     ic.addr = ES8311_CODEC_DEFAULT_ADDR;
-    ic.bus_handle = bus;
+    ic.bus_handle = s_bus;
     const audio_codec_ctrl_if_t* ctrl = audio_codec_new_i2c_ctrl(&ic);
 
     audio_codec_i2s_cfg_t dc = {};

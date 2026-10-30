@@ -24,6 +24,7 @@
 
 #include "audio_out.h"
 #include "deck_event.h"
+#include "display.h"
 #include "dj2go.h"
 #include "library.h"
 #include "sd.h"
@@ -282,6 +283,27 @@ static void audioTask(void*)
     }
 }
 
+// Screen bring-up: colour bars with an orientation marker, then a dot wherever
+// the screen is touched (and the coordinates in the log).
+static void screenTestTask(void*)
+{
+    const uint16_t bars[] = {0xF800, 0x07E0, 0x001F, 0xFFFF};   // red green blue white
+    for (int i = 0; i < 4; i++) display::fill(i * 120, 0, 120, display::H, bars[i]);
+    display::fill(0, 0, 40, 40, 0xFFE0);                      // yellow square = top-left
+    ESP_LOGI("display", "test: bars left→right red green blue white, yellow square top-left");
+    bool was = false;
+    for (;;) {
+        int x, y;
+        const bool down = display::touch(&x, &y);
+        if (down) {
+            display::fill(x < 4 ? 0 : x - 4, y < 4 ? 0 : y - 4, 8, 8, 0x0000);
+            if (!was) ESP_LOGI("display", "touch %d,%d", x, y);
+        }
+        was = down;
+        vTaskDelay(pdMS_TO_TICKS(20));
+    }
+}
+
 extern "C" void app_main(void)
 {
     s_events   = xQueueCreate(64, sizeof(deck::Event));
@@ -293,5 +315,7 @@ extern "C" void app_main(void)
     xTaskCreatePinnedToCore(loaderTask, "loader", 32768, nullptr, 4, nullptr, 0);
     xTaskCreatePinnedToCore(audioTask, "audio", 8192, nullptr, 10, nullptr, 1);
     usb_midi::begin(onMidiPacket);
+    if (display::begin()) xTaskCreatePinnedToCore(screenTestTask, "screen", 4096, nullptr, 2, nullptr, 0);
+    else ESP_LOGE(TAG, "display init failed");
     ESP_LOGI(TAG, "browse with the knob, LOAD A to load, PLAY to play");
 }
