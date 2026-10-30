@@ -287,11 +287,50 @@ struct Report {
 };
 static QueueHandle_t s_report;   // length 1, overwritten
 
+// Top CPU users since the last call, as "name 12% name 8% ...".
+static void topTasks(char* out, size_t n, double wallUs)
+{
+    struct Prev { TaskHandle_t h; uint32_t t; };
+    static Prev prev[32];
+    static int nPrev;
+    static TaskStatus_t st[32];   // static: too big for the stack
+    uint32_t total;
+    const int count = uxTaskGetSystemState(st, 32, &total);
+    struct Use { const char* name; uint32_t dt; BaseType_t core; };
+    static Use use[32];
+    for (int i = 0; i < count; i++) {
+        uint32_t before = 0;
+        for (int j = 0; j < nPrev; j++) if (prev[j].h == st[i].xHandle) { before = prev[j].t; break; }
+        use[i] = {st[i].pcTaskName, st[i].ulRunTimeCounter - before, st[i].xCoreID};
+    }
+    for (int i = 0; i < count; i++) prev[i] = {st[i].xHandle, st[i].ulRunTimeCounter};
+    nPrev = count;
+    for (int i = 0; i < count; i++)          // sort by usage, descending
+        for (int j = i + 1; j < count; j++)
+            if (use[j].dt > use[i].dt) { Use t = use[i]; use[i] = use[j]; use[j] = t; }
+    int len = 0;
+    out[0] = 0;
+    for (int i = 0; i < count && i < 7 && len < (int)n; i++) {
+        const char* core = use[i].core == 0 ? "/0" : use[i].core == 1 ? "/1" : "";
+        len += snprintf(out + len, n - len, "%s%s %.0f%%  ", use[i].name, core, 100.0 * use[i].dt / wallUs);
+    }
+}
+
 static void reporterTask(void*)
 {
     Report r;
+    uint32_t idle0 = ulTaskGetIdleRunTimeCounterForCore(0), idle1 = ulTaskGetIdleRunTimeCounterForCore(1);
+    int64_t tIdle = esp_timer_get_time();
     for (;;) {
         xQueueReceive(s_report, &r, portMAX_DELAY);
+        // CPU load per core = 1 - idle time / wall time since the last report.
+        // Core 0 is the shared one (UI, SD, USB, and later the network).
+        const uint32_t i0 = ulTaskGetIdleRunTimeCounterForCore(0), i1 = ulTaskGetIdleRunTimeCounterForCore(1);
+        const int64_t now = esp_timer_get_time();
+        const double wall = (double)(now - tIdle);
+        const double load0 = 100.0 * (1.0 - (uint32_t)(i0 - idle0) / wall);
+        const double load1 = 100.0 * (1.0 - (uint32_t)(i1 - idle1) / wall);
+        idle0 = i0; idle1 = i1; tIdle = now;
         if (!r.playing) continue;
         const double realtime = 100.0 * r.blocks * kBlock / ((r.t1 - r.t0) * (kRate / 1e6));
         ESP_LOGI(TAG, "%s  %d:%04.1f / %d:%04.1f  %+.2f %%%s  buffered %.0f s  underruns %u",
@@ -302,6 +341,10 @@ static void reporterTask(void*)
                  "min slack %.1f ms  clicks %u (worst %d)",
                  realtime, r.blocks ? r.workSumUs / 1000.0 / r.blocks : 0.0, r.workMaxUs / 1000.0,
                  kBlock * 1000.0 / kRate, r.minSlackUs / 1000.0, (unsigned)r.clicks, r.clickWorst);
+        static char top[256];
+        topTasks(top, sizeof top, wall);
+        ESP_LOGI(TAG, "  cpu: core0 %.0f %%  core1 %.0f %%  (%s)", load0, load1, ui::waveStats());
+        ESP_LOGI(TAG, "  top: %s", top);
     }
 }
 
@@ -435,7 +478,7 @@ extern "C" void app_main(void)
     xSemaphoreTake(s_audioUp, portMAX_DELAY);  // the screen's touch shares the codec's I2C bus
     usb_midi::begin(onMidiPacket);
     ui::begin(library::tracks(), sd::kMount, s_stream, onUiEvent, onUiSelect);
-    xTaskCreatePinnedToCore(reporterTask, "report", 4096, nullptr, 1, nullptr, 0);
+    xTaskCreatePinnedToCore(reporterTask, "report", 6144, nullptr, 1, nullptr, 0);
     xTaskCreatePinnedToCore(serialKeysTask, "keys", 3072, nullptr, 2, nullptr, 0);
     ESP_LOGI(TAG, "browse with the knob, LOAD A to load, PLAY to play");
 }

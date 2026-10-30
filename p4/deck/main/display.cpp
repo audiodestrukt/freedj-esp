@@ -10,6 +10,8 @@
 #include "esp_lcd_touch_ft5x06.h"
 #include "esp_lvgl_port.h"
 #include "esp_log.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 #include "audio_out.h"
 #include "board.h"
 
@@ -19,7 +21,26 @@ static const char* TAG = "display";
 static esp_lcd_panel_handle_t s_panel;
 static esp_lcd_touch_handle_t s_touch;
 static constexpr int kStripRows = 40;  // LVGL draw buffer height (x2, internal DMA RAM)
-static constexpr int kSpiHz = 20 * 1000 * 1000;  // conservative for jumper wires
+static constexpr int kSpiHz = 40 * 1000 * 1000;  // fine on ~15 cm jumpers; drop to 20 if the image corrupts
+
+// LVGL's default wait for a finished SPI transfer is `while (flushing);`,
+// which kept core 0 at ~100 % while the waveform scrolled. Instead the
+// LVGL task sleeps on this semaphore and the transfer-done ISR wakes it,
+// leaving core 0 free for the loader, USB and (later) the network.
+static SemaphoreHandle_t s_flushDone;
+
+static bool IRAM_ATTR onFlushDone(esp_lcd_panel_io_handle_t, esp_lcd_panel_io_event_data_t*, void*)
+{
+    BaseType_t woke = pdFALSE;
+    xSemaphoreGiveFromISR(s_flushDone, &woke);
+    return woke == pdTRUE;
+}
+
+static void waitFlush(lv_display_t*)
+{
+    // Called once per flush while it's in flight; LVGL clears `flushing`.
+    if (xSemaphoreTake(s_flushDone, pdMS_TO_TICKS(200)) != pdTRUE) ESP_LOGW(TAG, "flush timeout");
+}
 
 static void probeI2c()
 {
@@ -48,7 +69,11 @@ static void beginTouch()
     tc.x_max = H;               // native portrait coordinates
     tc.y_max = W;
     tc.rst_gpio_num = board::TP_RST;
-    tc.int_gpio_num = board::TP_INT;
+    // INT is wired but not used: LVGL polls touch every refresh anyway, and on
+    // jumper wires the SPI clock couples into INT. Each false edge woke LVGL
+    // through an event group (handled by the FreeRTOS timer task), which cost
+    // ~25 % of a core while the waveform scrolled.
+    tc.int_gpio_num = GPIO_NUM_NC;
     tc.flags.swap_xy = 1;       // landscape; mirror runs before the swap, so
     tc.flags.mirror_y = 1;      // raw y (screen x) is flipped to match the panel
     if (esp_lcd_touch_new_i2c_ft5x06(io, &tc, &s_touch) != ESP_OK) {
@@ -125,6 +150,14 @@ lv_display_t* begin()
     dc.flags.swap_bytes = 1;        // panel takes big-endian RGB565
     lv_display_t* disp = lvgl_port_add_disp(&dc);
     if (!disp) return nullptr;
+    // Replace the port's busy-wait flush handshake with a sleeping one.
+    s_flushDone = xSemaphoreCreateBinary();
+    lvgl_port_lock(0);
+    esp_lcd_panel_io_callbacks_t cbs = {};
+    cbs.on_color_trans_done = onFlushDone;
+    esp_lcd_panel_io_register_event_callbacks(io, &cbs, nullptr);
+    lv_display_set_flush_wait_cb(disp, waitFlush);
+    lvgl_port_unlock();
 
     if (s_touch) {
         lvgl_port_touch_cfg_t tc = {};

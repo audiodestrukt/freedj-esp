@@ -259,12 +259,20 @@ static void drawWave(const State& s)
     if (s_waveTest == 0) lv_obj_invalidate(s_wave);
 
     s_waveFrames++;
-    const uint32_t now = lv_tick_get();
-    if (now - s_waveT0 >= 5000) {
-        ESP_LOGI(TAG, "waveform %.1f fps", s_waveFrames * 1000.0f / (now - s_waveT0));
+}
+
+static char s_stats[32] = "list";
+
+const char* waveStats()
+{
+    if (!s_waveShown) return "list";
+    const uint32_t now = lv_tick_get(), dt = now - s_waveT0;
+    if (dt >= 1000) {
+        snprintf(s_stats, sizeof s_stats, "waveform %.1f fps", s_waveFrames * 1000.0f / dt);
         s_waveFrames = 0;
         s_waveT0 = now;
     }
+    return s_stats;
 }
 
 // Runs as fast as LVGL can flush; only redraws while the waveform is up.

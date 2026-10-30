@@ -42,4 +42,7 @@ void publish(const State& s);
 // screen, 2 don't draw it at all. Returns the new mode.
 int cycleWaveTestMode();
 
+// Short text for the status log, e.g. "waveform 24.1 fps" or "list".
+const char* waveStats();
+
 } // namespace ui
