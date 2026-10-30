@@ -5,6 +5,10 @@ with Serato timecode vinyl control. Plays MP3/WAV from an SD card with
 variable-speed playback (pitched or pitch-preserving), OLED file browser, and
 cue points.
 
+**ESP32-P4 deck:** a CDJ-style player with a touch screen, scrolling waveform
+and DJ2Go control lives in [`p4/deck`](p4/deck/README.md). It shares the
+deck events, DJ2Go decoder and WSOLA with this firmware.
+
 The long-term target is a self-contained turntable deck: drop a control
 record on the platter and the ESP32 decodes position and speed from the
 timecode, playing the selected MP3 in perfect sync with the vinyl.
