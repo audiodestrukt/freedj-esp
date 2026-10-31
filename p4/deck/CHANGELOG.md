@@ -11,6 +11,18 @@ playing (see the README's *Audio health* section). Unless noted, it's
 the panel**, so they read high. From 2026-10-31 on, "screen fps" counts
 frames LVGL actually rendered and flushed.
 
+## 2026-10-31: scratch when paused, waveform stays up, feel parameters
+
+- **Paused jog scratches.** The jog moves a target, and the playhead chases
+  it over about 23 ms. The audio follows the hand at whatever speed and
+  direction that takes, and glides to a stop. Varispeed, capped at 8×.
+  Playing, the jog still nudges.
+- **The waveform stays on screen while paused.** The list comes back only
+  for a few seconds after browsing.
+- **Feel parameters** gathered in one block in `main.cpp`, with the nudge
+  numbers named, and documented in the README with what to compare each one
+  against. Serial `J` counts jog ticks per revolution for calibration.
+
 ## 2026-10-31: tempo master, beat packets, remote sync, mixer (XDJ parity step 2, first half)
 
 - **Beat packets** go out on each of our beats as they're heard. BPM is

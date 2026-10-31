@@ -66,7 +66,7 @@ After changing `sdkconfig.defaults`, delete `sdkconfig` so the defaults are appl
   - While playing: jump back to the cue point and pause.
   - While paused: set the cue point here, play while held, return on release.
 - **Pitch fader:** ±8 %.
-- **Jog:** nudge while playing, scrub while paused.
+- **Jog:** nudge while playing; **scratch while paused** (the audio follows the wheel, both directions). See *Feel parameters*.
 - **SYNC:** beat sync to the Pro DJ Link tempo master on/off. Needs a track with a rekordbox beat grid.
 - **Channel volume:** level.
 
@@ -77,6 +77,7 @@ After changing `sdkconfig.defaults`, delete `sdkconfig` so the defaults are appl
 - Tap the **SYNC** and **KEY** chips in the header for sync and keylock.
 - Touch or drag the **overview** strip under the time to jump there (needle search).
 - Tap the **phase meter** to switch between the beat display and the alignment view.
+- The **waveform stays up while paused**; the list comes back for a few seconds while browsing.
 - **PADS** opens the performance pads over the meter and waveform:
   - row 1: hot cues A–H (tap to set or jump, long-press to delete; momentary in slip)
   - row 2: CALL ◀ ▶ through the memory cues, MEM / DEL memory cue, loop /2 and x2, RELOOP/EXIT, SLIP
@@ -111,6 +112,7 @@ After changing `sdkconfig.defaults`, delete `sdkconfig` so the defaults are appl
 | `m` / `M` | memory cue add / delete |
 | `z` / `r` | slip / reverse |
 | `Y` | become tempo master |
+| `J` | jog calibration: ticks since the last `J` (see *Feel parameters*) |
 | `w` | cycle the waveform test mode: normal → drawn but not sent to the screen → off |
 
 [`tools/p4_serial.py`](../../tools/p4_serial.py) holds the port open without resetting the board, logs to a file, and sends anything appended to `<log>.cmd`. A whole experiment can be scripted, for example:
@@ -193,6 +195,34 @@ Options on this module:
 2. **Pace the frame rate.** Lock the waveform to 60 or 30 fps so any tear stays in a consistent place. Cheaper, but less effective.
 
 Neither is done yet. The MSP4021 is a stand-in. The intended MIPI-DSI screen is driven with real video timing, and ESP-IDF's DPI panel driver provides vsync callbacks, which fixes tearing properly.
+
+## Feel parameters
+
+How the deck responds to your hands. All in one block at the top of `main/main.cpp` ("Feel"), except the two screen ones, which are in `main/ui.cpp`. These are first guesses, tuned on the DJ2Go. Refine them by comparing with other hardware, and note changes in the changelog.
+
+| Parameter | Value | What it does | Compare against |
+|---|---|---|---|
+| `kScrubFrames` | 441 (10 ms per tick) | How far one jog tick moves the track when paused (scratch). Together with the jog's ticks per revolution, this sets **track per revolution**. | A 33⅓ rpm record moves about **1.8 s per revolution**, and Pioneer's vinyl mode is modelled on that. To match it: measure ticks per revolution (below), then set `kScrubFrames = 1.8 × 44100 / ticks`. |
+| `kScratchChase` | 1024 frames (23 ms) | How quickly the playhead catches up with the jog. Lower is tighter but rougher; higher is smoother but laggier. | The lag between hand and sound on a CDJ in vinyl mode. Turntables have none, so lower is more vinyl-like if it stays smooth. |
+| `kScratchMaxSpeed` | 8× | Fastest scratch speed, either direction. | Fast scratches past ~4× sound like noise on most decks. Mostly a safety cap. |
+| `kNudgePerTick` | 0.4 % per tick | Pitch bend per jog tick while playing. | Nudging a CDJ's jog edge. Too high and alignment overshoots; too low and you need lots of wheel. |
+| `kNudgeMax` | ±30 % | The most nudges can add up to. | |
+| `kNudgeDecay` | 0.97 per block | How fast a nudge fades once you stop turning (per 5.8 ms block; about 50 % in 130 ms). | How long a CDJ's speed takes to settle after a nudge. |
+| `kRanges` | ±6 / ±10 / ±16 % / WIDE | Pitch fader ranges. Tap the range label to cycle. | The XDJ-1000's ranges (WIDE = ±100 %). |
+| `kSyncGain` | 0.3 | How much of the phase error SYNC corrects. | Not a hand feel, but it decides how sync "feels": higher locks faster but can wobble. |
+| `kSyncMaxBend` | 3 % | The most SYNC bends the tempo while correcting. | Audible as a slight pitch bend on big corrections; CDJs bend similarly. |
+| `kListLingerMs` (ui.cpp) | 3 s | How long the track list stays after browsing, before the waveform returns. | |
+| `kBinsPerPx` (ui.cpp) | 4 (≈5.6 s across) | Waveform zoom. | The XDJ's default zoom. |
+
+**Measuring the jog (serial `J`).** Press `J` to zero the tick counter, turn the jog exactly one revolution, then press `J` again. The log shows the ticks for that revolution and how much track they moved at the current setting:
+
+```
+deck: jog: 128 ticks since last J; at 441 frames/tick that's 1.28 s of track
+```
+
+Do the same on other controllers (in their own software) to compare, and set `kScrubFrames` for the track-per-revolution you want.
+
+The DJ2Go's jog has no touch sensor, so the deck can't tell a hand on the platter from a nudge. Paused, the jog scratches; playing, it nudges. True vinyl mode, scratching mid-play, needs a touch-sensitive jog, so it waits for the I2C control panel.
 
 ## Resource budget
 
