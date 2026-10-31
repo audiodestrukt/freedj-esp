@@ -66,7 +66,14 @@ static QueueHandle_t s_select;      // int track index, screen → audio task
 static TrackStream s_stream;        // deck A
 static dj2go::Decoder s_decoder;
 static wsola::Wsola s_wsola;        // ~40 KB, keep out of task stacks
-static rekordbox::Grid s_grid;      // loaded track's beat grid; written by the loader only while unloaded
+// Beat grid of the loaded track, double-buffered because the screen draws
+// from it too: the loader (or the test hook) fills the spare one and the audio
+// task swaps it in, so nobody ever reads a grid that is being rewritten.
+static rekordbox::Grid s_gridBuf[2];
+static rekordbox::Grid* s_gridLive = &s_gridBuf[0];
+static rekordbox::Grid& grid() { return *s_gridLive; }
+static rekordbox::Grid& spareGrid() { return s_gridLive == &s_gridBuf[0] ? s_gridBuf[1] : s_gridBuf[0]; }
+static void swapGrid() { s_gridLive = &spareGrid(); ui::setGrid(s_gridLive); }
 static volatile int s_syncOffsetMs; // serial [ / ]: trim our phase against the master
 static volatile int s_fakeGridBpm;  // serial g: test grid for a track without rekordbox analysis
 
@@ -86,9 +93,9 @@ static void loaderTask(void*)
         if (xQueueReceive(s_loadReq, &index, 0) == pdTRUE) {
             const auto& list = library::tracks();
             bool ok = index >= 0 && index < (int)list.size() && s_stream.open(list[index].c_str());
-            s_grid.beats.clear();
+            spareGrid().beats.clear();
             if (ok && !library::anlz(index).empty())
-                rekordbox::readAnlz(library::anlz(index).c_str(), nullptr, &s_grid.beats);
+                rekordbox::readAnlz(library::anlz(index).c_str(), nullptr, &spareGrid().beats);
             // Prefill ~1 s before handing over so PLAY starts clean.
             while (ok && s_stream.buffered() < 44100 && s_stream.service()) {}
             xQueueSend(s_loadDone, &ok, portMAX_DELAY);
@@ -252,18 +259,20 @@ static bool renderKeylock(Deck& d, float speed, int16_t* out)
 // minus the audio still queued in the DMA (and in WSOLA, in keylock).
 static double s_wsolaLag;   // smoothed: the raw estimate is a sawtooth (input arrives in 512-frame chunks)
 
+// Once per block. Approximate: input WSOLA holds (its 4096-frame buffer
+// minus free space) beyond the middle of the frame it is windowing, plus
+// output it has made but not handed over. Trim the rest with [ ].
+static void stepWsolaLag(float speed)
+{
+    const int held = 4096 - s_wsola.inputCapacity() - wsola::Wsola::FRAME_N / 2;
+    const double raw = (held > 0 ? held : 0) + s_wsola.outputAvailable() * speed;
+    s_wsolaLag += (raw - s_wsolaLag) * 0.02;    // ~50 blocks, ~0.3 s
+}
+
 static double heardMs(const Deck& d, float speed)
 {
     double lagOut = kOutLatencyFrames * speed;               // output-rate frames, in track time
-    if (d.keylock) {
-        // Approximate: input WSOLA holds (its 4096-frame buffer minus free
-        // space) beyond the middle of the frame it is windowing, plus
-        // output it has made but not handed over. Trim the rest with [ ].
-        const int held = 4096 - s_wsola.inputCapacity() - wsola::Wsola::FRAME_N / 2;
-        const double raw = (held > 0 ? held : 0) + s_wsola.outputAvailable() * speed;
-        s_wsolaLag += (raw - s_wsolaLag) * 0.02;    // ~50 blocks, ~0.3 s
-        lagOut = kOutLatencyFrames * speed + s_wsolaLag;
-    }
+    if (d.keylock) lagOut += s_wsolaLag;
     const double fileRate = s_stream.sampleRate();
     const double frames = d.pos - lagOut * fileRate / kRate;
     return frames * 1000.0 / fileRate + s_syncOffsetMs;
@@ -350,10 +359,28 @@ static void publishState(const Deck& d, float speed)
     }
     u.tempoPct = (speed - 1.0f) * 100.0f;
     u.sync = d.sync;
-    u.hasGrid = d.loaded && !s_grid.empty();
-    if (u.hasGrid) u.bpm = s_grid.bpmAt(d.pos * 1000.0 / s_stream.sampleRate()) * speed;
+    u.hasGrid = d.loaded && !grid().empty();
+    if (u.hasGrid) u.bpm = grid().bpmAt(d.pos * 1000.0 / s_stream.sampleRate()) * speed;
     u.masterPlayer = s_master.present ? s_master.player : 0;
     u.masterBpm = s_master.bpm;
+    // Phase meter: where we are in our beat/bar/phrase as heard, and where the
+    // master is in its beat.
+    if (u.hasGrid) {
+        const double b = grid().beatAt(heardMs(d, speed));
+        const long k = (long)floor(b);
+        u.beatPhase = (float)(b - k);
+        u.beatInBar = (uint8_t)grid().inBarAt(k);
+        // Bars counted from the grid's first downbeat.
+        const long firstDown = (5 - grid().inBarAt(0)) % 4;     // index of the first beat 1
+        const long bar = (long)floor((k - firstDown) / 4.0);
+        u.barInPhrase = (uint8_t)(((bar % 4) + 4) % 4 + 1);
+    }
+    if (s_master.present && s_master.beating) {
+        const double since = (esp_timer_get_time() - s_master.beatUs) * (double)s_master.bpm / 60e6;
+        const long k = (long)floor(since);
+        u.masterPhase = (float)(since - k);
+        u.masterInBar = (uint8_t)((s_master.beatInBar - 1 + k) % 4 + 1);
+    }
     ui::publish(u);
 }
 
@@ -431,6 +458,11 @@ static void reporterTask(void*)
         static char top[256];
         topTasks(top, sizeof top, wall);
         ESP_LOGI(TAG, "  cpu: core0 %.0f %%  core1 %.0f %%  (%s)", load0, load1, ui::waveStats());
+        ESP_LOGI(TAG, "  mem: internal %u KB free (lowest %u KB, largest block %u KB), PSRAM %u KB free",
+                 (unsigned)(heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024),
+                 (unsigned)(heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL) / 1024),
+                 (unsigned)(heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL) / 1024),
+                 (unsigned)(heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024));
         ESP_LOGI(TAG, "  top: %s", top);
         static char link[160];
         prolink::summary(link, sizeof link);
@@ -471,7 +503,8 @@ static void audioTask(void*)
             d.cue = 0;
             d.pos = 0;
             s_wsola.reset();
-            if (ok) ESP_LOGI(TAG, "beat grid: %s", s_grid.empty() ? "none (SYNC needs a rekordbox track)" : "yes");
+            swapGrid();
+            if (ok) ESP_LOGI(TAG, "beat grid: %s", grid().empty() ? "none (SYNC needs a rekordbox track)" : "yes");
             if (!ok) {
                 ESP_LOGE(TAG, "load failed");
             } else {
@@ -481,21 +514,24 @@ static void audioTask(void*)
         }
 
         if (s_fakeGridBpm && d.loaded) {
-            // Test hook: a constant grid from the track start. Safe here:
-            // the loader only writes the grid while nothing is loaded.
+            // Test hook: a constant grid from the track start. The loader
+            // only touches the spare grid while loading, and we're loaded.
             const double period = 60000.0 / s_fakeGridBpm;
-            s_grid.beats.clear();
+            auto& g = spareGrid().beats;
+            g.clear();
             for (uint32_t i = 0; i * period < s_stream.seconds() * 1000 + period; i++)
-                s_grid.beats.push_back({(uint32_t)(i * period + 0.5), (uint16_t)(s_fakeGridBpm * 100), (uint8_t)(i % 4 + 1)});
+                g.push_back({(uint32_t)(i * period + 0.5), (uint16_t)(s_fakeGridBpm * 100), (uint8_t)(i % 4 + 1)});
+            swapGrid();
             s_fakeGridBpm = 0;
         }
         if (d.nudge > 0.3f) d.nudge = 0.3f;
         if (d.nudge < -0.3f) d.nudge = -0.3f;
         prolink::master(s_master);
         float speed = d.tempo + d.nudge;
+        if (d.keylock) stepWsolaLag(speed);
         bool synced = false;
-        if (d.sync && d.loaded && !s_grid.empty() && s_master.present && s_master.bpm > 0) {
-            const float trackBpm = s_grid.bpmAt(d.pos * 1000.0 / s_stream.sampleRate());
+        if (d.sync && d.loaded && !grid().empty() && s_master.present && s_master.bpm > 0) {
+            const float trackBpm = grid().bpmAt(d.pos * 1000.0 / s_stream.sampleRate());
             const float base = syncSpeed(s_master.bpm, trackBpm);
             d.tempo = base;                           // stays here if sync is switched off
             speed = base + d.nudge;
@@ -506,14 +542,14 @@ static void audioTask(void*)
                     // play start nothing is audible yet, so this is silent.
                     const double audibleUs = now + kOutLatencyFrames * 1e6 / kRate;
                     const double here = d.pos * 1000.0 / s_stream.sampleRate() + s_syncOffsetMs;
-                    const double e = phaseError(s_grid.beatAt(here), s_master, (int64_t)audibleUs);
-                    double target = s_grid.beatAt(here) - e;
-                    if (s_grid.msAt(target) - s_syncOffsetMs < 0) target += 1;   // can't go before 0:00: next beat instead
-                    seek(d, (s_grid.msAt(target) - s_syncOffsetMs) * s_stream.sampleRate() / 1000.0);
+                    const double e = phaseError(grid().beatAt(here), s_master, (int64_t)audibleUs);
+                    double target = grid().beatAt(here) - e;
+                    if (grid().msAt(target) - s_syncOffsetMs < 0) target += 1;   // can't go before 0:00: next beat instead
+                    seek(d, (grid().msAt(target) - s_syncOffsetMs) * s_stream.sampleRate() / 1000.0);
                     d.alignNext = false;
                 } else {
                     // Then keep it there by bending the tempo a little.
-                    const double e = phaseError(s_grid.beatAt(heardMs(d, speed)), s_master, now);
+                    const double e = phaseError(grid().beatAt(heardMs(d, speed)), s_master, now);
                     float bend = (float)(-kSyncGain * e);
                     if (bend > kSyncMaxBend) bend = kSyncMaxBend;
                     if (bend < -kSyncMaxBend) bend = -kSyncMaxBend;
@@ -559,11 +595,11 @@ static void audioTask(void*)
             o.playing = d.playing;
             o.sync = d.sync;
             o.pitch = speed;
-            if (d.loaded && !s_grid.empty()) {
+            if (d.loaded && !grid().empty()) {
                 const double ms = heardMs(d, speed);
-                const double b = s_grid.beatAt(ms);
-                o.trackBpm = s_grid.bpmAt(ms);
-                if (b >= 0) { o.beat = (uint32_t)b + 1; o.beatInBar = (uint8_t)s_grid.inBarAt((long)b); }
+                const double b = grid().beatAt(ms);
+                o.trackBpm = grid().bpmAt(ms);
+                if (b >= 0) { o.beat = (uint32_t)b + 1; o.beatInBar = (uint8_t)grid().inBarAt((long)b); }
             }
             prolink::publish(o);
         }
@@ -593,6 +629,7 @@ static void audioTask(void*)
 //   1-9 select track   l load   p play/pause   c cue (press+release)
 //   k keylock          s sync             [ ] phase trim -/+ 2 ms
 //   g give the loaded track a 120 BPM test grid (for SYNC without rekordbox)
+//   v switch the phase meter view (beat boxes / alignment ticks)
 //   w cycle waveform test mode (normal / no flush / off)
 static void serialKeysTask(void*)
 {
@@ -609,6 +646,7 @@ static void serialKeysTask(void*)
         case 'p': e.type = deck::Type::PlayPause; break;
         case 'k': e.type = deck::Type::KeyLock; break;
         case 's': e.type = deck::Type::Sync; break;
+        case 'v': ui::togglePhaseView(); continue;
         case 'g': s_fakeGridBpm = 120; ESP_LOGI(TAG, "test grid: 120 BPM from the start"); continue;
         case '[': s_syncOffsetMs -= 2; ESP_LOGI(TAG, "sync offset %+d ms", s_syncOffsetMs); continue;
         case ']': s_syncOffsetMs += 2; ESP_LOGI(TAG, "sync offset %+d ms", s_syncOffsetMs); continue;

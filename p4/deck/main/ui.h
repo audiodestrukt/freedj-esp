@@ -7,6 +7,7 @@
 #include "deck_event.h"
 
 class TrackStream;
+namespace rekordbox { struct Grid; }
 
 namespace ui {
 
@@ -22,6 +23,13 @@ struct State {
     float bpm        = 0;      // our effective tempo (grid BPM x speed), 0 = unknown
     uint8_t masterPlayer = 0;  // Link tempo master, 0 = none
     float masterBpm  = 0;
+    // Phase meter. beatPhase/masterPhase are 0..1 through the current beat,
+    // -1 when unknown; beatInBar/masterInBar are 1..4 for that beat.
+    float beatPhase  = -1;
+    uint8_t beatInBar = 0;
+    uint8_t barInPhrase = 0;   // 1..4: bar within the 4-bar phrase
+    float masterPhase = -1;
+    uint8_t masterInBar = 0;
     float pos        = 0;      // seconds
     float len        = 0;      // seconds
     float cue        = 0;      // seconds
@@ -45,6 +53,14 @@ void publish(const State& s);
 // Test hook: 0 normal, 1 draw the waveform but don't send it to the
 // screen, 2 don't draw it at all. Returns the new mode.
 int cycleWaveTestMode();
+
+// The loaded track's beat grid (or null), drawn on the waveform. The grid
+// must stay unchanged while it is set; main.cpp double-buffers it.
+void setGrid(const rekordbox::Grid* grid);
+
+// Switch the phase meter between the beat display and the alignment view
+// (same as tapping it). Safe from any task.
+void togglePhaseView();
 
 // Short text for the status log, e.g. "waveform 24.1 fps" or "list".
 const char* waveStats();

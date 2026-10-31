@@ -1,6 +1,7 @@
 #include "ui.h"
 
 #include <math.h>
+#include <atomic>
 #include <stdio.h>
 #include <string.h>
 #include "freertos/FreeRTOS.h"
@@ -9,6 +10,7 @@
 #include "display.h"
 #include "esp_heap_caps.h"
 #include "library.h"
+#include "rekordbox.h"
 #include "stream.h"
 
 extern "C" volatile bool lvgl_mem_psram;   // lvgl_mem.c
@@ -22,7 +24,8 @@ static const char* TAG = "ui";
 //   y  36.. 90  elapsed (big)  -remaining               tempo %
 //                                          master BPM | our BPM
 //   y  98..112  progress bar with cue marker
-//   y 120..264  track list, or the scrolling waveform while playing
+//   y 120..264  track list; while playing, the phase meter (120..152) and
+//               the scrolling waveform (156..236) instead
 //   y 270..316  [ CUE ] [ PLAY ] [ LOAD ]
 constexpr int kMargin = 10;
 constexpr int kBarY = 100, kBarH = 10, kBarW = display::W - 2 * kMargin;
@@ -34,6 +37,8 @@ static const lv_color_t kDim    = lv_color_hex(0x8A9099);
 static const lv_color_t kGreen  = lv_color_hex(0x2FBF71);
 static const lv_color_t kOrange = lv_color_hex(0xF29D38);
 static const lv_color_t kBlue   = lv_color_hex(0x3D7EFF);
+static const lv_color_t kDimBlue = lv_color_hex(0x243A5C);
+static const lv_color_t kGold   = lv_color_hex(0xE8C547);
 
 static portMUX_TYPE s_mux = portMUX_INITIALIZER_UNLOCKED;
 static State s_pub;           // written by publish(), read by refresh()
@@ -50,15 +55,20 @@ static std::vector<lv_obj_t*> s_rows;
 // Scrolling waveform: playhead fixed in the middle, track moves right to
 // left. Shown while playing, unless the list was used in the last few
 // seconds. Drawn into a canvas straight from the stream's peak bins.
-constexpr int kWaveY = 132, kWaveH = 100;
+constexpr int kWaveY = 156, kWaveH = 80;
 constexpr int kBinsPerPx = 4;                  // 512 frames/px: ~5.6 s across at 44.1 kHz
 constexpr uint32_t kListLingerMs = 3000;
 static const TrackStream* s_stream;
+static std::atomic<const rekordbox::Grid*> s_grid{nullptr};
 static lv_obj_t* s_wave;
 static uint16_t* s_waveBuf;                    // RGB565, W x kWaveH, PSRAM
 static uint32_t s_lastListUse;                 // lv_tick of last select/scroll
 static bool s_waveShown;
-static uint32_t s_waveFrames, s_waveT0;         // fps measurement
+// fps measurement: s_screenFrames counts frames LVGL actually rendered and
+// sent to the panel; s_waveFrames counts waveform redraws, which can outrun
+// the panel when LVGL merges several into one frame.
+static uint32_t s_waveFrames, s_waveT0;
+static std::atomic<uint32_t> s_screenFrames;
 static volatile int s_waveTest;                 // see cycleWaveTestMode()
 
 int cycleWaveTestMode() { s_waveTest = (s_waveTest + 1) % 3; return s_waveTest; }
@@ -147,6 +157,8 @@ static lv_obj_t* chip(lv_obj_t* parent, const char* text, lv_event_cb_t cb)
     lv_obj_add_event_cb(c, cb, LV_EVENT_PRESSED, nullptr);
     return c;
 }
+
+static void buildMeter(lv_obj_t* scr);   // phase meter, below
 
 static void build()
 {
@@ -250,9 +262,154 @@ static void build()
     lv_obj_add_event_cb(s_wave, onWaveTap, LV_EVENT_CLICKED, nullptr);
     lv_obj_set_hidden(s_wave, true);
 
+    buildMeter(scr);
+
     s_cueBtn  = button(scr, "CUE",  kMargin,       onCue,  LV_EVENT_ALL);
     s_playBtn = button(scr, "PLAY", kMargin + 157, onPlay, LV_EVENT_PRESSED);
     button(scr, "LOAD", kMargin + 314, onLoad, LV_EVENT_CLICKED);
+}
+
+// ── Phase meter, XDJ style ───────────────────────────────────────────────────
+// Two views, switched by tapping the meter, as on the unit:
+//  beat display:   two rows of four boxes. Top: bar within the 4-bar phrase.
+//                  Bottom: beat within the bar (orange if we were master).
+//  alignment view: "MASTER n", then beat ticks scrolling under a fixed
+//                  playhead. Top row the master, bottom row us; the tall tick
+//                  is each deck's own downbeat. Phase offset reads as
+//                  horizontal displacement.
+// The "Bars" readouts on the right count down to the next memory / hot cue
+// on an XDJ. There are no cues yet, so they show dashes, like the unit does
+// for a track without cues.
+constexpr int kMeterY = 120, kMeterH = 32, kMeterW = 330, kTagW = 92;
+constexpr int kTickW = kMeterW - kTagW, kTickH = kMeterH;
+static lv_obj_t *s_meter, *s_boxes[8], *s_ticks, *s_tag, *s_tagNum;
+static uint16_t* s_tickBuf;           // kTickW x kTickH RGB565, internal RAM (small, drawn every frame)
+static bool s_tickView;
+static int s_litTop = -1, s_litBot = -1;
+
+static void onMeterTap(lv_event_t*)
+{
+    s_tickView = !s_tickView;
+    for (auto* b : s_boxes) lv_obj_set_hidden(b, s_tickView);
+    lv_obj_set_hidden(s_ticks, !s_tickView);
+    lv_obj_set_hidden(s_tag, !s_tickView);
+    lv_obj_set_hidden(s_tagNum, !s_tickView);
+    s_litTop = s_litBot = -1;
+}
+
+static void buildMeter(lv_obj_t* scr)
+{
+    s_meter = lv_obj_create(scr);
+    lv_obj_remove_style_all(s_meter);
+    lv_obj_set_pos(s_meter, 0, kMeterY);
+    lv_obj_set_size(s_meter, display::W, kMeterH);
+    lv_obj_add_flag(s_meter, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(s_meter, onMeterTap, LV_EVENT_CLICKED, nullptr);
+    lv_obj_set_hidden(s_meter, true);
+
+    const int gap = 4, cw = (kMeterW - 3 * gap) / 4, rh = (kMeterH - gap) / 2;
+    for (int i = 0; i < 8; i++) {
+        lv_obj_t* b = lv_obj_create(s_meter);
+        lv_obj_remove_style_all(b);
+        lv_obj_set_pos(b, kMargin + (i % 4) * (cw + gap), i < 4 ? 0 : rh + gap);
+        lv_obj_set_size(b, cw, rh);
+        lv_obj_set_style_border_width(b, 1, 0);
+        lv_obj_set_style_border_color(b, i < 4 ? kDimBlue : kBlue, 0);
+        lv_obj_set_style_radius(b, 1, 0);
+        lv_obj_set_style_bg_opa(b, LV_OPA_COVER, 0);
+        lv_obj_set_style_bg_color(b, kBg, 0);
+        lv_obj_remove_flag(b, LV_OBJ_FLAG_CLICKABLE);
+        s_boxes[i] = b;
+    }
+
+    s_tag = label(s_meter, &lv_font_montserrat_16, kText);
+    lv_label_set_text(s_tag, "MASTER");
+    lv_obj_set_pos(s_tag, kMargin, 7);
+    s_tagNum = label(s_meter, &lv_font_montserrat_16, kBg);
+    lv_obj_set_style_bg_opa(s_tagNum, LV_OPA_COVER, 0);
+    lv_obj_set_style_bg_color(s_tagNum, kGold, 0);
+    lv_obj_set_style_pad_hor(s_tagNum, 5, 0);
+    lv_obj_set_pos(s_tagNum, kMargin + 64, 6);
+    s_tickBuf = (uint16_t*)heap_caps_malloc(kTickW * kTickH * 2, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    s_ticks = lv_canvas_create(s_meter);
+    lv_canvas_set_buffer(s_ticks, s_tickBuf, kTickW, kTickH, LV_COLOR_FORMAT_RGB565);
+    lv_obj_set_pos(s_ticks, kTagW, 0);
+    lv_obj_remove_flag(s_ticks, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_hidden(s_ticks, true);
+    lv_obj_set_hidden(s_tag, true);
+    lv_obj_set_hidden(s_tagNum, true);
+
+    const int bx = kMeterW + 2 * kMargin;
+    for (int row = 0; row < 2; row++) {
+        const lv_color_t c = row ? kBlue : kOrange;
+        lv_obj_t* v = label(s_meter, &lv_font_montserrat_16, c);
+        lv_label_set_text(v, "--.-");
+        lv_obj_set_pos(v, bx, row * (rh + gap) - 2);
+        lv_obj_t* u = label(s_meter, &lv_font_montserrat_16, c);
+        lv_label_set_text(u, "Bars");
+        lv_obj_set_pos(u, bx + 48, row * (rh + gap) - 2);
+    }
+}
+
+static void drawTicks(const State& s)
+{
+    const uint16_t bg = lv_color_to_u16(kBg), base = lv_color_to_u16(kPanel), dim = lv_color_to_u16(kDim),
+                   white = 0xFFFF;
+    for (int i = 0; i < kTickW * kTickH; i++) s_tickBuf[i] = bg;
+    const float beatPx = kTickW / 8.0f;          // 8 beats across
+    const int cx = kTickW / 2;
+    struct Row { int y; float phase; int inBar; uint16_t bar; };
+    const Row rows[2] = {
+        {kTickH * 30 / 100, s.masterPhase, s.masterInBar, lv_color_to_u16(kOrange)},   // master
+        {kTickH * 80 / 100, s.beatPhase,   s.beatInBar,   lv_color_to_u16(kBlue)},     // us
+    };
+    for (const Row& r : rows) {
+        for (int x = 0; x < kTickW; x++) s_tickBuf[r.y * kTickW + x] = base;
+        if (r.phase < 0 || r.inBar < 1) continue;
+        for (int i = -5; i <= 5; i++) {
+            const int x = (int)lroundf(cx + (i - r.phase) * beatPx);
+            if (x < 0 || x + 1 >= kTickW) continue;
+            const bool down = ((i + r.inBar - 1) % 4 + 4) % 4 == 0;
+            const int len = down ? 10 : 5;
+            const uint16_t c = down ? r.bar : dim;
+            for (int y = r.y - len; y <= r.y; y++) {
+                if (y < 0) continue;
+                s_tickBuf[y * kTickW + x] = c;
+                s_tickBuf[y * kTickW + x + 1] = c;
+            }
+        }
+    }
+    for (int y = 0; y < kTickH; y++) s_tickBuf[y * kTickW + cx] = white;
+    lv_obj_invalidate(s_ticks);
+}
+
+static void updateMeter(const State& s)
+{
+    if (s_tickView) {
+        static uint8_t shownMaster = 0xFF;
+        if (s.masterPlayer != shownMaster) {
+            shownMaster = s.masterPlayer;
+            char b[4];
+            snprintf(b, sizeof b, "%s", "-");
+            if (shownMaster) snprintf(b, sizeof b, "%u", shownMaster);
+            lv_label_set_text(s_tagNum, b);
+        }
+        drawTicks(s);
+        return;
+    }
+    // Beat display: only touch the boxes when the lit cell changes.
+    const int top = s.beatPhase >= 0 ? s.barInPhrase - 1 : -1;
+    const int bot = s.beatPhase >= 0 ? s.beatInBar - 1 : -1;
+    if (top != s_litTop) {
+        if (s_litTop >= 0) lv_obj_set_style_bg_color(s_boxes[s_litTop], kBg, 0);
+        if (top >= 0) lv_obj_set_style_bg_color(s_boxes[top], kBlue, 0);
+        s_litTop = top;
+    }
+    if (bot != s_litBot) {
+        if (s_litBot >= 0) lv_obj_set_style_bg_color(s_boxes[4 + s_litBot], kBg, 0);
+        if (bot >= 0) lv_obj_set_style_bg_color(s_boxes[4 + bot], kBlue, 0);   // orange once we can be master
+        s_litBot = bot;
+    }
 }
 
 static void drawWave(const State& s)
@@ -280,6 +437,29 @@ static void drawWave(const State& s)
         const int dy = abs(y - mid);
         for (int x = 0; x < W; x++) row[x] = dy <= h[x] ? col[x] : (dy == 0 ? axis : bg);
     }
+    // Beat grid, as on the XDJ: a short tick at the top and bottom edge for
+    // every beat, longer and red for each bar's first beat.
+    const rekordbox::Grid* g = s_grid.load();
+    if (s.loaded && s.hasGrid && g && !g->empty() && s_stream->sampleRate()) {
+        const double msPerPx = framesPerPx * 1000.0 / s_stream->sampleRate();
+        const double leftMs = (centre - W / 2) * msPerPx, rightMs = (centre + W / 2) * msPerPx;
+        const uint16_t beat = lv_color_to_u16(lv_color_hex(0xC8CCD2)), bar = lv_color_to_u16(lv_color_hex(0xE0453A));
+        long i = (long)floor(g->beatAt(leftMs > 0 ? leftMs : 0));
+        if (i < 0) i = 0;
+        for (; i < (long)g->beats.size(); i++) {
+            const auto& b = g->beats[i];
+            if (b.ms > rightMs) break;
+            const long x = (long)(b.ms / msPerPx) - centre + W / 2;
+            if (x < 0 || x >= W) continue;
+            const bool down = b.inBar == 1;
+            const int len = down ? 14 : 7;
+            const uint16_t c = down ? bar : beat;
+            for (int y = 0; y < len; y++) {
+                s_waveBuf[y * W + x] = c;
+                s_waveBuf[(kWaveH - 1 - y) * W + x] = c;
+            }
+        }
+    }
     // Cue marker, then the playhead on top.
     if (s.loaded) {
         const long cx = (long)(s.cueFrame / framesPerPx) - centre + W / 2;
@@ -294,14 +474,15 @@ static void drawWave(const State& s)
     s_waveFrames++;
 }
 
-static char s_stats[32] = "list";
+static char s_stats[64] = "list";
 
 const char* waveStats()
 {
     if (!s_waveShown) return "list";
     const uint32_t now = lv_tick_get(), dt = now - s_waveT0;
     if (dt >= 1000) {
-        snprintf(s_stats, sizeof s_stats, "waveform %.1f fps", s_waveFrames * 1000.0f / dt);
+        snprintf(s_stats, sizeof s_stats, "screen %.1f fps, waveform drawn %.0f/s",
+                 s_screenFrames.exchange(0) * 1000.0f / dt, s_waveFrames * 1000.0f / dt);
         s_waveFrames = 0;
         s_waveT0 = now;
     }
@@ -319,11 +500,13 @@ static void waveTick(lv_timer_t*)
     if (want != s_waveShown) {
         s_waveShown = want;
         lv_obj_set_hidden(s_wave, !want);
+        lv_obj_set_hidden(s_meter, !want);
         lv_obj_set_hidden(s_list, want);
         s_waveFrames = 0;
+        s_screenFrames = 0;
         s_waveT0 = lv_tick_get();
     }
-    if (want && s_waveTest != 2) drawWave(s);
+    if (want && s_waveTest != 2) { drawWave(s); updateMeter(s); }
 }
 
 static void refresh(lv_timer_t*)
@@ -408,14 +591,25 @@ static void refresh(lv_timer_t*)
     s_first = false;
 }
 
+void setGrid(const rekordbox::Grid* grid) { s_grid.store(grid); }
+
+void togglePhaseView()
+{
+    lvgl_port_lock(0);
+    onMeterTap(nullptr);
+    lvgl_port_unlock();
+}
+
 bool begin(const TrackStream& stream, EventFn onEvent, SelectFn onSelect)
 {
     s_stream = &stream;
     s_onEvent = onEvent;
     s_onSelect = onSelect;
-    if (!display::begin()) { ESP_LOGE(TAG, "no screen"); return false; }
+    lv_display_t* disp = display::begin();
+    if (!disp) { ESP_LOGE(TAG, "no screen"); return false; }
     lvgl_port_lock(0);
     build();
+    lv_display_add_event_cb(disp, [](lv_event_t*) { s_screenFrames++; }, LV_EVENT_RENDER_READY, nullptr);
     lv_timer_create(refresh, 50, nullptr);
     lv_timer_create(waveTick, 5, nullptr);
     lvgl_port_unlock();
