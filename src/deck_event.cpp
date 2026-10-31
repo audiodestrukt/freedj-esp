@@ -23,6 +23,14 @@ const char* typeName(Type t)
     case Type::MasterVolume: return "master vol";
     case Type::PhonesVolume: return "phones vol";
     case Type::KeyLock:      return "key lock";
+    case Type::HotCue:       return "hot cue";
+    case Type::BeatLoop:     return "beat loop";
+    case Type::ReloopExit:   return "reloop/exit";
+    case Type::LoopHalve:    return "loop 1/2";
+    case Type::LoopDouble:   return "loop x2";
+    case Type::BeatJump:     return "beat jump";
+    case Type::CueCall:      return "call";
+    case Type::Quantize:     return "quantize";
     }
     return "?";
 }

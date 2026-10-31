@@ -31,6 +31,15 @@ enum class Type : uint8_t {
     PhonesVolume,
     // Buttons, added later (kept last so existing values do not move).
     KeyLock,
+    // Performance controls. `delta` carries the argument.
+    HotCue,       // delta = 1..8 (A..H); position = 1 deletes it
+    BeatLoop,     // position = loop length in beats (0.5 .. 16)
+    ReloopExit,   // exit an active loop, or re-enter the last one
+    LoopHalve,
+    LoopDouble,
+    BeatJump,     // delta = beats, signed
+    CueCall,      // delta = -1 previous / +1 next memory cue
+    Quantize,     // toggle
 };
 
 enum : uint8_t { DeckA = 0, DeckB = 1, DeckAny = 0xFF };
