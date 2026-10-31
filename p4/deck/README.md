@@ -1,6 +1,6 @@
 # P4 deck
 
-A small CDJ-style deck on the **Waveshare ESP32-P4-Module-DEV-KIT**. It plays WAV and MP3 from the SD card. You control it with a Numark DJ2Go over USB, the touch screen, or serial keys. It has varispeed and keylock, CDJ-style CUE, and a scrolling waveform.
+A small CDJ-style deck on the **Waveshare ESP32-P4-Module-DEV-KIT**. It plays WAV and MP3 from a rekordbox USB stick or the SD card. You control it with a Numark DJ2Go over USB, the touch screen, or serial keys. It has varispeed and keylock, CDJ-style CUE, a scrolling waveform, and beat sync to other players over Pro DJ Link.
 
 This lives next to the A1S firmware in the repo root and doesn't replace it. The timecode vinyl path is still the A1S build. Both builds share the deck event types, the DJ2Go decoder and WSOLA, all from `../../src`.
 
@@ -11,6 +11,8 @@ This lives next to the A1S firmware in the repo root and doesn't replace it. The
 | Board | Waveshare ESP32-P4-Module-DEV-KIT. ESP32-P4 rev 1.3 (needs `CONFIG_ESP32P4_SELECTS_REV_LESS_V3`), 2× RISC-V 360 MHz, 32 MB PSRAM, 16 MB flash |
 | Audio out | On-board ES8311 codec (I2C 0x18) → NS4150B amp → speaker. Mono. Amp enable is GPIO 53 |
 | SD | On-board slot, 4-bit SDMMC, 40 MHz, powered from internal LDO channel 4 |
+| USB stick | rekordbox export, FAT32. **Only one USB-A port works** (the one wired straight to the chip; the on-board hub never appears, whichever way jumper H3 is set), so it's the stick or the DJ2Go for now |
+| Ethernet | On-board IP101 PHY (RMII). DHCP, or 169.254.x.x link-local on a cable straight to a player |
 | Controller | Numark DJ2Go in any of the four USB-A ports (USB host, class-compliant MIDI) |
 | Screen (stand-in) | LCDwiki **MSP4021**: 4" 480×320, ST7796S over SPI + FT6336U capacitive touch. Will be replaced by a MIPI-DSI screen |
 | Serial | USB-C, CH343 → `/dev/ttyACM0`, console UART0 (GPIO 37/38) |
@@ -64,13 +66,14 @@ After changing `sdkconfig.defaults`, delete `sdkconfig` so the defaults are appl
   - While paused: set the cue point here, play while held, return on release.
 - **Pitch fader:** ±8 %.
 - **Jog:** nudge while playing, scrub while paused.
-- **SYNC:** keylock on/off, until there's a dedicated button.
+- **SYNC:** beat sync to the Pro DJ Link tempo master on/off. Needs a track with a rekordbox beat grid.
 - **Channel volume:** level.
 
 **Touch:**
 - Tap a row to select it; tap it again, or press LOAD, to load it.
 - The CUE, PLAY and LOAD buttons on screen behave like the DJ2Go's.
 - Tap the waveform to bring the list back.
+- Tap the **SYNC** and **KEY** chips in the header for sync and keylock.
 
 **Serial keys** (console UART), for hands-off testing:
 
@@ -81,6 +84,9 @@ After changing `sdkconfig.defaults`, delete `sdkconfig` so the defaults are appl
 | `p` | play/pause |
 | `c` | cue (press + release) |
 | `k` | keylock |
+| `s` | sync |
+| `[` `]` | trim our beat phase against the master, -/+ 2 ms |
+| `g` | give the loaded track a 120 BPM test grid (SYNC without rekordbox) |
 | `w` | cycle the waveform test mode: normal → drawn but not sent to the screen → off |
 
 [`tools/p4_serial.py`](../../tools/p4_serial.py) holds the port open without resetting the board, logs to a file, and sends anything appended to `<log>.cmd`. A whole experiment can be scripted, for example:
@@ -156,13 +162,24 @@ Neither is done yet. The MSP4021 is a stand-in. The intended MIPI-DSI screen is 
 
 ## Status and next
 
+The working list for the next session is in [TODO.md](TODO.md).
+
+## Pro DJ Link and SYNC
+
+- `prolink.cpp` announces the deck as player 2 and sends status to the other players. It listens to everyone's beats and status to find the tempo master. Packet layouts come from freedj-3000, which checked them against an XDJ-1000MK2.
+- `rekordbox.cpp` reads each track's `PIONEER/USBANLZ/…/ANLZ0000.DAT`. The `PPTH` section gives the audio file and `PQTZ` the beat grid, so `export.pdb` isn't needed.
+- SYNC matches the master's tempo (taking half or double time when that's closer) and snaps onto its beat at PLAY. It then holds phase by bending the tempo by up to 3 %. Phase is measured at the speaker: the ~35 ms of queued DMA audio is subtracted, plus the time-stretcher's own delay in keylock.
+- Measured against prolink-cpp's virtual CDJ: phase error 1.4 ms average (3 ms worst) in varispeed, about 3 ms (around 10 ms worst) in keylock. Not yet checked by ear against a real player.
+
 Working:
 - WAV/MP3 streaming, varispeed, and keylock (including 48 kHz files).
 - CUE, jog, the touch UI, and the scrolling waveform.
 - Audio at 100 % real time with the waveform at ~47 fps.
 
+- Pro DJ Link beat sync, with rekordbox beat grids from a USB stick.
+
 Next:
-- Pro DJ Link over the on-board Ethernet. Network work goes on core 0.
+- Test against a real XDJ, and send beat packets so the deck can be tempo master.
 - Deck B and the crossfader.
 - An overview waveform, with an analysis cache on the SD card.
 - A stereo DAC (PCM5102A) and timecode input (PCM1808).
