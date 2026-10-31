@@ -40,6 +40,12 @@ enum class Type : uint8_t {
     BeatJump,     // delta = beats, signed
     CueCall,      // delta = -1 previous / +1 next memory cue
     Quantize,     // toggle
+    TempoRange,   // cycle the pitch range (±6/10/16/WIDE)
+    TempoReset,   // toggle: play at 0 % regardless of the fader
+    MemoryAdd,    // store the cue point as a memory cue
+    MemoryDelete, // delete the memory cue at the cue point
+    Slip,         // toggle slip mode
+    Reverse,      // toggle reverse
 };
 
 enum : uint8_t { DeckA = 0, DeckB = 1, DeckAny = 0xFF };

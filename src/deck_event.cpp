@@ -31,6 +31,12 @@ const char* typeName(Type t)
     case Type::BeatJump:     return "beat jump";
     case Type::CueCall:      return "call";
     case Type::Quantize:     return "quantize";
+    case Type::TempoRange:   return "tempo range";
+    case Type::TempoReset:   return "tempo reset";
+    case Type::MemoryAdd:    return "memory";
+    case Type::MemoryDelete: return "delete memory";
+    case Type::Slip:         return "slip";
+    case Type::Reverse:      return "reverse";
     }
     return "?";
 }
