@@ -23,12 +23,14 @@ static const char* TAG = "ui";
 //   y   0.. 34  track name ................... SYNC  KEY  state chip
 //   y  36.. 90  elapsed (big)  -remaining               tempo %
 //                                          master BPM | our BPM
-//   y  98..112  progress bar with cue marker
+//   y  94..116  track overview (rekordbox preview), touch to jump there
 //   y 120..264  track list; while playing, the phase meter (120..152) and
 //               the scrolling waveform (156..236) instead
 //   y 270..316  [ CUE ] [ PLAY ] [ LOAD ]
 constexpr int kMargin = 10;
-constexpr int kBarY = 100, kBarH = 10, kBarW = display::W - 2 * kMargin;
+// Track overview: the whole track in one strip, from rekordbox's preview
+// waveform (PWAV). Touch or drag it to jump (needle search).
+constexpr int kOvX = kMargin, kOvY = 94, kOvW = display::W - 2 * kMargin, kOvH = 22;
 
 static const lv_color_t kBg     = lv_color_hex(0x0B0D10);
 static const lv_color_t kPanel  = lv_color_hex(0x1A1E24);
@@ -47,9 +49,11 @@ static bool  s_first = true;
 
 static EventFn  s_onEvent;
 static SelectFn s_onSelect;
+static SeekFn   s_onSeek;
 
 static lv_obj_t *s_name, *s_state, *s_time, *s_remain, *s_tempo, *s_key, *s_sync, *s_bpm;
-static lv_obj_t *s_bar, *s_cueMark, *s_list, *s_cueBtn, *s_playBtn;
+static lv_obj_t *s_ov, *s_list, *s_cueBtn, *s_playBtn;
+static uint16_t* s_ovBuf;            // kOvW x kOvH RGB565, PSRAM; redrawn when the playhead moves a pixel
 static std::vector<lv_obj_t*> s_rows;
 
 // Scrolling waveform: playhead fixed in the middle, track moves right to
@@ -158,6 +162,59 @@ static lv_obj_t* chip(lv_obj_t* parent, const char* text, lv_event_cb_t cb)
     return c;
 }
 
+// Needle search: press or drag on the overview. Only sends when the touch
+// moves to a new pixel, so a held finger doesn't keep re-seeking.
+static void onOverviewTouch(lv_event_t* e)
+{
+    static int lastX = -1;
+    if (!s_shown.loaded) return;
+    lv_point_t p;
+    lv_indev_get_point(lv_indev_active(), &p);
+    int x = p.x - kOvX;
+    x = x < 0 ? 0 : x >= kOvW ? kOvW - 1 : x;
+    if (lv_event_get_code(e) == LV_EVENT_PRESSED) lastX = -1;   // a new touch always seeks
+    if (x == lastX) return;
+    lastX = x;
+    s_onSeek((float)x / (kOvW - 1));
+}
+
+static const rekordbox::Grid* overviewGrid();
+
+// The overview strip. rekordbox's preview columns are stretched to the
+// width; the played part is dimmed, as on the XDJ. Without a preview (SD
+// tracks) it's a plain bar. White line = playhead, orange = cue.
+static void drawOverview(const State& s, int playX, int cueX)
+{
+    const uint16_t bg = lv_color_to_u16(kBg), base = lv_color_to_u16(kPanel);
+    for (int i = 0; i < kOvW * kOvH; i++) s_ovBuf[i] = bg;
+    const rekordbox::Grid* g = overviewGrid();
+    const bool wave = s.loaded && g && !g->preview.empty();
+    for (int x = 0; x < kOvW; x++) {
+        int h = 2;
+        uint16_t c = base;
+        if (wave) {
+            const uint8_t v = g->preview[(size_t)x * g->preview.size() / kOvW];
+            h = (v & 31) * kOvH / 31;
+            if (h < 1) h = 1;
+            // Whiteness 0..7 blends blue toward white, like the XDJ preview.
+            const int w = v >> 5;
+            const lv_color_t col = lv_color_mix(lv_color_white(), kBlue, (lv_opa_t)(w * 255 / 7 / 2));
+            c = lv_color_to_u16(x < playX ? lv_color_mix(col, kBg, 90) : col);
+        } else if (s.loaded && x < playX) {
+            c = lv_color_to_u16(kDimBlue);
+        }
+        for (int y = kOvH - h; y < kOvH; y++) s_ovBuf[y * kOvW + x] = c;
+    }
+    if (s.loaded) {
+        if (cueX >= 0 && cueX < kOvW) for (int y = 0; y < kOvH; y++) s_ovBuf[y * kOvW + cueX] = lv_color_to_u16(kOrange);
+        if (playX >= 0 && playX < kOvW) for (int y = 0; y < kOvH; y++) {
+            s_ovBuf[y * kOvW + playX] = 0xFFFF;
+            if (playX + 1 < kOvW) s_ovBuf[y * kOvW + playX + 1] = 0xFFFF;
+        }
+    }
+    lv_obj_invalidate(s_ov);
+}
+
 static void buildMeter(lv_obj_t* scr);   // phase meter, below
 
 static void build()
@@ -199,20 +256,14 @@ static void build()
     s_bpm = label(scr, &lv_font_montserrat_16, kDim);
     lv_obj_align(s_bpm, LV_ALIGN_TOP_RIGHT, -kMargin, 76);
 
-    s_bar = lv_bar_create(scr);
-    lv_obj_set_pos(s_bar, kMargin, kBarY);
-    lv_obj_set_size(s_bar, kBarW, kBarH);
-    lv_bar_set_range(s_bar, 0, 1000);
-    lv_obj_set_style_bg_color(s_bar, kPanel, LV_PART_MAIN);
-    lv_obj_set_style_bg_color(s_bar, kBlue, LV_PART_INDICATOR);
-    lv_obj_set_style_anim_duration(s_bar, 0, 0);
-
-    s_cueMark = lv_obj_create(scr);
-    lv_obj_set_size(s_cueMark, 3, kBarH + 8);
-    lv_obj_set_style_bg_color(s_cueMark, kOrange, 0);
-    lv_obj_set_style_border_width(s_cueMark, 0, 0);
-    lv_obj_set_style_radius(s_cueMark, 0, 0);
-    lv_obj_set_clickable(s_cueMark, false);
+    s_ovBuf = (uint16_t*)heap_caps_malloc(kOvW * kOvH * 2, MALLOC_CAP_SPIRAM);
+    s_ov = lv_canvas_create(scr);
+    lv_canvas_set_buffer(s_ov, s_ovBuf, kOvW, kOvH, LV_COLOR_FORMAT_RGB565);
+    lv_obj_set_pos(s_ov, kOvX, kOvY);
+    lv_obj_add_flag(s_ov, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_ext_click_area(s_ov, 6);
+    lv_obj_add_event_cb(s_ov, onOverviewTouch, LV_EVENT_PRESSED, nullptr);
+    lv_obj_add_event_cb(s_ov, onOverviewTouch, LV_EVENT_PRESSING, nullptr);
 
     s_list = lv_obj_create(scr);     // flex column of rows (lv_list is deprecated)
     lv_obj_set_flex_flow(s_list, LV_FLEX_FLOW_COLUMN);
@@ -541,14 +592,18 @@ static void refresh(lv_timer_t*)
         buf[0] = '-';
         fmtTime(buf + 1, sizeof buf - 1, s.loaded ? s.len - s.pos : 0, false);
         lv_label_set_text(s_remain, buf);
-        lv_bar_set_value(s_bar, s.len > 0 ? (int)(1000 * s.pos / s.len) : 0, LV_ANIM_OFF);
     }
-    if (s_first || s.cue != o.cue || s.len != o.len || s.loaded != o.loaded) {
-        if (s.loaded && s.len > 0) {
-            lv_obj_set_hidden(s_cueMark, false);
-            lv_obj_set_pos(s_cueMark, kMargin + (int)(kBarW * s.cue / s.len) - 1, kBarY - 4);
-        } else {
-            lv_obj_set_hidden(s_cueMark, true);
+    // Overview: redraw only when something on it moves by a pixel.
+    {
+        static int shownPlay = -2, shownCue = -2;
+        static const void* shownGrid = (const void*)1;
+        static bool shownLoaded = false;
+        const int playX = s.loaded && s.len > 0 ? (int)((kOvW - 1) * s.pos / s.len) : -1;
+        const int cueX = s.loaded && s.len > 0 ? (int)((kOvW - 1) * s.cue / s.len) : -1;
+        const void* g = overviewGrid();
+        if (s_first || playX != shownPlay || cueX != shownCue || g != shownGrid || s.loaded != shownLoaded) {
+            drawOverview(s, playX, cueX);
+            shownPlay = playX; shownCue = cueX; shownGrid = g; shownLoaded = s.loaded;
         }
     }
 
@@ -594,6 +649,7 @@ static void refresh(lv_timer_t*)
 }
 
 void setGrid(const rekordbox::Grid* grid) { s_grid.store(grid); }
+static const rekordbox::Grid* overviewGrid() { return s_grid.load(); }
 
 void togglePhaseView()
 {
@@ -602,11 +658,12 @@ void togglePhaseView()
     lvgl_port_unlock();
 }
 
-bool begin(const TrackStream& stream, EventFn onEvent, SelectFn onSelect)
+bool begin(const TrackStream& stream, EventFn onEvent, SelectFn onSelect, SeekFn onSeek)
 {
     s_stream = &stream;
     s_onEvent = onEvent;
     s_onSelect = onSelect;
+    s_onSeek = onSeek;
     lv_display_t* disp = display::begin();
     if (!disp) { ESP_LOGE(TAG, "no screen"); return false; }
     lvgl_port_lock(0);

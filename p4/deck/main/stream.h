@@ -17,6 +17,8 @@ public:
     void close();
     bool service();                   // refill a chunk; false = nothing to do
     size_t buffered() const { return winEnd_ - winStart_; }
+    // Frames decoded ahead of the playhead.
+    size_t ahead() const { const size_t e = winEnd_, p = playhead_; return e > p ? e - p : 0; }
 
     // Audio-task side.
     bool   isOpen() const { return open_; }

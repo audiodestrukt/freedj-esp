@@ -32,7 +32,7 @@ static std::string utf16be(const uint8_t* p, size_t bytes)
     return s;
 }
 
-bool readAnlz(const char* path, std::string* audioRel, std::vector<Beat>* beats)
+bool readAnlz(const char* path, std::string* audioRel, std::vector<Beat>* beats, std::vector<uint8_t>* preview)
 {
     FILE* f = fopen(path, "rb");
     if (!f) return false;
@@ -40,9 +40,9 @@ bool readAnlz(const char* path, std::string* audioRel, std::vector<Beat>* beats)
     bool ok = fread(h, 1, 12, f) == 12 && !memcmp(h, "PMAI", 4);
     long off = ok ? (long)be32(h + 4) : 0;
     const long fileLen = ok ? (long)be32(h + 8) : 0;
-    bool needPath = audioRel != nullptr, needGrid = beats != nullptr;
+    bool needPath = audioRel != nullptr, needGrid = beats != nullptr, needPreview = preview != nullptr;
     // Sections: tag, header length, total length (all big-endian).
-    while (ok && (needPath || needGrid) && off + 12 <= fileLen) {
+    while (ok && (needPath || needGrid || needPreview) && off + 12 <= fileLen) {
         if (fseek(f, off, SEEK_SET) || fread(h, 1, 12, f) != 12) break;
         const uint32_t hdr = be32(h + 4), len = be32(h + 8);
         if (len < 12 || hdr < 12 || hdr > len) break;
@@ -67,6 +67,14 @@ bool readAnlz(const char* path, std::string* audioRel, std::vector<Beat>* beats)
                 }
             }
             needGrid = false;
+        } else if (needPreview && !memcmp(h, "PWAV", 4) && len < 4096) {
+            std::vector<uint8_t> b(len - 12);
+            if (fread(b.data(), 1, b.size(), f) == b.size() && b.size() >= 4) {
+                const uint32_t n = be32(b.data());           // number of columns (400)
+                const size_t start = hdr - 12;
+                if (start <= b.size()) preview->assign(b.begin() + start, b.begin() + std::min<size_t>(start + n, b.size()));
+            }
+            needPreview = false;
         }
         off += len;
     }

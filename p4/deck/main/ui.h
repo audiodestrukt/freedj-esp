@@ -41,11 +41,12 @@ struct State {
 
 using EventFn  = void (*)(const deck::Event&);
 using SelectFn = void (*)(int index);
+using SeekFn   = void (*)(float fraction);   // needle search: 0..1 through the track
 
 // Starts the screen with library::tracks() as the list. `stream` must
 // outlive the UI; the waveform reads its peaks. Returns false if there's
 // no screen.
-bool begin(const TrackStream& stream, EventFn onEvent, SelectFn onSelect);
+bool begin(const TrackStream& stream, EventFn onEvent, SelectFn onSelect, SeekFn onSeek);
 
 // Cheap and safe from any task.
 void publish(const State& s);

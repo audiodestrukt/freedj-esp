@@ -97,6 +97,14 @@ struct Mp3Source : TrackStream::Source {
             ESP_LOGE(TAG, "not a decodable MP3");
             return false;
         }
+        // With a VBR/Info tag (rekordbox exports have one), minimp3 takes the
+        // length from the tag and builds the index lazily, on the first seek
+        // away from 0. That cost a 0.5 s gap mid-track on the first needle
+        // jump (it read 5 MB). Build it now, at load, instead.
+        if (!dec->indexes_built) {
+            mp3dec_ex_seek(dec, 1);
+            mp3dec_ex_seek(dec, 0);
+        }
         channels = dec->info.channels;
         rate = dec->info.hz;
         frames = dec->samples / channels;

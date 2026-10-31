@@ -63,6 +63,7 @@ static QueueHandle_t s_events;      // deck::Event, USB task → audio task
 static QueueHandle_t s_loadReq;     // int track index, audio task → loader
 static QueueHandle_t s_loadDone;    // bool ok, loader → audio task
 static QueueHandle_t s_select;      // int track index, screen → audio task
+static QueueHandle_t s_seekReq;     // float 0..1, overview needle search → audio task (latest wins)
 static TrackStream s_stream;        // deck A
 static dj2go::Decoder s_decoder;
 static wsola::Wsola s_wsola;        // ~40 KB, keep out of task stacks
@@ -94,13 +95,19 @@ static void loaderTask(void*)
             const auto& list = library::tracks();
             bool ok = index >= 0 && index < (int)list.size() && s_stream.open(list[index].c_str());
             spareGrid().beats.clear();
+            spareGrid().preview.clear();
             if (ok && !library::anlz(index).empty())
-                rekordbox::readAnlz(library::anlz(index).c_str(), nullptr, &spareGrid().beats);
+                rekordbox::readAnlz(library::anlz(index).c_str(), nullptr, &spareGrid().beats, &spareGrid().preview);
             // Prefill ~1 s before handing over so PLAY starts clean.
             while (ok && s_stream.buffered() < 44100 && s_stream.service()) {}
             xQueueSend(s_loadDone, &ok, portMAX_DELAY);
         }
         if (!s_stream.service()) vTaskDelay(pdMS_TO_TICKS(5) ? pdMS_TO_TICKS(5) : 1);
+        // Full speed until ~8 s are decoded ahead (after a load or a needle
+        // jump), then pace the rest of the window. Unpaced, refilling 70 s
+        // of MP3 from the stick held core 0 at 100 % and the screen at 9 fps
+        // for several seconds.
+        else if (s_stream.ahead() > 8 * s_stream.sampleRate()) vTaskDelay(pdMS_TO_TICKS(15));
     }
 }
 
@@ -336,6 +343,7 @@ static ClickProbe s_clicks;
 
 static void onUiEvent(const deck::Event& e) { xQueueSend(s_events, &e, 0); }
 static void onUiSelect(int index) { xQueueSend(s_select, &index, 0); }
+static void onUiSeek(float fraction) { xQueueOverwrite(s_seekReq, &fraction); }
 
 static prolink::Master s_master;     // audio task's copy, refreshed every block
 
@@ -513,6 +521,12 @@ static void audioTask(void*)
             }
         }
 
+        float needle;
+        if (xQueueReceive(s_seekReq, &needle, 0) == pdTRUE && d.loaded && !d.loading) {
+            // Needle search. Synced and playing: land back on the master's beat.
+            seek(d, needle * s_stream.frames());
+            if (d.sync && d.playing) d.alignNext = true;
+        }
         if (s_fakeGridBpm && d.loaded) {
             // Test hook: a constant grid from the track start. The loader
             // only touches the spare grid while loading, and we're loaded.
@@ -537,7 +551,11 @@ static void audioTask(void*)
             speed = base + d.nudge;
             if (s_master.beating && d.playing && !d.previewing) {
                 const int64_t now = esp_timer_get_time();
-                if (d.alignNext) {
+                int16_t probe[2];
+                if (d.alignNext && !s_stream.get((size_t)d.pos, probe, 1)) {
+                    // Nothing decoded here yet (just jumped): snap once the
+                    // audio is there, or the master moves on while we wait.
+                } else if (d.alignNext) {
                     // Jump so our next block lands on the master's phase. At
                     // play start nothing is audible yet, so this is silent.
                     const double audibleUs = now + kOutLatencyFrames * 1e6 / kRate;
@@ -566,7 +584,10 @@ static void audioTask(void*)
 
         if (d.playing && d.loaded) {
             const bool fed = d.keylock ? renderKeylock(d, speed, buf) : renderPitched(d, speed, buf);
-            if (!fed) underruns++;
+            if (!fed) {
+                underruns++;
+                if (d.sync) d.alignNext = true;   // we stalled; the master didn't: re-snap
+            }
             s_stream.setPlayhead((size_t)d.pos);
             const float g = d.gain;
             for (int i = 0; i < kBlock * 2; i++) buf[i] = (int16_t)(buf[i] * g);
@@ -630,6 +651,7 @@ static void audioTask(void*)
 //   k keylock          s sync             [ ] phase trim -/+ 2 ms
 //   g give the loaded track a 120 BPM test grid (for SYNC without rekordbox)
 //   v switch the phase meter view (beat boxes / alignment ticks)
+//   n needle search to the middle of the track
 //   w cycle waveform test mode (normal / no flush / off)
 static void serialKeysTask(void*)
 {
@@ -647,6 +669,7 @@ static void serialKeysTask(void*)
         case 'k': e.type = deck::Type::KeyLock; break;
         case 's': e.type = deck::Type::Sync; break;
         case 'v': ui::togglePhaseView(); continue;
+        case 'n': onUiSeek(0.5f); continue;   // needle search to the middle (test)
         case 'g': s_fakeGridBpm = 120; ESP_LOGI(TAG, "test grid: 120 BPM from the start"); continue;
         case '[': s_syncOffsetMs -= 2; ESP_LOGI(TAG, "sync offset %+d ms", s_syncOffsetMs); continue;
         case ']': s_syncOffsetMs += 2; ESP_LOGI(TAG, "sync offset %+d ms", s_syncOffsetMs); continue;
@@ -666,6 +689,7 @@ extern "C" void app_main(void)
     s_loadReq  = xQueueCreate(1, sizeof(int));
     s_loadDone = xQueueCreate(1, sizeof(bool));
     s_select   = xQueueCreate(8, sizeof(int));
+    s_seekReq  = xQueueCreate(1, sizeof(float));
     s_report   = xQueueCreate(1, sizeof(Report));
     const bool sdOk = sd::begin();
     if (!sdOk) ESP_LOGW(TAG, "no SD card");
@@ -683,7 +707,7 @@ extern "C" void app_main(void)
     s_audioUp = xSemaphoreCreateBinary();
     xTaskCreatePinnedToCore(audioTask, "audio", 8192, nullptr, 10, nullptr, 1);
     xSemaphoreTake(s_audioUp, portMAX_DELAY);  // the screen's touch shares the codec's I2C bus
-    ui::begin(s_stream, onUiEvent, onUiSelect);
+    ui::begin(s_stream, onUiEvent, onUiSelect, onUiSeek);
     xTaskCreatePinnedToCore(reporterTask, "report", 6144, nullptr, 1, nullptr, 0);
     xTaskCreatePinnedToCore(serialKeysTask, "keys", 3072, nullptr, 2, nullptr, 0);
     ESP_LOGI(TAG, "memory free: internal %u KB (largest %u KB), PSRAM %u KB",
