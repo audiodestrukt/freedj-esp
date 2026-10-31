@@ -169,7 +169,9 @@ static void build()
 
     s_name = label(scr, &lv_font_montserrat_20, kText);
     lv_obj_set_pos(s_name, kMargin, 8);
-    lv_obj_set_width(s_name, 236);
+    // DOTS only truncates a label with a fixed height; without one a long
+    // name wraps onto the time counter.
+    lv_obj_set_size(s_name, 236, lv_font_get_line_height(&lv_font_montserrat_20));
     lv_label_set_long_mode(s_name, LV_LABEL_LONG_MODE_DOTS);
 
     s_state = label(scr, &lv_font_montserrat_16, kBg);
@@ -243,7 +245,7 @@ static void build()
         lv_obj_t* text = lv_label_create(row);
         lv_label_set_text(text, library::displayName(i).c_str());
         lv_label_set_long_mode(text, LV_LABEL_LONG_MODE_DOTS);
-        lv_obj_set_width(text, LV_PCT(100));
+        lv_obj_set_size(text, LV_PCT(100), lv_font_get_line_height(&lv_font_montserrat_16));
         lv_obj_align(text, LV_ALIGN_LEFT_MID, 0, 0);
         lv_obj_add_event_cb(row, onRow, LV_EVENT_CLICKED, (void*)(intptr_t)i);
         s_rows.push_back(row);
