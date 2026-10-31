@@ -11,6 +11,43 @@ playing (see the README's *Audio health* section). Unless noted, it's
 the panel**, so they read high. From 2026-10-31 on, "screen fps" counts
 frames LVGL actually rendered and flushed.
 
+## 2026-10-31: tempo master, beat packets, remote sync, mixer (XDJ parity step 2, first half)
+
+- **Beat packets** go out on each of our beats as they're heard. BPM is
+  unpitched with pitch separate (Beat Link's effective tempo), beat-in-bar
+  comes from the grid, and the six countdowns are filled in. The link task
+  holds the pending beat until it's sent; before that, a late wake-up skipped
+  every other beat. A backwards move (loop wrap, cue, jump) restarts the
+  count, so loops keep sending beats.
+- **Tempo master:**
+  - Long-press SYNC (or serial `Y`) asks for master. If nobody has it, the
+    deck takes it at once.
+  - Otherwise it sends a master request (0x26) and waits for the yield
+    (0x27), then for the master to name us in its status before claiming.
+    Claiming on the yield alone made an XDJ abort (freedj-3000's finding).
+  - When we're master and someone asks, we yield, name them, and let go
+    once they claim.
+  - The sync counter is set to the largest seen + 1. Status goes out at once
+    when the master flag changes. While we're master, we follow nobody.
+- **Remote control:** another player can turn our SYNC on or off, or tell us
+  to become master (0x2a).
+- **Mixer** (from Deep Symmetry's analysis; **untested, no DJM here**):
+  "channels on air" (0x03) sets our on-air flag (red time, status bit), and
+  fader start (0x02) plays, or stops and returns to the cue.
+- The BPM line shows MASTER in orange when we're master.
+
+Measured with prolink-cpp tools on the PC:
+
+| Test | Result |
+|---|---|
+| Beat packets, 33 beats at 126 BPM | mean interval 0.4762 s (exact), 5.3 ms jitter as received on the PC; beat-in-bar 1-2-3-4 correct, also through a 4-beat loop |
+| Taking master from the virtual CDJ | it yielded, named us, we took master (sync counter 1) |
+| A virtual CDJ in `--follow-master` | synced to us (120 → 126 BPM); its beats within about ±15 ms of ours |
+
+Test trap: a `prolink_listener` on the PC shares port 50001 with the virtual
+CDJ, and Linux delivers a unicast packet to only one of them. With the
+listener running, our master requests never reached the virtual CDJ.
+
 ## 2026-10-31: tempo range and reset, hot cues E–H, memory cues, slip, reverse
 
 - **Tempo range** ±6 / ±10 (new default, as on the XDJ; was ±8) / ±16 /

@@ -28,9 +28,11 @@ In order. Costs: **cheap** = logic only, no per-sample work; **moderate**; **hea
    - [x] Slip mode. Reverse (always varispeed).
    - [ ] Vinyl-mode jog. Needs a touch-sensitive jog, so it waits for the I2C panel.
 2. **Full Link citizen**
-   - [ ] Send beat packets, take tempo master, master handoff (cheap;
-     freedj-3000 has the state machine).
-   - [ ] Mixer integration: on-air light, fader start (cheap).
+   - [x] Send beat packets, take tempo master, master handoff (both ways),
+     remote sync on/off.
+   - [x] Mixer integration: on-air, fader start. **Untested**: needs a DJM.
+   - [ ] Test against the real XDJ-1000MK2: sync both ways, master handoff
+     both ways, and by-ear phase trim.
    - [ ] Load from other players' media: network file client plus
      `export.pdb` (heavy).
    - [ ] Let other players load from our stick: file server plus rekordbox

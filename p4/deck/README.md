@@ -83,6 +83,7 @@ After changing `sdkconfig.defaults`, delete `sdkconfig` so the defaults are appl
   - row 3: beat loops 1–16, beat jump ◀4 4▶, REV
 - Tap the **range** label next to the tempo to cycle ±6/10/16/WIDE; long-press it for tempo reset.
 - Tap the **Q** chip to toggle quantize.
+- **Long-press SYNC** to become tempo master. The BPM line shows MASTER in orange; other players can then sync to the deck.
 
 **DJ2Go LOOP IN / LOOP OUT:** set a manual loop; LOOP OUT while looping exits it.
 
@@ -109,6 +110,7 @@ After changing `sdkconfig.defaults`, delete `sdkconfig` so the defaults are appl
 | `t` / `T` | tempo range / tempo reset |
 | `m` / `M` | memory cue add / delete |
 | `z` / `r` | slip / reverse |
+| `Y` | become tempo master |
 | `w` | cycle the waveform test mode: normal → drawn but not sent to the screen → off |
 
 [`tools/p4_serial.py`](../../tools/p4_serial.py) holds the port open without resetting the board, logs to a file, and sends anything appended to `<log>.cmd`. A whole experiment can be scripted, for example:
@@ -216,6 +218,10 @@ Measured 2026-10-31: `house.mp3` from SD, synced to a Pro DJ Link master, with t
 The working list for the next session is in [TODO.md](TODO.md). What changed when: [CHANGELOG.md](CHANGELOG.md).
 
 ## Pro DJ Link and SYNC
+
+- The deck sends beat packets on its beats, can take tempo master (with the
+  proper handoff, both ways), and accepts SYNC on/off from other players.
+  Mixer on-air and fader start are implemented but untested.
 
 - `prolink.cpp` announces the deck as player 2 and sends status to the other players. It listens to everyone's beats and status to find the tempo master. Packet layouts come from freedj-3000, which checked them against an XDJ-1000MK2.
 - `rekordbox.cpp` reads each track's `PIONEER/USBANLZ/…/ANLZ0000.DAT`. The `PPTH` section gives the audio file and `PQTZ` the beat grid, so `export.pdb` isn't needed.
