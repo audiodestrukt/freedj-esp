@@ -6,7 +6,7 @@ idf_component_register(
          "../../../src/dj2go.cpp" "../../../src/deck_event.cpp"
     INCLUDE_DIRS "." "../../../src" "third_party/minimp3"
     REQUIRES usb esp_timer esp_driver_i2s esp_driver_i2c esp_driver_gpio esp_driver_sdmmc esp_driver_spi esp_driver_uart esp_lcd fatfs sdmmc
-             esp_eth esp_netif esp_event lwip
+             esp_eth esp_netif esp_event lwip esp_app_format
     # lvgl_mem.c only defines symbols LVGL calls; keep it in the link.
     WHOLE_ARCHIVE)
 # wsola.cpp builds without Arduino/audio-tools in this mode.

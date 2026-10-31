@@ -26,6 +26,7 @@ CONFIG_LV_USE_CUSTOM_MALLOC=y   # lvgl_mem.c: objects in PSRAM
 CONFIG_LV_USE_CLIB_STRING=y
 CONFIG_LV_USE_CLIB_SPRINTF=y
 CONFIG_LV_THEME_DEFAULT_DARK=y
+CONFIG_LV_FONT_MONTSERRAT_12=y
 CONFIG_LV_FONT_MONTSERRAT_16=y
 CONFIG_LV_FONT_MONTSERRAT_20=y
 CONFIG_LV_FONT_MONTSERRAT_24=y
@@ -51,3 +52,8 @@ CONFIG_FREERTOS_VTASKLIST_INCLUDE_COREID=y
 # lwIP task stays on core 0 with the rest of the network.
 CONFIG_LWIP_AUTOIP=y
 CONFIG_LWIP_TCPIP_TASK_AFFINITY_CPU0=y
+
+# Boot: skip the 32 MB PSRAM self-test (about 1 s on every boot), so the
+# splash appears sooner. It only finds faulty RAM, which a deck that boots
+# and plays would show anyway.
+CONFIG_SPIRAM_MEMTEST=n

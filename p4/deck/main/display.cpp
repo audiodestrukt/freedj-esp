@@ -20,6 +20,7 @@ namespace display {
 static const char* TAG = "display";
 static esp_lcd_panel_handle_t s_panel;
 static esp_lcd_touch_handle_t s_touch;
+static lv_display_t* s_disp;
 static constexpr int kStripRows = 40;  // LVGL draw buffer height (x2, internal DMA RAM)
 static constexpr int kSpiHz = 40 * 1000 * 1000;  // fine on ~15 cm jumpers; drop to 20 if the image corrupts
 
@@ -123,9 +124,6 @@ lv_display_t* begin()
     esp_lcd_panel_disp_on_off(s_panel, true);
     ESP_LOGI(TAG, "ST7796S up: %dx%d, SPI %d MHz", W, H, kSpiHz / 1000000);
 
-    probeI2c();
-    beginTouch();
-
     lvgl_port_cfg_t lc = {};
     lc.task_priority = 3;           // below the loader (4) on core 0
     lc.task_stack = 8192;
@@ -159,14 +157,22 @@ lv_display_t* begin()
     lv_display_set_flush_wait_cb(disp, waitFlush);
     lvgl_port_unlock();
 
-    if (s_touch) {
+    s_disp = disp;
+    return disp;            // backlight stays off until something is drawn (backlight())
+}
+
+void addTouch()
+{
+    probeI2c();
+    beginTouch();
+    if (s_touch && s_disp) {
         lvgl_port_touch_cfg_t tc = {};
-        tc.disp = disp;
+        tc.disp = s_disp;
         tc.handle = s_touch;
         lvgl_port_add_touch(&tc);
     }
-    gpio_set_level(board::LCD_BL, 1);
-    return disp;
 }
+
+void backlight(bool on) { gpio_set_level(board::LCD_BL, on); }
 
 } // namespace display

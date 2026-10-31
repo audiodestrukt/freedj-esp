@@ -129,6 +129,43 @@ static void readCueSections(const char* path, const char* tag, std::vector<Cue>&
     fclose(f);
 }
 
+std::vector<uint16_t> readColorWave(const char* anlzDat)
+{
+    std::vector<uint16_t> out;
+    std::string ext(anlzDat);
+    if (ext.size() > 4) ext.replace(ext.size() - 4, 4, ".EXT");
+    FILE* f = fopen(ext.c_str(), "rb");
+    if (!f) return out;
+    uint8_t h[12];
+    if (fread(h, 1, 12, f) == 12 && !memcmp(h, "PMAI", 4)) {
+        long off = (long)be32(h + 4);
+        const long fileLen = (long)be32(h + 8);
+        while (off + 12 <= fileLen) {
+            if (fseek(f, off, SEEK_SET) || fread(h, 1, 12, f) != 12) break;
+            const uint32_t hdr = be32(h + 4), len = be32(h + 8);
+            if (len < 12 || hdr < 12 || hdr > len) break;
+            if (!memcmp(h, "PWV5", 4) && hdr >= 0x18) {
+                uint8_t sub[12];
+                if (fread(sub, 1, 12, f) == 12 && be32(sub) == 2) {   // entry size 2
+                    const uint32_t n = be32(sub + 4);
+                    if (n && hdr + 2ull * n <= len && n < 2000000) {
+                        out.resize(n);
+                        fseek(f, off + hdr, SEEK_SET);
+                        std::vector<uint8_t> raw(2 * n);
+                        if (fread(raw.data(), 1, raw.size(), f) == raw.size())
+                            for (uint32_t i = 0; i < n; i++) out[i] = be16(&raw[2 * i]);
+                        else out.clear();
+                    }
+                }
+                break;
+            }
+            off += len;
+        }
+    }
+    fclose(f);
+    return out;
+}
+
 std::vector<Cue> readCues(const char* anlzDat)
 {
     std::vector<Cue> cues;

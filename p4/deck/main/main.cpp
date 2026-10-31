@@ -136,9 +136,11 @@ static void loaderTask(void*)
             spareGrid().beats.clear();
             spareGrid().preview.clear();
             spareGrid().cues.clear();
+            spareGrid().color.clear();
             if (ok && req.anlz[0]) {
                 rekordbox::readAnlz(req.anlz, nullptr, &spareGrid().beats, &spareGrid().preview);
                 spareGrid().cues = rekordbox::readCues(req.anlz);
+                spareGrid().color = rekordbox::readColorWave(req.anlz);
             }
             // Prefill ~1 s before handing over so PLAY starts clean.
             while (ok && s_stream.buffered() < 44100 && s_stream.service()) {}
@@ -1189,19 +1191,26 @@ extern "C" void app_main(void)
     s_select   = xQueueCreate(8, sizeof(Pick));
     s_seekReq  = xQueueCreate(1, sizeof(float));
     s_report   = xQueueCreate(1, sizeof(Report));
+    // Screen first, so there's a splash instead of a blank panel while the
+    // rest starts (touch comes later: it needs the codec's I2C bus).
+    ui::splash();
+    ui::splashStatus("SD card");
     const bool sdOk = sd::begin();
     if (!sdOk) ESP_LOGW(TAG, "no SD card");
     s_stream.begin(12 * 1024 * 1024);
     // The SD list now; a stick's tracks join in the background when it mounts
     // (and leave when it's pulled), so boot doesn't wait for USB.
     library::begin(sdOk ? sd::kMount : nullptr);
+    ui::splashStatus("USB");
     usb_midi::begin(onMidiPacket);
     usb_stick::begin(onStickMounted, onStickRemoved);
     usb_midi::powerOn();
     // Network from core 0, so the EMAC interrupt stays off the audio core.
+    ui::splashStatus("network");
     net::begin();
-    prolink::begin(kLinkPlayer, "P4-DECK");
+    prolink::begin(kLinkPlayer, "ESP DECK");
     xTaskCreatePinnedToCore(loaderTask, "loader", 32768, nullptr, 4, nullptr, 0);
+    ui::splashStatus("audio");
     s_audioUp = xSemaphoreCreateBinary();
     xTaskCreatePinnedToCore(audioTask, "audio", 8192, nullptr, 10, nullptr, 1);
     xSemaphoreTake(s_audioUp, portMAX_DELAY);  // the screen's touch shares the codec's I2C bus

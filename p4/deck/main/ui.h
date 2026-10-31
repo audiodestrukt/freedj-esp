@@ -72,6 +72,12 @@ using Fn       = void (*)();
 // onMaster: long press on the SYNC chip (the XDJ's MASTER button).
 bool begin(const TrackStream& stream, EventFn onEvent, SelectFn onSelect, SeekFn onSeek, Fn onMaster);
 
+// Boot splash: brings the screen up (display::begin) and shows the deck's
+// name and a status line, as early as possible. splashStatus() updates the
+// line; begin() replaces the splash with the deck screen.
+bool splash();
+void splashStatus(const char* text);
+
 // Cheap and safe from any task.
 void publish(const State& s);
 

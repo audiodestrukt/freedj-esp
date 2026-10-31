@@ -5,7 +5,12 @@
 
 namespace display {
 constexpr int W = 480, H = 320;
-// Panel + touch + LVGL. Returns the LVGL display, or nullptr on failure.
-// Touch is optional: if the FT6336U doesn't answer, the screen still works.
+// Panel + LVGL, first thing at boot, so a splash can show while the rest
+// starts. The backlight stays off until backlight(true). Returns the LVGL
+// display, or nullptr on failure.
 lv_display_t* begin();
+// Touch: the FT6336U shares the codec's I2C bus, so call this once the audio
+// side has created the bus. Optional: without it the screen still works.
+void addTouch();
+void backlight(bool on);
 } // namespace display

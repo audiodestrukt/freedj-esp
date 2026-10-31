@@ -9,6 +9,7 @@
 #include "esp_lvgl_port.h"
 #include "display.h"
 #include "esp_heap_caps.h"
+#include "esp_app_desc.h"
 #include "library.h"
 #include "rekordbox.h"
 #include "stream.h"
@@ -26,7 +27,7 @@ static const char* TAG = "ui";
 //   y  94..116  track overview (rekordbox preview), touch to jump there
 //   y 120..264  track list; while playing, the phase meter (120..152) and
 //               the scrolling waveform (156..236) instead
-//   y 270..316  [ CUE ] [ PLAY ] [ LOAD ]
+//   y 272..318  XDJ touch keys: BROWSE  TAG LIST  INFO  MENU  PERFORM
 constexpr int kMargin = 10;
 // Track overview: the whole track in one strip, from rekordbox's preview
 // waveform (PWAV). Touch or drag it to jump (needle search).
@@ -58,9 +59,15 @@ static lv_obj_t *s_range;                 // pitch range; tap cycles, long press
 static lv_obj_t *s_slipPad, *s_revPad;
 // PADS panel (the XDJ's PERFORM pads): hot cues, CALL, loop size, beat
 // loops, RELOOP/EXIT, beat jump. Covers the waveform while it's open.
-static lv_obj_t *s_pads, *s_padsBtn, *s_hotPad[8], *s_reloopPad;
-static bool s_padsOn;
-static lv_obj_t *s_ov, *s_list, *s_cueBtn, *s_playBtn;
+static lv_obj_t *s_pads, *s_hotPad[8], *s_reloopPad;
+static lv_obj_t *s_ov, *s_list;
+// Which screen the middle band shows, as picked with the XDJ-style keys.
+// PLAY: waveform (the list pops up for a few seconds while browsing).
+// BROWSE: the track list until BROWSE again or a track loads.
+// PERFORM: the performance pads.
+enum class View { Play, Browse, Perform };
+static View s_view = View::Play;
+static lv_obj_t *s_browseKey, *s_performKey;
 static uint16_t* s_ovBuf;            // kOvW x kOvH RGB565, PSRAM; redrawn when the playhead moves a pixel
 static std::vector<lv_obj_t*> s_rows;
 static uint32_t s_listGen = 0xFFFFFFFF;   // library generation the rows show
@@ -111,20 +118,11 @@ static void onRow(lv_event_t* e)
     else s_onSelect(i, s_listGen);
 }
 
-static void onCue(lv_event_t* e)
-{
-    const lv_event_code_t c = lv_event_get_code(e);
-    if (c == LV_EVENT_PRESSED) send(deck::Type::Cue, true);
-    else if (c == LV_EVENT_RELEASED || c == LV_EVENT_PRESS_LOST) send(deck::Type::Cue, false);
-}
-
 static void onWaveTap(lv_event_t*) { s_lastListUse = lv_tick_get(); }
 
-static void onPlay(lv_event_t*) { send(deck::Type::PlayPause, true); }
 static void onSyncTap(lv_event_t*) { send(deck::Type::Sync, true); }
 static void onQuantTap(lv_event_t*) { send(deck::Type::Quantize, true); }
 static void onKeyTap(lv_event_t*) { send(deck::Type::KeyLock, true); }
-static void onLoad(lv_event_t*) { send(deck::Type::Load, true); }
 
 static void fmtTime(char* out, size_t n, float sec, bool tenths)
 {
@@ -143,19 +141,32 @@ static lv_obj_t* label(lv_obj_t* parent, const lv_font_t* font, lv_color_t color
     return l;
 }
 
-constexpr int kBtnW = (display::W - 2 * kMargin - 3 * 8) / 4;   // four buttons along the bottom
+// XDJ touch keys (colours from freedj-3000, matched to photos of the unit):
+// flat slate faces, white label, a small grey caption under it; the key of
+// the screen that's showing lights blue.
+static const lv_color_t kKeyFace = lv_color_hex(0x3A4658), kKeyDim = lv_color_hex(0x2A3340),
+                        kKeyLit = lv_color_hex(0x2F7FE0), kKeyFaint = lv_color_hex(0x4A525C);
+constexpr int kKeyY = 272, kKeyH = 46, kKeyGap = 2;
 
-static lv_obj_t* button(lv_obj_t* parent, const char* text, int x, lv_event_cb_t cb, lv_event_code_t code)
+static lv_obj_t* key(lv_obj_t* parent, const char* text, const char* caption, int i, int n, lv_event_cb_t cb)
 {
+    const int w = (display::W - 2 * kMargin - (n - 1) * kKeyGap) / n;
     lv_obj_t* b = lv_button_create(parent);
-    lv_obj_set_pos(b, x, 270);
-    lv_obj_set_size(b, kBtnW, 44);
-    lv_obj_set_style_bg_color(b, kPanel, 0);
-    lv_obj_set_style_radius(b, 8, 0);
-    lv_obj_t* l = label(b, &lv_font_montserrat_20, kText);
+    lv_obj_set_pos(b, kMargin + i * (w + kKeyGap), kKeyY);
+    lv_obj_set_size(b, w, kKeyH);
+    lv_obj_set_style_radius(b, 2, 0);
+    lv_obj_set_style_shadow_width(b, 0, 0);
+    lv_obj_set_style_bg_color(b, cb ? kKeyFace : kKeyDim, 0);
+    lv_obj_t* l = label(b, &lv_font_montserrat_16, cb ? kText : kKeyFaint);
     lv_label_set_text(l, text);
-    lv_obj_center(l);
-    lv_obj_add_event_cb(b, cb, code, nullptr);
+    lv_obj_align(l, LV_ALIGN_CENTER, 0, caption[0] ? -6 : 0);
+    if (caption[0]) {
+        lv_obj_t* c = label(b, &lv_font_montserrat_12, cb ? kDim : kKeyFaint);
+        lv_label_set_text(c, caption);
+        lv_obj_align(c, LV_ALIGN_CENTER, 0, 11);
+    }
+    if (cb) lv_obj_add_event_cb(b, cb, LV_EVENT_CLICKED, nullptr);
+    else lv_obj_remove_flag(b, LV_OBJ_FLAG_CLICKABLE);    // not built yet: drawn, dimmed
     return b;
 }
 
@@ -193,6 +204,24 @@ static void onOverviewTouch(lv_event_t* e)
 
 static const rekordbox::Grid* overviewGrid();
 
+// rekordbox colour column (PWV5) -> RGB565; `dim` darkens the played part.
+static inline uint16_t pwv5Color(uint16_t v, bool dim)
+{
+    const int k = dim ? 20 : 36;                     // 7 * 36 = 252
+    return lv_color_to_u16(lv_color_make(((v >> 13) & 7) * k, ((v >> 10) & 7) * k, ((v >> 7) & 7) * k));
+}
+static inline int pwv5Height(uint16_t v) { return (v >> 2) & 31; }
+
+// The tallest colour column between two track frames (0 if none).
+static uint16_t pwv5Max(const std::vector<uint16_t>& c, double rate, size_t f0, size_t f1)
+{
+    size_t i0 = (size_t)(f0 * rekordbox::kColorWavePerSec / rate), i1 = (size_t)(f1 * rekordbox::kColorWavePerSec / rate);
+    if (i1 <= i0) i1 = i0 + 1;
+    uint16_t best = 0;
+    for (size_t i = i0; i < i1 && i < c.size(); i++) if (pwv5Height(c[i]) > pwv5Height(best)) best = c[i];
+    return best;
+}
+
 // The overview strip. rekordbox's preview columns are stretched to the
 // width; the played part is dimmed, as on the XDJ. Without a preview (SD
 // tracks) it's a plain bar. White line = playhead, orange = cue.
@@ -202,10 +231,18 @@ static void drawOverview(const State& s, int playX, int cueX)
     for (int i = 0; i < kOvW * kOvH; i++) s_ovBuf[i] = bg;
     const rekordbox::Grid* g = overviewGrid();
     const bool wave = s.loaded && g && !g->preview.empty();
+    const bool colour = s.loaded && g && !g->color.empty() && s.len > 0 && s_stream->sampleRate();
+    const double rate = s_stream->sampleRate();
     for (int x = 0; x < kOvW; x++) {
         int h = 2;
         uint16_t c = base;
-        if (wave) {
+        if (colour) {                                // colour, from the detail waveform
+            const double fpx = s.len * rate / kOvW;
+            const uint16_t v = pwv5Max(g->color, rate, (size_t)(x * fpx), (size_t)((x + 1) * fpx));
+            h = pwv5Height(v) * kOvH / 31;
+            if (h < 1) h = 1;
+            c = pwv5Color(v, x < playX);
+        } else if (wave) {
             const uint8_t v = g->preview[(size_t)x * g->preview.size() / kOvW];
             h = (v & 31) * kOvH / 31;
             if (h < 1) h = 1;
@@ -275,14 +312,16 @@ static void onPad(lv_event_t* e)
     s_onEvent(ev);
 }
 
-static void showPads(bool on)
+static void setView(View v)
 {
-    s_padsOn = on;
-    lv_obj_set_hidden(s_pads, !on);
-    lv_obj_set_style_bg_color(s_padsBtn, on ? kBlue : kPanel, 0);
+    s_view = v;
+    lv_obj_set_hidden(s_pads, v != View::Perform);
+    lv_obj_set_style_bg_color(s_browseKey, v == View::Browse ? kKeyLit : kKeyFace, 0);
+    lv_obj_set_style_bg_color(s_performKey, v == View::Perform ? kKeyLit : kKeyFace, 0);
 }
 
-static void onPadsBtn(lv_event_t*) { showPads(!s_padsOn); }
+static void onBrowseKey(lv_event_t*) { setView(s_view == View::Browse ? View::Play : View::Browse); }
+static void onPerformKey(lv_event_t*) { setView(s_view == View::Perform ? View::Play : View::Perform); }
 
 static void buildPads(lv_obj_t* scr)
 {
@@ -317,7 +356,7 @@ static void buildPads(lv_obj_t* scr)
             if (p->type == deck::Type::Slip) s_slipPad = b;
             if (p->type == deck::Type::Reverse) s_revPad = b;
         }
-    showPads(false);
+    lv_obj_set_hidden(s_pads, true);
 }
 
 static void buildMeter(lv_obj_t* scr);   // phase meter, below
@@ -490,11 +529,14 @@ static void build()
     lv_obj_set_pos(s_toast, kMargin, 240);
     lv_obj_set_hidden(s_toast, true);
 
-    s_cueBtn  = button(scr, "CUE",  kMargin,                  onCue,  LV_EVENT_ALL);
-    s_playBtn = button(scr, "PLAY", kMargin + (kBtnW + 8),    onPlay, LV_EVENT_PRESSED);
-    s_padsBtn = button(scr, "PADS", kMargin + 2 * (kBtnW + 8), onPadsBtn, LV_EVENT_CLICKED);
-    button(scr, "LOAD", kMargin + 3 * (kBtnW + 8), onLoad, LV_EVENT_CLICKED);
     buildPads(scr);
+    // The XDJ's touch keys. TAG LIST, INFO and MENU aren't built yet.
+    s_browseKey  = key(scr, "BROWSE",   "SEARCH",    0, 5, onBrowseKey);
+    key(scr, "TAG LIST", "",          1, 5, nullptr);
+    key(scr, "INFO",     "LINK INFO", 2, 5, nullptr);
+    key(scr, "MENU",     "UTILITY",   3, 5, nullptr);
+    s_performKey = key(scr, "PERFORM",  "",          4, 5, onPerformKey);
+    setView(View::Play);
 }
 
 // ── Phase meter, XDJ style ───────────────────────────────────────────────────
@@ -651,8 +693,18 @@ static void drawWave(const State& s)
     const long bins = (long)s_stream->peakBins();
     static int16_t h[display::W];
     static uint16_t col[display::W];
+    // rekordbox's colour waveform when the track has one (frequency-shaded,
+    // as on the XDJ), else our own peaks from the decoder in blue.
+    const rekordbox::Grid* cg = s_grid.load();
+    const bool colour = s.loaded && cg && !cg->color.empty() && s_stream->sampleRate();
     for (int x = 0; x < W; x++) {
         const long px = centre + (x - W / 2);
+        if (colour) {
+            const uint16_t v = px < 0 ? 0 : pwv5Max(cg->color, s_stream->sampleRate(), px * framesPerPx, (px + 1) * framesPerPx);
+            h[x] = (int16_t)(pwv5Height(v) * (mid - 2) / 31);
+            col[x] = pwv5Color(v, px < centre);
+            continue;
+        }
         int p = 0;
         if (px >= 0) for (long b = px * kBinsPerPx, e = b + kBinsPerPx; b < e && b < bins; b++) {
             const int v = s_stream->peak(b);
@@ -742,9 +794,9 @@ static void waveTick(lv_timer_t*)
     taskENTER_CRITICAL(&s_mux);
     s = s_pub;
     taskEXIT_CRITICAL(&s_mux);
-    // Waveform whenever a track is loaded (playing or paused); the list
-    // comes back for a few seconds while browsing.
-    const bool want = s.loaded && lv_tick_elaps(s_lastListUse) > kListLingerMs;
+    // Waveform whenever a track is loaded and the view is PLAY; the list
+    // pops up for a few seconds while browsing, or stays in BROWSE.
+    const bool want = s.loaded && s_view == View::Play && lv_tick_elaps(s_lastListUse) > kListLingerMs;
     if (want != s_waveShown) {
         s_waveShown = want;
         lv_obj_set_hidden(s_wave, !want);
@@ -754,7 +806,7 @@ static void waveTick(lv_timer_t*)
         s_screenFrames = 0;
         s_waveT0 = lv_tick_get();
     }
-    if (want && s_waveTest != 2) { if (!s_padsOn) drawWave(s); updateMeter(s); }
+    if (want && s_waveTest != 2) { drawWave(s); updateMeter(s); }
 }
 
 static void refresh(lv_timer_t*)
@@ -833,10 +885,8 @@ static void refresh(lv_timer_t*)
     if (s_first || s.onAir != o.onAir)      // on air at the mixer: red time, like the XDJ's red jog ring
         lv_obj_set_style_text_color(s_time, s.onAir ? lv_color_hex(0xE0453A) : kText, 0);
 
-    if (s_first || s.playing != o.playing || s.loaded != o.loaded || s.previewing != o.previewing) {
-        lv_obj_set_style_bg_color(s_playBtn, s.playing && !s.previewing ? kGreen : kPanel, 0);
-        lv_obj_set_style_bg_color(s_cueBtn, s.loaded && (!s.playing || s.previewing) ? kOrange : kPanel, 0);
-    }
+    // A track finished loading: back to the playback screen, as on the XDJ.
+    if (!s_first && s.loaded && !o.loaded && s_view == View::Browse) setView(View::Play);
 
     if (s_first || s.quantize != o.quantize) {
         lv_obj_set_style_bg_color(s_quant, s.quantize ? lv_color_hex(0xE0453A) : kPanel, 0);
@@ -892,6 +942,52 @@ static void refresh(lv_timer_t*)
     s_first = false;
 }
 
+// ── Boot splash ──────────────────────────────────────────────────────────────
+static lv_display_t* s_disp;
+static lv_obj_t* s_splashStatus;
+
+bool splash()
+{
+    s_disp = display::begin();
+    if (!s_disp) { ESP_LOGE(TAG, "no screen"); return false; }
+    lvgl_port_lock(0);
+    lv_obj_t* scr = lv_screen_active();
+    lv_obj_set_style_bg_color(scr, kBg, 0);
+    lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
+    lv_obj_t* brand = label(scr, &lv_font_montserrat_20, kDim);
+    lv_label_set_text(brand, "audiodestrukt");
+    lv_obj_align(brand, LV_ALIGN_CENTER, 0, -58);
+    lv_obj_t* name = label(scr, &lv_font_montserrat_40, kText);
+    lv_label_set_text(name, "ESP DECK");
+    lv_obj_align(name, LV_ALIGN_CENTER, 0, -18);
+    lv_obj_t* line = lv_obj_create(scr);       // a thin blue rule, XDJ-ish
+    lv_obj_remove_style_all(line);
+    lv_obj_set_size(line, 160, 3);
+    lv_obj_set_style_bg_opa(line, LV_OPA_COVER, 0);
+    lv_obj_set_style_bg_color(line, kBlue, 0);
+    lv_obj_align(line, LV_ALIGN_CENTER, 0, 16);
+    const esp_app_desc_t* app = esp_app_get_description();
+    lv_obj_t* ver = label(scr, &lv_font_montserrat_12, kDim);
+    lv_label_set_text_fmt(ver, "build %s %s", app->date, app->time);
+    lv_obj_align(ver, LV_ALIGN_CENTER, 0, 34);
+    s_splashStatus = label(scr, &lv_font_montserrat_16, kDim);
+    lv_label_set_text(s_splashStatus, "starting");
+    lv_obj_align(s_splashStatus, LV_ALIGN_BOTTOM_MID, 0, -24);
+    lvgl_port_unlock();
+    // Light it once the first frame is out, not before (no flash of garbage).
+    vTaskDelay(pdMS_TO_TICKS(60));
+    display::backlight(true);
+    return true;
+}
+
+void splashStatus(const char* text)
+{
+    if (!s_splashStatus) return;
+    lvgl_port_lock(0);
+    lv_label_set_text(s_splashStatus, text);
+    lvgl_port_unlock();
+}
+
 void setGrid(const rekordbox::Grid* grid) { s_grid.store(grid); }
 static const rekordbox::Grid* overviewGrid() { return s_grid.load(); }
 
@@ -909,9 +1005,12 @@ bool begin(const TrackStream& stream, EventFn onEvent, SelectFn onSelect, SeekFn
     s_onSelect = onSelect;
     s_onSeek = onSeek;
     s_onMaster = onMaster;
-    lv_display_t* disp = display::begin();
-    if (!disp) { ESP_LOGE(TAG, "no screen"); return false; }
+    if (!s_disp) { ESP_LOGE(TAG, "no screen"); return false; }
+    lv_display_t* disp = s_disp;
+    display::addTouch();
     lvgl_port_lock(0);
+    lv_obj_clean(lv_screen_active());          // the splash goes
+    s_splashStatus = nullptr;
     build();
     lv_display_add_event_cb(disp, [](lv_event_t*) { s_screenFrames++; }, LV_EVENT_RENDER_READY, nullptr);
     lv_timer_create(refresh, 50, nullptr);

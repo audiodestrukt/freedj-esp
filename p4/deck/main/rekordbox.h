@@ -32,6 +32,14 @@ struct Cue {
 // `anlzDat` is the .DAT path. Sorted by time.
 std::vector<Cue> readCues(const char* anlzDat);
 
+// rekordbox's colour detail waveform (PWV5, in the .EXT next to the .DAT):
+// 150 columns per second, one big-endian u16 each: red bits 15-13, green
+// 12-10, blue 9-7, height 6-2 (0..31). (Bit order checked against the
+// monochrome PWV3 heights: 0.86 correlation; rekordcrate's order gave 0.63.)
+// Empty if the track has none.
+std::vector<uint16_t> readColorWave(const char* anlzDat);
+constexpr int kColorWavePerSec = 150;
+
 // Read one ANLZ file. `audioRel` gets the PPTH path ("/Contents/..."),
 // `beats` the grid (PQTZ), `preview` the overview waveform (PWAV: 400
 // columns, each byte = height in the low 5 bits (0..31) and whiteness in the
@@ -51,6 +59,7 @@ struct Grid {
     std::vector<Beat> beats;
     std::vector<uint8_t> preview;   // PWAV columns, empty if none
     std::vector<Cue> cues;          // memory and hot cues
+    std::vector<uint16_t> color;    // PWV5 colour detail waveform, empty if none
     bool  empty() const { return beats.size() < 2; }
     // Beats since the first grid beat, fractional (negative before it).
     double beatAt(double ms) const;
