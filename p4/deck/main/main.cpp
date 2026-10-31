@@ -1208,7 +1208,7 @@ extern "C" void app_main(void)
     // Network from core 0, so the EMAC interrupt stays off the audio core.
     ui::splashStatus("network");
     net::begin();
-    prolink::begin(kLinkPlayer, "ESP DECK");
+    prolink::begin(kLinkPlayer, "FREEDJ-ESP");
     xTaskCreatePinnedToCore(loaderTask, "loader", 32768, nullptr, 4, nullptr, 0);
     ui::splashStatus("audio");
     s_audioUp = xSemaphoreCreateBinary();

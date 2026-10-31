@@ -1,8 +1,8 @@
-"""machine.py: the whole ESP Deck, every part placed by its mates, exported as a GLB
+"""machine.py: the whole freedj-esp, every part placed by its mates, exported as a GLB
 for rendering (metres, Y-up) plus a cutaway through the jog axis.
 
-python3 machine.py -> build/esp_deck.glb, build/esp_deck_cut.glb
-(machine_flat.py builds the flat-top configuration: build/esp_deck_flat*.glb)
+python3 machine.py -> build/freedj_esp.glb, build/freedj_esp_cut.glb
+(machine_flat.py builds the flat-top configuration: build/freedj_esp_flat*.glb)
 """
 import os, sys
 import numpy as np

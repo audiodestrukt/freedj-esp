@@ -1,4 +1,4 @@
-"""base.py: ESP Deck base plate. Drops inside the shell walls and screws into the four
+"""base.py: freedj-esp base plate. Drops inside the shell walls and screws into the four
 corner posts (M3 countersunk into heat-set inserts). Vent slots under the electronics.
 python3 base.py -> build/base.stl
 """

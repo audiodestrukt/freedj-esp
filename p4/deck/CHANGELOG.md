@@ -11,6 +11,15 @@ playing (see the README's *Audio health* section). Unless noted, it's
 the panel**, so they read high. From 2026-10-31 on, "screen fps" counts
 frames LVGL actually rendered and flushed.
 
+## 2026-10-31: renamed freedj-esp
+
+- The project (and repo) is now **freedj-esp**, after freedj-3000. The splash
+  and the Pro DJ Link device name say FREEDJ-ESP, and the enclosure engraving
+  too. CAD file names and the config variable follow (`freedj_esp*`,
+  `FREEDJ_CONFIG`).
+- Name strings only, so the budget is unchanged. Builds clean (P4, and the
+  A1S es8388 env).
+
 ## 2026-10-31: screen recessed behind a window (CAD only)
 
 - The screen now sits behind the top plate on a 0.5 mm foam gasket. The

@@ -1,4 +1,4 @@
-"""screen_mock.py: a 480x320 picture of the ESP Deck play screen, for the render only.
+"""screen_mock.py: a 480x320 picture of the freedj-esp play screen, for the render only.
 
 Laid out from the constants in main/ui.cpp (name, time, overview y=94, phase meter
 y=120, colour waveform y=156, key row y=272). The waveform is synthetic, not a track.

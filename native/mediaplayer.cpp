@@ -404,7 +404,7 @@ bool initSdl(App& a) {
     if (TTF_Init() != 0) {
         std::fprintf(stderr, "TTF_Init: %s\n", TTF_GetError()); return false;
     }
-    a.win = SDL_CreateWindow("esp32-mediaplayer (host)",
+    a.win = SDL_CreateWindow("freedj-esp (host)",
         SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
         kWinW, kWinH, SDL_WINDOW_SHOWN);
     if (!a.win) { std::fprintf(stderr, "SDL_CreateWindow: %s\n", SDL_GetError()); return false; }

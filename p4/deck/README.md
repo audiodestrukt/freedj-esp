@@ -1,6 +1,6 @@
-# ESP Deck
+# freedj-esp
 
-(in `p4/deck`; it started as "the P4 deck")
+(in `p4/deck`; it started as "the P4 deck", then "ESP Deck")
 
 A small CDJ-style deck on the **Waveshare ESP32-P4-Module-DEV-KIT**. It plays WAV and MP3 from a rekordbox USB stick or the SD card. You control it with a Numark DJ2Go over USB, the touch screen, or serial keys. It has varispeed and keylock, CDJ-style CUE, a scrolling waveform, and beat sync to other players over Pro DJ Link.
 
@@ -144,7 +144,7 @@ Core 1 is reserved for audio. Everything else runs on core 0, and core 0 is kept
 - WAV: RIFF walk, including `WAVE_FORMAT_EXTENSIBLE`.
 - MP3: [minimp3](main/third_party/minimp3) with `MP3D_SEEK_TO_SAMPLE`. The file is indexed at load (about 0.5–0.6 s per track), so seeks land on exact samples and a needle jump leaves only a ~46 ms gap. The index is built even when the MP3 has a VBR tag; otherwise minimp3 would build it during the first far seek, mid-track.
 
-**Boot.** The bootloader turns the screen's backlight off about 50 ms after power-on (`bootloader_components/backlight_off`); the module's backlight is otherwise on, showing blank, white panel memory. The app draws a splash ("ESP DECK", build date, a status line) as its first step, at about 1.0 s, and the deck screen replaces it at about 3.1 s. The 32 MB PSRAM self-test is off (`CONFIG_SPIRAM_MEMTEST=n`); it cost about 1 s per boot.
+**Boot.** The bootloader turns the screen's backlight off about 50 ms after power-on (`bootloader_components/backlight_off`); the module's backlight is otherwise on, showing blank, white panel memory. The app draws a splash ("FREEDJ-ESP", build date, a status line) as its first step, at about 1.0 s, and the deck screen replaces it at about 3.1 s. The 32 MB PSRAM self-test is off (`CONFIG_SPIRAM_MEMTEST=n`); it cost about 1 s per boot.
 
 **Colour waveform.** For rekordbox tracks, the scrolling waveform and the overview use rekordbox's colour detail waveform (`PWV5` in the `.EXT`: 150 columns per second, RGB 3 bits each plus a 5-bit height). The bit order was checked against the monochrome `PWV3` heights. Other tracks use the blue waveform below.
 

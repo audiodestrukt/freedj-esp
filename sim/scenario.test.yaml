@@ -1,6 +1,6 @@
 name: browser-navigation
 version: 1
-author: esp32-mediaplayer
+author: freedj-esp
 
 # Smoke test: boot → press PLAY → confirm we transitioned to the now-playing
 # screen for the first file. Assertions are against serial traces emitted by

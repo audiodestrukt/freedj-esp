@@ -1,10 +1,10 @@
-"""machine_params.py: every shared ESP Deck enclosure dimension (mm), plus place().
+"""machine_params.py: every shared freedj-esp enclosure dimension (mm), plus place().
 
 Frame: x across the deck (0 = left edge), y front-to-back (0 = the edge nearest you),
 z up (0 = underside of the shell). Sized around the 4" MSP4021 (480x320 ST7796S,
 capacitive touch) the deck runs on today.
 
-Two configurations, picked by ESP_DECK_CONFIG before this module is imported:
+Two configurations, picked by FREEDJ_CONFIG before this module is imported:
   angled (default)  the CDJ look: screen bezel tilted 12 degrees
   flat              the whole top flat, so the shell prints top-down with no supports
 """
@@ -19,9 +19,9 @@ WALL = 2.5                   # side walls
 TOP_T = 4.0                  # top plate (stiff: the jog boss hangs off it)
 EDGE_R = 2.0                 # top-edge round
 
-CONFIG = os.environ.get("ESP_DECK_CONFIG", "angled")
+CONFIG = os.environ.get("FREEDJ_CONFIG", "angled")
 assert CONFIG in ("angled", "flat"), CONFIG
-NAME = "esp_deck" if CONFIG == "angled" else "esp_deck_flat"   # output file stem
+NAME = "freedj_esp" if CONFIG == "angled" else "freedj_esp_flat"   # output file stem
 SUFFIX = "" if CONFIG == "angled" else "_flat"
 
 # 4" LCD: the capacitive-touch version of the LCDwiki 4" SPI module (FT6336U, I2C), whose
@@ -96,7 +96,7 @@ SCREEN_V = GLASS_MARGIN[0] + (GLASS[1] + 0.4) / 2   # screen centre, measured up
 TOP_T_PERP = TOP_T * math.cos(math.radians(TILT))   # top thickness measured square to the bezel
 GLASS_Z = -(TOP_T_PERP + GASKET)                    # glass top, face-local: behind the top plate
 USBA_V = SCREEN_V + 18.0     # USB-A slot sits up the slope, clear of the screen bosses
-BRAND_V = 9.0                # "ESP DECK", left of the screen near the bend
+BRAND_V = 9.0                # "FREEDJ-ESP", left of the screen near the bend
 
 def face_loc():
     """Location of the tilted bezel face: origin on the bend line at x = W/2,

@@ -1,4 +1,4 @@
-# ESP Deck render log
+# freedj-esp render log
 
 - 0001-first-design-hero.jpg: 2026-10-31: first design, 3.5" LCD, 100 mm jog, CUE/PLAY, 45 mm pitch
 - 0002-first-design-front.jpg: 2026-10-31: same, from the front
@@ -18,3 +18,4 @@
 - 0016-recessed-screen-angled-hero.jpg: 2026-10-31: same, angled
 - 0017-window-and-bosses-underside.jpg: 2026-10-31: from below: the window and 4 screen bosses coming down to the board
 - 0018-section-through-screen-boss.jpg: 2026-10-31: section through a boss: top, glass, board, M3 screw in the pilot
+- 0019-renamed-freedj-esp.jpg: 2026-10-31: renamed to freedj-esp: FREEDJ-ESP engraved on the bezel

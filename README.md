@@ -1,13 +1,17 @@
-# esp32-mediaplayer
+# freedj-esp
 
-An ESP32-A1S media player aimed at eventually driving a portable DJ turntable
+DJ decks on ESP32 (formerly esp32-mediaplayer). Two firmwares live here:
+
+- **The ESP32-P4 deck** in [`p4/deck`](p4/deck/README.md): a small CDJ/XDJ-style player
+  with Pro DJ Link sync, rekordbox analysis, a touch screen and a 3D-printed enclosure design.
+- **The ESP32-A1S timecode-vinyl player** (this directory): described below.
+
+The A1S firmware is an ESP32-A1S media player aimed at eventually driving a portable DJ turntable
 with Serato timecode vinyl control. Plays MP3/WAV from an SD card with
 variable-speed playback (pitched or pitch-preserving), OLED file browser, and
 cue points.
 
-**ESP32-P4 deck:** a CDJ-style player with a touch screen, scrolling waveform
-and DJ2Go control lives in [`p4/deck`](p4/deck/README.md). It shares the
-deck events, DJ2Go decoder and WSOLA with this firmware.
+The P4 deck shares the deck events, DJ2Go decoder and WSOLA with this firmware.
 
 The long-term target is a self-contained turntable deck: drop a control
 record on the platter and the ESP32 decodes position and speed from the

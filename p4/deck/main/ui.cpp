@@ -958,7 +958,7 @@ bool splash()
     lv_label_set_text(brand, "audiodestrukt");
     lv_obj_align(brand, LV_ALIGN_CENTER, 0, -58);
     lv_obj_t* name = label(scr, &lv_font_montserrat_40, kText);
-    lv_label_set_text(name, "ESP DECK");
+    lv_label_set_text(name, "FREEDJ-ESP");
     lv_obj_align(name, LV_ALIGN_CENTER, 0, -18);
     lv_obj_t* line = lv_obj_create(scr);       // a thin blue rule, XDJ-ish
     lv_obj_remove_style_all(line);

@@ -1,11 +1,11 @@
-# ESP Deck: potential hardware targets
+# freedj-esp: potential hardware targets
 
-Which ESP32 chips and boards ESP Deck could run on, compared against what it
+Which ESP32 chips and boards freedj-esp could run on, compared against what it
 actually uses today. Written 2026-10-31. Prices move fast and some are
 unconfirmed, so check before buying. Chip specs for the S31 come from a
 datasheet still marked preliminary.
 
-## What ESP Deck needs (measured on the current board)
+## What freedj-esp needs (measured on the current board)
 
 From the [README's resource budget](README.md#resource-budget) and the
 [changelog](CHANGELOG.md):
@@ -27,7 +27,7 @@ From the [README's resource budget](README.md#resource-budget) and the
 
 Dual-core RISC-V at 360 MHz, 768 KB internal RAM, 32 MB hex PSRAM (in the
 P4NRW32 variant), USB 2.0 high-speed OTG, 100 Mbit Ethernet MAC, MIPI-DSI.
-Everything ESP Deck does today runs with headroom: about 70 % of the audio
+Everything freedj-esp does today runs with headroom: about 70 % of the audio
 core is free, about 40 % of core 0, and 19 MB of PSRAM. No Wi-Fi on the chip
 (boards pair it with an ESP32-C6).
 
@@ -52,9 +52,9 @@ MAC, Wi-Fi 6 and BLE 5.4 on chip. In mass production since July 2026
 [datasheet](https://documentation.espressif.com/esp32-s31_datasheet_en.html),
 preliminary).
 
-| For ESP Deck | |
+| For freedj-esp | |
 |---|---|
-| Good | Same CPU family as the P4, so it's mostly a re-target, not a rewrite. Ethernet and USB host on chip. Wi-Fi built in. (Its MAC is gigabit, but ESP Deck has no use for more than 100 Mbit) |
+| Good | Same CPU family as the P4, so it's mostly a re-target, not a rewrite. Ethernet and USB host on chip. Wi-Fi built in. (Its MAC is gigabit, but freedj-esp has no use for more than 100 Mbit) |
 | CPU | ~10 % slower clock; probably fine given the headroom |
 | **Internal RAM** | **A third less (512 vs 768 KB).** Our tightest resource, so it would need a trimming pass first (move more to PSRAM) |
 | **PSRAM bandwidth** | Octal (8-bit) vs the P4's hex (16-bit) at 200 MHz: likely about half. Screen-versus-keylock contention is already measurable on the P4, so whether waveform and keylock still fit together needs measuring |
@@ -71,7 +71,7 @@ Dual-core Xtensa LX7 at 240 MHz, 512 KB internal RAM, 8–16 MB PSRAM on
 common modules, USB OTG full speed only, no Ethernet MAC, no DSI. N16R8
 modules retail for a few dollars.
 
-| For ESP Deck | |
+| For freedj-esp | |
 |---|---|
 | CPU | Different architecture (Xtensa), so a port, not a rebuild. Keylock plus waveform would probably be tight; unmeasured |
 | PSRAM | 8 MB means a track window of about 20–40 s instead of 70 |
@@ -79,7 +79,7 @@ modules retail for a few dollars.
 | USB | Full speed only. That's what we run anyway behind the hub, so no loss in practice |
 | Display | SPI or parallel RGB; no DSI |
 
-Probably the cheapest thing that could run a reduced ESP Deck: a smaller
+Probably the cheapest thing that could run a reduced freedj-esp: a smaller
 buffer and maybe no keylock with the waveform.
 
 ### Classic ESP32 (the ESP32-A1S build): no

@@ -48,7 +48,7 @@ void begin() {
     oled.begin();
     oled.setFont(u8g2_font_6x10_tf);
     oled.clearBuffer();
-    oled.drawStr(0, 20, "esp32-mediaplayer");
+    oled.drawStr(0, 20, "freedj-esp");
     oled.drawStr(0, 40, "booting...");
     oled.sendBuffer();
 }

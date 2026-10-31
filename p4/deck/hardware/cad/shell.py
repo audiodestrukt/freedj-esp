@@ -1,8 +1,8 @@
-"""shell.py: ESP Deck top shell. One print, upside down on the bed (fits a 256 mm bed).
+"""shell.py: freedj-esp top shell. One print, upside down on the bed (fits a 256 mm bed).
 
 Carries the jog bearing boss, CUE/PLAY holes, pitch slot, the tilted LCD bezel with the
 USB-A stick slot beside it, and the rear-panel cutouts. Open underneath; base.py closes it.
-python3 shell.py -> build/shell.stl   (ESP_DECK_CONFIG=flat -> build/shell_flat.stl)
+python3 shell.py -> build/shell.stl   (FREEDJ_CONFIG=flat -> build/shell_flat.stl)
 """
 import math, os
 from build123d import *
@@ -94,7 +94,7 @@ def part():
     # brand, engraved on the bezel left of the screen, below the USB-A slot
     try:
         bx = (M.SCREEN_X - M.GLASS[0] / 2) / 2           # centred in the strip left of the glass
-        txt = F * Pos(bx - M.W / 2, M.BRAND_V, -0.6) * extrude(Text("ESP DECK", 4.0, font_style=FontStyle.BOLD,
+        txt = F * Pos(bx - M.W / 2, M.BRAND_V, -0.6) * extrude(Text("FREEDJ-ESP", 4.0, font_style=FontStyle.BOLD,
                                                    align=(Align.CENTER, Align.CENTER)), 2)
         cuts.append(txt)
     except Exception as e:
