@@ -11,6 +11,17 @@ playing (see the README's *Audio health* section). Unless noted, it's
 the panel**, so they read high. From 2026-10-31 on, "screen fps" counts
 frames LVGL actually rendered and flushed.
 
+## 2026-10-31: encoder on bosses, no e-clip (CAD only)
+
+- The e-clip is gone. The printed shaft now ends just under the lower
+  bearing (tip at z 9.5), so the magnet sits 2.3 mm higher and the AS5600
+  board goes up on two 2.3 mm bosses with small M3 inserts. The air gap
+  stays 1.1 mm. The header's Dupont plug clears the bearing boss by 0.6 mm.
+- Shaft below the platter: 27.0 mm flat, 23.0 mm angled.
+- Nothing holds the platter down for now. The shell is unchanged; only
+  the platter and base plate change.
+- No firmware change, so the budget is unchanged.
+
 ## 2026-10-31: case engraving reads "FREEDJ" (CAD only)
 
 - The hardware brand is freedj (freedj-esp stays the firmware's name), so the

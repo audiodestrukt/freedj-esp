@@ -1,6 +1,6 @@
 """jog.py: the jog module. Printed platter with its shaft printed in one piece, through two
-608 bearings (pressed into the shell's boss), held down by an e-clip under the lower
-bearing. Steel inertia ring in the underside, aluminium touch plate on top, diametric
+608 bearings (pressed into the shell's boss); nothing holds it down yet, it sits on the
+upper bearing. Steel inertia ring in the underside, aluminium touch plate on top, diametric
 magnet glued into the shaft end over an AS5600 breakout on the base plate.
 
 Print the platter upside down (shaft up): the shaft comes out round and needs no support;
@@ -39,20 +39,17 @@ def platter():
     return p.fuse(hub, shaft()).cut(*cuts)
 
 SHAFT_L = FLOOR + M.PLATTER_GAP - M.SHAFT_BOTTOM   # below the platter's underside
-LEAD = 0.5                                         # 45 degree lead-in on the tip, for the bearings
+LEAD = M.SHAFT_LEAD
 
 def shaft():
     """In the platter's frame (z = 0 at its underside): down through both bearings,
-    an e-clip groove under the lower one, and a pocket in the tip for the magnet."""
+    ending just under the lower one, with a pocket in the tip for the magnet."""
     r = M.SHAFT_D / 2
     z0 = -SHAFT_L
     s = Pos(0, 0, z0 + LEAD) * Cylinder(r, SHAFT_L - LEAD + 1, align=C)
     s = s.fuse(Pos(0, 0, z0) * Cone(r - LEAD, r, LEAD, align=C))
-    to_local = lambda z: z - (FLOOR + M.PLATTER_GAP)
-    g_d, g_w = M.ECLIP[0], M.ECLIP[1]
-    groove = Pos(0, 0, to_local(M.GROOVE_BOT)) * (Cylinder(r + 1, g_w, align=C) - Pos(0, 0, -1) * Cylinder(g_d / 2, g_w + 2, align=C))
     pocket = Pos(0, 0, z0 - 0.01) * Cylinder(M.MAGNET[0] / 2 + 0.08, M.MAGNET[1] + 0.01, align=C)
-    return s.cut(groove, pocket)
+    return s.cut(pocket)
 
 def fit_gauge():
     """Four 12 mm pins at SHAFT_D -0.1 .. +0.05, printed upright like the shaft. Push a 608
@@ -86,10 +83,6 @@ def bearing():
 def magnet():
     return Cylinder(M.MAGNET[0] / 2, M.MAGNET[1], align=C)
 
-def eclip():         # DIN 6799 size 6, drawn as a ring
-    d, _, t, od = M.ECLIP
-    return Cylinder(od / 2, t, align=C) - Pos(0, 0, -1) * Cylinder(d / 2, t + 2, align=C)
-
 ENC_HOLE_D = 3.2
 HDR_N, HDR_PITCH = 7, 2.54                # VCC OUT GND DIR SCL SDA GPO
 HDR_Y = M.ENC_PCB[1] / 2 - 1.5            # pin row, in from the back edge
@@ -122,7 +115,6 @@ STACK = {
     "inertia_ring": FLOOR + M.PLATTER_GAP,
     "bearing_top":  FLOOR - B_W,
     "bearing_bot":  M.BOSS_BOTTOM,
-    "eclip":        M.GROOVE_BOT + (M.ECLIP[1] - M.ECLIP[2]) / 2,
     "magnet":       M.SHAFT_BOTTOM,
     "encoder_pcb":  M.ENC_Z,
     "encoder_chip": M.ENC_Z + M.ENC_PCB[2],
@@ -133,7 +125,7 @@ MATES = {"seat": Pos(0, 0, 0)}   # every jog part: its underside on the axis
 if __name__ == "__main__":
     os.makedirs("build", exist_ok=True)
     print(f"config {M.CONFIG}: shaft {M.SHAFT_D} mm x {SHAFT_L:.2f} mm below the platter, "
-          f"e-clip groove {M.GROOVE_BOT:.2f}-{M.GROOVE_TOP:.2f}, tip at z {M.SHAFT_BOTTOM:.2f}, "
+          f"tip at z {M.SHAFT_BOTTOM:.2f}, board on {M.ENC_STANDOFF:.2f} mm bosses, "
           f"magnet {M.MAGNET[1]} mm, air gap {M.AIR_GAP:.2f} mm")
     import trimesh
     for name, solid in ((f"platter{M.SUFFIX}", platter()), ("fit_gauge", fit_gauge())):
