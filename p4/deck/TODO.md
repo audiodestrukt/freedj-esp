@@ -51,8 +51,8 @@ In order. Costs: **cheap** = logic only, no per-sample work; **moderate**; **hea
      screen.
 5. **Hardware**
    - [ ] **3D-printed enclosure**, first design in [hardware/](hardware/README.md): a small CDJ
-     around a 3.5" LCD, jog on two 608s + MT6701, CUE/PLAY, 45 mm pitch. Next: measure
-     the dev board fit, print and test the jog module alone, choose jog-touch sensing.
+     around the 4" MSP4021, jog on two 608s + MT6701, CUE/PLAY, 45 mm pitch, angled and
+     flat-top versions. Next: caliper the MSP4021, measure the dev board fit, print and test the jog module alone, choose jog-touch sensing.
    - [ ] PCM5102A stereo line out.
    - [ ] I2C control panel: jog, 14-bit pitch, pads.
    - [ ] DSI screen.

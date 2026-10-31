@@ -37,7 +37,7 @@ LOOK = {
     "white":    ((0.9, 0.9, 0.9, 1), 0, 0.5, None),
     "led_green": ((0.2, 1.0, 0.4, 1), 0, 0.3, (0.1, 1.0, 0.3)),
     "led_blue": ((0.3, 0.6, 1.0, 1), 0, 0.3, (0.2, 0.5, 1.0)),
-    "glass":    ((0.02, 0.02, 0.025, 0.35), 0, 0.04, None),
+    "glass":    ((0.02, 0.02, 0.025, 0.12), 0, 0.04, None),
     "lcd":      ((0.02, 0.02, 0.02, 1), 0, 0.5, None),
     "usb_blue": ((0.1, 0.25, 0.8, 1), 0, 0.5, None),
     "rca_red":  ((0.75, 0.08, 0.06, 1), 0, 0.5, None),
@@ -79,8 +79,12 @@ def scene_parts():
     add("usb_led", place(controls.led(), controls.MATES["seat"], S["usb_led"]), "led_blue")
     # screen + connectors
     seat_on = lambda s, m: place(s, stock.MATES["seat"], S[m])
-    add("glass", seat_on(stock.glass(), "glass"), "glass")
-    add("lcd_module", seat_on(stock.lcd_module(), "lcd"), "lcd")
+    add("glass", seat_on(stock.touch_glass(), "screen"), "glass")
+    add("tft", seat_on(stock.tft(), "screen"), "lcd")
+    add("lcd_pcb", seat_on(stock.lcd_pcb(), "screen"), "pcb")
+    add("lcd_header", seat_on(stock.lcd_header(), "screen"), "chip")
+    for side in ("clamp_l", "clamp_r"):
+        add(side, seat_on(shell.clamp(), side), "base")
     add("usb_a", seat_on(stock.usb_a(), "usb_a"), "steel")
     add("usb_a_tongue", seat_on(stock.usb_a_tongue(), "usb_a"), "usb_blue")
     add("rj45", seat_on(stock.rj45(), "rj45"), "steel")
@@ -93,7 +97,7 @@ def scene_parts():
 def screen_mesh():
     """The LCD image as a textured quad just under the cover glass."""
     aw, ah = M.LCD_ACTIVE
-    loc = shell.MATES["glass"] * Pos(0, 0, -0.05)
+    loc = shell.MATES["screen"] * Pos(0, 0, -M.CTP_T + 0.03)   # just above the TFT, under the touch glass
     pts = []
     for x, y in ((-aw / 2, -ah / 2), (aw / 2, -ah / 2), (aw / 2, ah / 2), (-aw / 2, ah / 2)):
         p = (loc * Pos(x, y, 0)).position; pts.append((p.X, p.Y, p.Z))

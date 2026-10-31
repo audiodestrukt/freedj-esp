@@ -4,3 +4,7 @@
 - 0002-first-design-front.jpg: 2026-10-31: same, from the front
 - 0003-first-design-jog-section.jpg: 2026-10-31: section through the jog axis (two 608s, shaft, magnet over the MT6701 board)
 - 0004-flat-top-hero.jpg: 2026-10-31: flat-top configuration (machine_flat.py): screen flat in the top, prints with no supports
+- 0005-4in-angled-hero.jpg: 2026-10-31: redesigned around the 4" MSP4021 we have: 160 x 205 mm, glass flush in the top, clamped from behind
+- 0006-4in-angled-front.jpg: 2026-10-31: same, from the front
+- 0007-4in-flat-hero.jpg: 2026-10-31: 4" flat-top version (print this one first)
+- 0008-4in-flat-front.jpg: 2026-10-31: same, from the front

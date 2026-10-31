@@ -11,6 +11,15 @@ playing (see the README's *Audio health* section). Unless noted, it's
 the panel**, so they read high. From 2026-10-31 on, "screen fps" counts
 frames LVGL actually rendered and flushed.
 
+## 2026-10-31: enclosure around the 4" MSP4021, plus a flat-top version (CAD only)
+
+- Redesigned around the 4" MSP4021 we actually have, not a 3.5" panel: 160 ×
+  205 mm (was 195). The glass stack sits flush in the top and the board is
+  clamped from behind. Panel dimensions are from vendor data, not measured yet.
+- A flat-top configuration (`machine_flat.py`) that prints with no supports.
+  The angled design stays the default.
+- No firmware change, so the budget is unchanged.
+
 ## 2026-10-31: enclosure design (CAD only)
 
 - First design for a 3D-printed ESP Deck in `hardware/`: a 160 × 195 mm

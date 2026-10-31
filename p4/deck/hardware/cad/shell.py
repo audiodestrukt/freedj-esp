@@ -42,6 +42,12 @@ def part():
     # light pipes / switch guides under CUE and PLAY
     for c in (M.PLAY_C, M.CUE_C):
         adds.append(Pos(*c, M.H - 12) * Cylinder(M.RING_D / 2 + 2, 11, align=(Align.CENTER, Align.CENTER, Align.MIN)))
+    # screen clamp bosses under the top, just past the LCD board's ends
+    F = face_loc()
+    stack = M.TFT_T + M.CTP_T + M.TAPE_T
+    for sx in (-1, 1):
+        L = F * Pos(M.SCREEN_X - M.W / 2 + sx * M.CLAMP_DX, M.SCREEN_V, -stack - M.LCD_PCB[2])
+        adds.append(L * Cylinder(4.0, stack + M.LCD_PCB[2] - 0.5, align=(Align.CENTER, Align.CENTER, Align.MIN)))
     hollow = outer - inner
     # posts and bosses must stay inside the outer skin
     inside = Pos(M.W / 2, M.D / 2, 0) * Box(M.W, M.D, 80, align=(Align.CENTER, Align.CENTER, Align.MIN)) & _body(0.2, 0.0)
@@ -65,15 +71,15 @@ def part():
     for x, y in posts():
         # blind from below: stops 2 mm under the top skin so nothing shows on the deck
         cuts.append(Pos(x, y, -1) * Cylinder(INSERT_BORE / 2, M.H - M.TOP_T - 2 + 1, align=(Align.CENTER, Align.CENTER, Align.MIN)))
-    # bezel: LCD window through, glass pocket, USB-A slot
-    F = face_loc()
-    aw, ah = M.LCD_ACTIVE
-    cuts.append(F * Pos(0, M.SCREEN_V, -10) * Box(aw + 2, ah + 2, 20))
-    gw, gh, gt = M.GLASS
-    cuts.append(F * Pos(0, M.SCREEN_V, 0) * Box(gw + 0.4, gh + 0.4, 2 * gt))
+    # bezel: opening for the glass stack (flush with the top), clamp-screw pilots, USB-A slot
+    gw, gh = M.GLASS
+    cuts.append(F * Pos(M.SCREEN_X - M.W / 2, M.SCREEN_V, 0) * Box(gw + 0.4, gh + 0.4, 20))
+    for sx in (-1, 1):   # M2.5 self-tappers, blind: stop 1.2 mm under the face
+        L = F * Pos(M.SCREEN_X - M.W / 2 + sx * M.CLAMP_DX, M.SCREEN_V, -1.2)
+        cuts.append(L * Cylinder(1.1, 12, align=(Align.CENTER, Align.CENTER, Align.MAX)))
     ux, uw, uh = M.USBA_FACE
-    cuts.append(F * Pos(ux - M.W / 2, M.SCREEN_V, 0) * Box(uw, uh, 20))
-    cuts.append(F * Pos(ux - M.W / 2, M.SCREEN_V - 9, -0.6) * Cylinder(1.0, 2))   # stick activity LED
+    cuts.append(F * Pos(ux - M.W / 2, M.USBA_V, 0) * Box(uw, uh, 20))
+    cuts.append(F * Pos(ux - M.W / 2, M.USBA_V - 9, -0.6) * Cylinder(1.0, 2))   # stick activity LED
     # rear panel
     x, z, w, h = M.RJ45
     cuts.append(Pos(x, M.D, z) * Box(w, 10, h))
@@ -90,6 +96,14 @@ def part():
         print("  (brand text skipped:", e, ")")
     return shell.cut(*cuts)
 
+CLAMP = (22.0, 12.0, 2.5)    # printed strip pressing the LCD board's end up against the top
+
+def clamp():
+    """Screen clamp, one each side. Local: screw axis at the origin, top face z = 0."""
+    l, w, t = CLAMP
+    c = Pos(0, 0, -t) * Box(l, w, t, align=(Align.CENTER, Align.CENTER, Align.MIN))
+    return c - Pos(0, 0, -t - 1) * Cylinder(1.4, t + 2, align=(Align.CENTER, Align.CENTER, Align.MIN))
+
 F = face_loc()
 MATES = {   # world frame (the shell is the datum); +z points out of the contact face
     "jog":    Pos(*M.JOG_C, M.H - M.WELL_DEPTH),
@@ -97,10 +111,11 @@ MATES = {   # world frame (the shell is the datum); +z points out of the contact
     "cue":    Pos(*M.CUE_C, M.H),
     "slider": Pos(M.SLIDER_X, M.KNOB_Y, M.H),
     "slider_led": Pos(M.SLIDER_X + 12.5, sum(M.SLIDER_Y) / 2, M.H),
-    "glass":  F * Pos(0, M.SCREEN_V, -M.GLASS[2]),
-    "lcd":    F * Pos(0, M.SCREEN_V, -M.TOP_T * math.cos(math.radians(M.TILT))),
-    "usb_a":  F * Pos(M.USBA_FACE[0] - M.W / 2, M.SCREEN_V, 0),
-    "usb_led": F * Pos(M.USBA_FACE[0] - M.W / 2, M.SCREEN_V - 9, 0),
+    "screen": F * Pos(M.SCREEN_X - M.W / 2, M.SCREEN_V, 0),            # glass top, flush with the face
+    "clamp_l": F * Pos(M.SCREEN_X - M.W / 2 - M.CLAMP_DX, M.SCREEN_V, -(M.TFT_T + M.CTP_T + M.TAPE_T + M.LCD_PCB[2])),
+    "clamp_r": F * Pos(M.SCREEN_X - M.W / 2 + M.CLAMP_DX, M.SCREEN_V, -(M.TFT_T + M.CTP_T + M.TAPE_T + M.LCD_PCB[2])),
+    "usb_a":  F * Pos(M.USBA_FACE[0] - M.W / 2, M.USBA_V, 0),
+    "usb_led": F * Pos(M.USBA_FACE[0] - M.W / 2, M.USBA_V - 9, 0),
     "rj45":   Pos(M.RJ45[0], M.D, M.RJ45[1]) * Rot(-90, 0, 0),
     "rca_l":  Pos(M.RCA_X[0], M.D, M.RCA_Z) * Rot(-90, 0, 0),
     "rca_r":  Pos(M.RCA_X[1], M.D, M.RCA_Z) * Rot(-90, 0, 0),

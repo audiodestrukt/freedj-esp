@@ -1,7 +1,8 @@
 """machine_params.py: every shared ESP Deck enclosure dimension (mm), plus place().
 
 Frame: x across the deck (0 = left edge), y front-to-back (0 = the edge nearest you),
-z up (0 = underside of the shell). Sized around a 3.5" 480x320 SPI LCD.
+z up (0 = underside of the shell). Sized around the 4" MSP4021 (480x320 ST7796S,
+capacitive touch) the deck runs on today.
 
 Two configurations, picked by ESP_DECK_CONFIG before this module is imported:
   angled (default)  the CDJ look: screen bezel tilted 12 degrees
@@ -11,7 +12,7 @@ import math, os
 from build123d import Location, Pos, Rot
 
 # Body
-W, D = 160.0, 195.0          # footprint
+W, D = 160.0, 205.0          # footprint (195 for a 3.5" panel; the 4" glass is 61 mm deep)
 H = 34.0                     # height of the flat top (jog area)
 CORNER_R = 10.0              # plan-view corner radius
 WALL = 2.5                   # side walls
@@ -24,16 +25,23 @@ NAME = "esp_deck" if CONFIG == "angled" else "esp_deck_flat"   # output file ste
 SUFFIX = "" if CONFIG == "angled" else "_flat"
 
 # Screen bezel: the top tilts up from BEZEL_Y to the back edge (flat: it doesn't)
-BEZEL_Y = 128.0
+BEZEL_Y = 130.0
 TILT = 12.0 if CONFIG == "angled" else 0.0   # degrees
 SLOPE_L = (D - BEZEL_Y) / math.cos(math.radians(TILT))   # length along the slope
 H_BACK = H + (D - BEZEL_Y) * math.tan(math.radians(TILT))
 
-# 3.5" LCD (ST7796S class, 480x320). Active area 74 x 49, module board ~98 x 56
-LCD_ACTIVE = (74.0, 49.4)
-LCD_MODULE = (98.0, 56.0, 4.0)
-GLASS = (84.0, 58.0, 1.1)    # cover glass, sits flush in a pocket
+# 4" LCD: LCDwiki MSP4021 (ST7796S, FT6336U touch). From the vendor size data
+# (lcdwiki / Elecrow 4.0" SPI module); check against the real board before printing.
+LCD_ACTIVE = (83.52, 55.68)
+GLASS = (94.57, 60.88)       # TFT + touch glass outline (bonded stack)
+TFT_T, CTP_T = 2.5, 1.35     # the stack sits flush in an opening through the top
+TAPE_T = 0.35                # stack-to-board tape; the board's ends then rest on the top's underside
+LCD_PCB = (108.04, 61.74, 1.6)
+LCD_DEPTH = 14.8             # whole module incl. pin header, from the glass top
+SCREEN_X = 84.0              # screen centre x (off-centre to leave room for the USB-A slot)
 SCREEN_V = SLOPE_L / 2       # screen centre, measured up the slope
+CLAMP_DX = LCD_PCB[0] / 2 + 4.5   # clamp screws, just past the board's ends (boss r 4 clears it)
+USBA_V = SCREEN_V + 18.0     # USB-A slot sits up the slope, clear of the left clamp boss
 
 # Jog
 JOG_C = (80.0, 65.0)
@@ -74,7 +82,7 @@ KNOB_Y = 61.0                # rendered at +1.25 %
 RJ45 = (40.0, 13.0, 16.2, 13.8)   # x, z centre, w, h
 RCA_X, RCA_Z, RCA_HOLE = (78.0, 94.0), 15.0, 8.6
 USBC = (124.0, 10.0, 9.2, 3.6)
-USBA_FACE = (20.0, 13.6, 6.2)     # on the bezel: x, opening w, h (stick goes in from the top)
+USBA_FACE = (17.0, 13.6, 6.2)     # on the bezel: x, opening w, h (stick goes in from the top)
 
 def face_loc():
     """Location of the tilted bezel face: origin on the bend line at x = W/2,

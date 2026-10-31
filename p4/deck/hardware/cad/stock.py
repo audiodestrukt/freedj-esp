@@ -7,12 +7,19 @@ import machine_params as M
 C = (Align.CENTER, Align.CENTER, Align.MIN)
 CM = (Align.CENTER, Align.CENTER, Align.MAX)
 
-def glass():
-    return Box(*M.GLASS, align=C)
+def touch_glass():  # local: z = 0 at the glass top (flush with the deck face)
+    return Box(*M.GLASS, M.CTP_T, align=CM)
 
-def lcd_module():
-    w, h, t = M.LCD_MODULE
-    return Box(w, h, t, align=CM)
+def tft():
+    return Pos(0, 0, -M.CTP_T) * Box(*M.GLASS, M.TFT_T, align=CM)
+
+def lcd_pcb():
+    w, h, t = M.LCD_PCB
+    return Pos(0, 0, -(M.CTP_T + M.TFT_T + M.TAPE_T)) * Box(w, h, t, align=CM)
+
+def lcd_header():   # pin header + parts behind the board, down to LCD_DEPTH
+    top = M.CTP_T + M.TFT_T + M.TAPE_T + M.LCD_PCB[2]
+    return Pos(-M.LCD_PCB[0] / 2 + 5, 0, -top) * Box(8, 40, M.LCD_DEPTH - top, align=CM)
 
 def usb_a():        # receptacle, mouth 1 mm below the bezel face
     shell = Pos(0, 0, -1) * Box(13.1, 5.7, 14, align=CM)
