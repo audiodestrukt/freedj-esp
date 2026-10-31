@@ -1,6 +1,6 @@
 """base.py: freedj-esp base plate. Drops inside the shell walls and screws into the four
 corner posts (M3 countersunk into heat-set inserts). Vent slots under the electronics.
-python3 base.py -> build/base.stl
+python3 base.py -> build/base.stl   (FREEDJ_CONFIG=flat -> build/base_flat.stl)
 """
 import os
 from build123d import *
@@ -39,7 +39,7 @@ MATES = {"to_shell": Pos(0, 0, 0)}
 
 if __name__ == "__main__":
     os.makedirs("build", exist_ok=True)
-    export_stl(part(), "build/base.stl", tolerance=0.05, angular_tolerance=0.1)
-    import trimesh; m = trimesh.load("build/base.stl")
+    export_stl(part(), f"build/base{M.SUFFIX}.stl", tolerance=0.05, angular_tolerance=0.1)
+    import trimesh; m = trimesh.load(f"build/base{M.SUFFIX}.stl")
     print("base:", (m.bounds[1] - m.bounds[0]).round(1),
           "bodies:", len(m.split(only_watertight=False)), "watertight:", m.is_watertight)
