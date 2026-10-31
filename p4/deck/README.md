@@ -120,9 +120,12 @@ Core 1 is reserved for audio. Everything else runs on core 0, and core 0 is kept
 Every 2 s while playing, the `report` task prints a block like this:
 
 ```
-deck:   audio: realtime 100.0 %  block work avg 0.43 / max 0.70 ms (budget 5.80)  min slack 4.6 ms  clicks 0 (worst 0)
-deck:   cpu: core0 30 %  core1 8 %  (waveform 47.3 fps)
-deck:   top: IDLE1/1 92%  IDLE0/0 70%  taskLVGL/0 22%  audio/1 8%  loader/0 7%  ...
+deck:   audio: realtime 100.0 %  block work avg 0.49 / max 0.99 ms (budget 5.80)  min slack 4.3 ms  clicks 0 (worst 0)
+deck:   cpu: core0 42 %  core1 9 %  (screen 41.4 fps, waveform drawn 75/s)
+deck:   mem: internal 93 KB free (lowest 73 KB, largest block 38 KB), PSRAM 19394 KB free
+deck:   top: IDLE1/1 91%  IDLE0/0 58%  taskLVGL/0 29%  audio/1 9%  loader/0 8%  link/0 2%  ...
+deck:   link: player 2  192.168.68.58  peers 1  master 5 @ 128.00 BPM
+deck:   sync: phase error avg 1.4 / max 3.3 ms (offset +0 ms)
 ```
 
 - **realtime:** frames handed to the DAC, divided by the frames the DAC must have played in the same wall time. **This is the dropout detector.** Anything under 100 % means gaps of silence. The I2S driver's "send queue overflow" event does *not* catch this: it stayed at zero while playback ran at 80 %.
@@ -130,6 +133,9 @@ deck:   top: IDLE1/1 92%  IDLE0/0 70%  taskLVGL/0 22%  audio/1 8%  loader/0 7%  
 - **min slack:** the shortest wait for DMA room. Close to 0 means the DAC is about to starve.
 - **clicks:** spikes in the second difference of the DAC samples. **Exact on `sine.wav`.** On music, drum hits set it off, so treat it as a hint there.
 - **cpu / top:** per-core load and the top tasks by CPU, from FreeRTOS run-time stats.
+- **screen fps:** frames LVGL actually rendered and sent to the panel. "Waveform drawn" counts redraws of the waveform canvas, which can be higher, because LVGL folds several into one frame. Before 2026-10-31 the report only had the redraw count, so older fps figures read high.
+- **mem:** internal RAM free now, lowest since boot, and largest free block. Internal RAM is the tightest resource: task stacks and DMA buffers must come from it.
+- **link / sync:** our address and peers, who the tempo master is, and while synced, the phase error against the master.
 
 Rules that came out of using these:
 - **Initialise drivers from the task that owns them.** An ESP-IDF driver's interrupt is allocated on the core that installs it. With `audio_out::begin()` called from `app_main` (core 0), the I2S interrupt shared core 0 with the screen's SPI traffic, and playback dropped to about 80 % real time whenever the waveform scrolled. The audio task now calls it, so the interrupt is on core 1.
@@ -139,7 +145,7 @@ The full story is on the blog: [The waveform was stealing my audio](https://audi
 
 ## Screen notes
 
-**SPI at 40 MHz.** About 47 fps for the waveform, against 19 fps at 20 MHz. If the image corrupts on longer wires, drop `kSpiHz` in `display.cpp`.
+**SPI at 40 MHz.** Roughly twice the frame rate of 20 MHz. If the image corrupts on longer wires, drop `kSpiHz` in `display.cpp`.
 
 **LVGL flush wait.** By default LVGL waits for a finished SPI transfer with `while (flushing);`, which kept core 0 near 100 %. `display.cpp` sets a flush-wait callback instead: LVGL sleeps on a semaphore, and the transfer-done interrupt wakes it.
 
@@ -147,8 +153,10 @@ The full story is on the blog: [The waveform was stealing my audio](https://audi
 
 | Playing, waveform up | core 0 | core 1 | waveform |
 |---|---|---|---|
-| Busy-wait flush, touch INT on, 20 MHz | 98 % | 42 % | 19 fps |
-| All three fixed, 40 MHz | 30 % | 8 % | 47 fps |
+| Busy-wait flush, touch INT on, 20 MHz | 98 % | 42 % | 19 redraws/s |
+| All three fixed, 40 MHz | 30 % | 8 % | 47 redraws/s |
+
+(Measured with the old counter, which counted waveform redraws rather than frames sent; see the changelog.)
 
 ### Vsync
 
@@ -160,9 +168,27 @@ Options on this module:
 
 Neither is done yet. The MSP4021 is a stand-in. The intended MIPI-DSI screen is driven with real video timing, and ESP-IDF's DPI panel driver provides vsync callbacks, which fixes tearing properly.
 
+## Resource budget
+
+The current numbers. The changelog ([CHANGELOG.md](CHANGELOG.md)) has the budget at every step. Update both when a change moves them.
+
+Measured 2026-10-31: `house.mp3` from SD, synced to a Pro DJ Link master, with the waveform, beat grid and phase meter up.
+
+| | Varispeed | Keylock | Headroom |
+|---|---|---|---|
+| Core 0 (UI, loader, USB, network) | 39–42 % | 38–42 % | ~58 % |
+| Core 1 (audio only) | 9 % | 27–28 % | ~72 % |
+| Worst audio block (budget 5.8 ms) | 1.25 ms | 3.4 ms | |
+| Screen | 40–42 fps | 40–42 fps | |
+
+- **Core 0 by task:** LVGL 25–29 %, loader 8 %, Link 2 %. The waveform plus meter cost about 22 points; core 0 is at 20 % with the waveform off.
+- **Internal RAM:** 93 KB free, 73 KB lowest, 38 KB largest block. **This is the tightest resource.** A 224-track stick list costs about 12 KB more.
+- **PSRAM:** 19.4 MB free (12 MB of it is the track window, which could shrink).
+- **App flash:** 9 % of the 1.5 MB partition free. The board has 16 MB, so a bigger partition is an easy fix.
+
 ## Status and next
 
-The working list for the next session is in [TODO.md](TODO.md).
+The working list for the next session is in [TODO.md](TODO.md). What changed when: [CHANGELOG.md](CHANGELOG.md).
 
 ## Pro DJ Link and SYNC
 
@@ -174,7 +200,8 @@ The working list for the next session is in [TODO.md](TODO.md).
 Working:
 - WAV/MP3 streaming, varispeed, and keylock (including 48 kHz files).
 - CUE, jog, the touch UI, and the scrolling waveform.
-- Audio at 100 % real time with the waveform at ~47 fps.
+- Audio at 100 % real time with the waveform, beat grid and phase meter up (screen ~41 fps).
+- XDJ-style phase meter (beat display / alignment view) and beat grid on the waveform.
 
 - Pro DJ Link beat sync, with rekordbox beat grids from a USB stick.
 
