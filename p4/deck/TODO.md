@@ -13,10 +13,13 @@ Where things stand (2026-10-30):
   - See whether the DAC volume cap (vol=50, added for DAC→ADC crosstalk) can come up now.
 
 ## Features
-- [ ] **Pro DJ Link**, on core 0 over the on-board Ethernet:
-  - First listen: other players' beats and status, BPM and phase.
-  - Then join as a player and send status and beat packets.
-  - Serving tracks to other players would come later and is the heavy part. Watch the `cpu:` / `top:` report.
+- [ ] **Pro DJ Link, next steps** (following the master works; see README):
+  - Test against the XDJ-1000MK2 and trim the phase by ear (`[` `]`).
+  - Send beat packets so the deck can be tempo master, and handle master handoff.
+- [ ] **Waveform got slower with a stick track**: 34–41 fps (was 46), core 0 at 42–48 %. It isn't the allocator. Suspects: USB stick reads on core 0, the 224-row list.
+- [ ] **One keylock block took 5.1 of its 5.8 ms** while a track was still loading. Find out why.
+- [ ] **Boot +6.9 s** reading 218 ANLZ files: cache the track list on the stick.
+- [ ] **USB hub never appears** in either H3 position, so only one USB-A port works (stick or DJ2Go).
 - [ ] **Deck B and the crossfader.** The DJ2Go already sends deck B events, so this needs a second `TrackStream` and `Deck`, plus mixing.
 - [ ] **Overview waveform**: the whole track in one strip. Analyse in the background after load, and cache the peaks on the SD card so each track is only analysed once.
 
