@@ -11,6 +11,34 @@ playing (see the README's *Audio health* section). Unless noted, it's
 the panel**, so they read high. From 2026-10-31 on, "screen fps" counts
 frames LVGL actually rendered and flushed.
 
+## 2026-10-31 (fix): loading a stick track reset the board
+
+- **Cause:** while minimp3 built its seek index, FAT read a large run of the
+  file in one go. `usb_host_msc` then grew its DMA transfer buffer to about
+  32 KB in internal RAM, but the largest free block was 31 KB. The
+  allocation failed after the old buffer had been freed, and the driver
+  freed it again on the error path, so the heap asserted
+  (`tlsf_free … block already marked as free`) and the board reset.
+- **Fix:** USB transfer buffers live in PSRAM
+  (`CONFIG_USB_HOST_DWC_DMA_CAP_MEMORY_IN_PSRAM`), and the phase meter's
+  tick canvas (15 KB) moved to PSRAM too.
+
+Budget (three rekordbox MP3s from the stick, synced, waveform + grid +
+meter up, 224-track list):
+
+| | |
+|---|---|
+| Screen | 37–38 fps |
+| Core 0 | 49–50 % (LVGL 34 %, loader 9 %, Link 3 %) |
+| Core 1 | 10–11 % (varispeed) |
+| Worst audio block | 1.5 ms |
+| Sync | 1.4 / 3–5 ms |
+| Internal RAM | 65–69 KB free, **43 KB lowest**, 31 KB largest block |
+
+LVGL costs about 8 points more here than with the 6-track SD list (26 %).
+The suspect is the 224-row list, even while hidden behind the waveform.
+That isn't confirmed yet.
+
 ## 2026-10-31 (later): beat grid on the waveform, XDJ phase meter, honest frame counter
 
 - Beat grid drawn on the waveform from the rekordbox grid: a short tick per

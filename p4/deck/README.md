@@ -182,7 +182,8 @@ Measured 2026-10-31: `house.mp3` from SD, synced to a Pro DJ Link master, with t
 | Screen | 40–42 fps | 40–42 fps | |
 
 - **Core 0 by task:** LVGL 25–29 %, loader 8 %, Link 2 %. The waveform plus meter cost about 22 points; core 0 is at 20 % with the waveform off.
-- **Internal RAM:** 93 KB free, 73 KB lowest, 38 KB largest block. **This is the tightest resource.** A 224-track stick list costs about 12 KB more.
+- **Internal RAM:** 93 KB free, 73 KB lowest, 38 KB largest block. **This is the tightest resource.**
+- **With a 224-track rekordbox stick, playing MP3s from it:** core 0 49–50 % (LVGL 34 %, about 8 points more than with the SD list; the suspect is the long list), screen 37–38 fps. Internal RAM 65 KB free, **43 KB lowest**. USB transfer buffers are in PSRAM: from internal RAM, a 32 KB stick read failed and crashed the driver.
 - **PSRAM:** 19.4 MB free (12 MB of it is the track window, which could shrink).
 - **App flash:** 9 % of the 1.5 MB partition free. The board has 16 MB, so a bigger partition is an easy fix.
 
