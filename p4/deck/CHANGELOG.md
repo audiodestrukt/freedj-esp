@@ -11,6 +11,26 @@ playing (see the README's *Audio health* section). Unless noted, it's
 the panel**, so they read high. From 2026-10-31 on, "screen fps" counts
 frames LVGL actually rendered and flushed.
 
+## 2026-10-31: printed jog shaft, AS5600 encoder, M3 inserts on the base (CAD only)
+
+- The jog shaft is printed in one piece with the platter (Ø7.95, snug in the
+  608s), instead of a steel 8 mm shaft. `fit_gauge.stl` has four pins
+  (7.85-8.00) to find the right diameter on your printer first.
+- The encoder is the AS5600 breakout (WWZMDiB, 23 x 23 mm), not an MT6701.
+  It lies flat on the base plate on two small M3 heat-set inserts. Its
+  right-angle header points back, and the solder tails drop into a slot.
+- The stack is worked out from the shell as printed (lower bearing at
+  z 10). From there down: DIN 6799 size-6 e-clip groove (9.20-9.95), then
+  0.4 mm of plastic, then a pocket with the 1.6 mm magnet glued flush. The
+  shaft tip is at z 7.20, 1.1 mm above the chip. Shaft below the platter:
+  29.3 mm flat, 25.3 mm angled. The shell is unchanged.
+- The dev board standoffs take small M3 inserts (Ø4.0 bore, 4.5 deep, 8 mm
+  OD) instead of M2.5. The board's 2.75 mm holes need opening to 3.2 mm.
+- Fix: `base.py` always wrote the angled plate as `base.stl`. The flat
+  config now writes `base_flat.stl`, 1.6 mm deeper. The platter is also
+  per config now (`platter_flat.stl`).
+- No firmware change, so the budget is unchanged.
+
 ## 2026-10-31: centred screen window, base screws in all four corners (CAD only)
 
 - The screen window is centred on the deck (over the jog). Before, it sat

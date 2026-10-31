@@ -61,7 +61,7 @@ def scene_parts():
                           ("center_cap", jog.center_cap, "cap"), ("cap_marker", jog.cap_marker, "marker"),
                           ("inertia_ring", jog.inertia_ring, "steel"), ("bearing_top", jog.bearing, "bearing"),
                           ("bearing_bot", jog.bearing, "bearing"), ("eclip", jog.eclip, "steel"),
-                          ("shaft", jog.shaft, "steel"), ("magnet", jog.magnet, "magnet"),
+                          ("magnet", jog.magnet, "magnet"), ("encoder_header", jog.encoder_header, "chip"),
                           ("encoder_pcb", jog.encoder_pcb, "pcb"), ("encoder_chip", jog.encoder_chip, "chip")):
         add(key, place(fn(), jog.MATES["seat"], seat(key)), look)
     # buttons

@@ -59,13 +59,33 @@ INERTIA = (38.0, 46.0, 5.0)  # steel ring in the platter underside: r_in, r_out,
 # Two 608 skateboard bearings, 8 x 22 x 7
 B608 = (8.0, 22.0, 7.0)
 BOSS_OD = 32.0
-BOSS_BOTTOM = 10.0           # z of the boss underside
-SHAFT_D = 8.0
-SHAFT_BOTTOM = 8.0           # magnet is recessed in this end
-MAGNET = (6.0, 2.5)          # diametric, diameter x height
+BOSS_BOTTOM = 10.0           # z of the boss underside = the lower bearing's bottom face
 BASE_T = 3.0
-ENC_PCB = (22.0, 22.0, 1.6)
-ENC_Z = BASE_T + 1.0         # PCB underside (on 1 mm standoffs)
+
+# Small M3 heat-set inserts (M3 x 3, ~4.2 OD), used in the base plate
+M3_INSERT_BORE = 4.0
+
+# Shaft: printed in one piece with the platter, a snug fit through the 608s' 8 mm bores.
+# Tune SHAFT_D with fit_gauge.stl (jog.py) on your printer before printing the platter.
+SHAFT_D = 7.95
+ECLIP = (6.0, 0.75, 0.7, 11.3)   # DIN 6799 size 6 (shafts 7-9 mm): groove dia, groove width, clip t, clip OD
+MAGNET = (6.0, 1.6)          # diametric; thickness ~ the encoder's 1.6 mm FR4 (not measured yet)
+MAGNET_CAP = 0.4             # solid plastic between the magnet pocket and the e-clip groove
+
+# Encoder: AS5600 breakout (WWZMDiB, 23 x 23 mm, typical listing; not measured yet), chip
+# side up under the shaft, right-angle header along the back edge. It lies flat on the base
+# plate; the header's solder tails drop into a slot in the plate.
+ENC_PCB = (23.0, 23.0, 1.6)
+ENC_CHIP_H = 1.5             # AS5600 in SOIC-8
+ENC_HOLES = [(-8.5, -8.5), (8.5, -8.5)]   # from the board centre (= chip = jog axis); front edge, away from the header
+ENC_Z = BASE_T               # PCB underside
+
+# The stack, top down from the lower bearing (the shell is printed; BOSS_BOTTOM is fixed)
+GROOVE_TOP = BOSS_BOTTOM - 0.05             # e-clip pulls the shaft down onto the lower inner race
+GROOVE_BOT = GROOVE_TOP - ECLIP[1]
+SHAFT_BOTTOM = GROOVE_BOT - MAGNET_CAP - MAGNET[1]   # magnet glued flush in a pocket in the shaft end
+AIR_GAP = SHAFT_BOTTOM - (ENC_Z + ENC_PCB[2] + ENC_CHIP_H)   # magnet face to chip top
+assert 0.5 <= AIR_GAP <= 3.0, AIR_GAP     # AS5600 working range
 
 # CUE / PLAY, bottom-left as on a CDJ
 BTN_D = 19.0                 # cap

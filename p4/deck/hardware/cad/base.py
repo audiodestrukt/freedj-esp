@@ -1,5 +1,7 @@
 """base.py: freedj-esp base plate. Drops inside the shell walls and screws into the four
 corner posts (M3 countersunk into heat-set inserts). Vent slots under the electronics.
+Small M3 heat-set inserts (M3 x 3) hold the dev board (on standoffs) and the AS5600
+jog encoder (flat on the plate, inserts flush with the top).
 python3 base.py -> build/base.stl   (FREEDJ_CONFIG=flat -> build/base_flat.stl)
 """
 import os
@@ -9,7 +11,7 @@ from shell import posts
 
 C = (Align.CENTER, Align.CENTER, Align.MIN)
 CLEAR = 0.3
-STANDOFF_D, INSERT_BORE, INSERT_DEPTH = 7.0, 3.6, 4.0   # M2.5 heat-set insert
+STANDOFF_D, INSERT_DEPTH = 8.0, 4.5   # dev board: M3 x 3 (or x 4) insert, from the top
 FOOT_D, FOOT_H, FOOT_INSET = 12.0, 2.5, 16.0
 
 def part():
@@ -27,7 +29,14 @@ def part():
     for u, w in B.HOLES:
         x, y = B.deck_xy(u, w)
         standoffs.append(Pos(x, y, M.BASE_T - 1) * Cylinder(STANDOFF_D / 2, B.STANDOFF + 1, align=C))
-        cuts.append(Pos(x, y, M.BASE_T + B.STANDOFF - INSERT_DEPTH) * Cylinder(INSERT_BORE / 2, INSERT_DEPTH + 1, align=C))
+        cuts.append(Pos(x, y, M.BASE_T + B.STANDOFF - INSERT_DEPTH) * Cylinder(M.M3_INSERT_BORE / 2, INSERT_DEPTH + 1, align=C))
+    # jog encoder: the board lies on the plate, so the insert goes right through the 3 mm
+    # plate (an M3 x 3 sits flush); a slot takes the header's solder tails
+    import jog
+    jx, jy = M.JOG_C
+    for x, y in M.ENC_HOLES:
+        cuts.append(Pos(jx + x, jy + y, -1) * Cylinder(M.M3_INSERT_BORE / 2, M.BASE_T + 2, align=C))
+    cuts.append(Pos(jx, jy + jog.HDR_Y, -1) * Box(jog.HDR_N * jog.HDR_PITCH + 1.5, 2.6, M.BASE_T + 2, align=C))
     return p.fuse(*standoffs).cut(*cuts)
 
 def feet():
