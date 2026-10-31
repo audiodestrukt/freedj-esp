@@ -2,6 +2,7 @@
 for rendering (metres, Y-up) plus a cutaway through the jog axis.
 
 python3 machine.py -> build/esp_deck.glb, build/esp_deck_cut.glb
+(machine_flat.py builds the flat-top configuration: build/esp_deck_flat*.glb)
 """
 import os, sys
 import numpy as np
@@ -134,11 +135,12 @@ def manifest(parts):
         bb = solid.bounding_box(); lo = np.minimum(lo, bb.min.to_tuple()); hi = np.maximum(hi, bb.max.to_tuple())
     print(f"{len(parts)} parts, assembly bbox {np.round(hi - lo, 1)} mm (min {np.round(lo, 1)})")
 
-if __name__ == "__main__":
+def build():
     os.makedirs("build", exist_ok=True)
+    print("config:", M.CONFIG)
     parts = scene_parts()
     manifest(parts)
-    export(parts, "build/esp_deck.glb")
+    export(parts, f"build/{M.NAME}.glb")
     # cutaway: keep x <= jog axis, i.e. a section through the jog module
     keep = Pos(M.JOG_C[0], M.D / 2, 0) * Box(400, 400, 200, align=(Align.MAX, Align.CENTER, Align.CENTER))
     cut = []
@@ -148,5 +150,8 @@ if __name__ == "__main__":
         if bb.max.X <= M.JOG_C[0]: cut.append((name, solid, look)); continue
         s = solid & keep
         if s.volume > 0.01: cut.append((name, s, look))
-    export(cut, "build/esp_deck_cut.glb", with_screen=False, look=CUT_LOOK)
-    print("wrote build/esp_deck.glb, build/esp_deck_cut.glb")
+    export(cut, f"build/{M.NAME}_cut.glb", with_screen=False, look=CUT_LOOK)
+    print(f"wrote build/{M.NAME}.glb, build/{M.NAME}_cut.glb")
+
+if __name__ == "__main__":
+    build()

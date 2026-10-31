@@ -19,6 +19,22 @@ bezel at the top. Everything else is touch, on the screen. First design,
 | Rear | RJ45 (Pro DJ Link), RCA L/R line out (PCM5102A), USB-C power |
 | Assembly | The base plate screws into four corner posts (M3 countersunk into heat-set inserts). Rubber feet |
 
+## Two versions
+
+| | Angled (the design) | Flat (print this one first) |
+|---|---|---|
+| Screen | On a 12° bezel, as on a CDJ | Flat in the top |
+| Height | 34 mm front, 48 mm back | 34 mm all over |
+| Printing the shell | Upside down, but the bezel slope then needs supports under the back half | Upside down, flat on the top: no supports. The bearing boss and posts grow straight up from it |
+| Build | `python3 shell.py`, `python3 machine.py` | `ESP_DECK_CONFIG=flat python3 shell.py` → `build/shell_flat.stl`, `python3 machine_flat.py` |
+
+Everything else (jog, buttons, slider, base plate, connectors) is the same part in both;
+only the tilt changes (`TILT` in `machine_params.py`, set by `ESP_DECK_CONFIG`).
+On the flat print, the engraved "ESP DECK" and the slider ticks are on the bed side, so
+they come out as clean as the bed surface allows.
+
+![Flat-top version](cad/renders/esp_deck/0004-flat-top-hero.jpg)
+
 ![Section through the jog](cad/renders/esp_deck/0003-first-design-jog-section.jpg)
 
 ## Open questions
@@ -58,6 +74,7 @@ that depends on it.
 | `controls.py` | Button caps and light rings, slider knob, pot, LEDs |
 | `stock.py` | Bought parts as stand-ins: LCD, cover glass, connectors |
 | `machine.py` | The assembly, exported as GLB (plus a cutaway through the jog) |
+| `machine_flat.py` | The same assembly in the flat-top configuration |
 | `screen_mock.py` | A picture of the play screen for the render, laid out from `main/ui.cpp`. The waveform is synthetic |
 | `deck_render.py` | Headless Blender render (Cycles, GPU) |
 

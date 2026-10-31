@@ -2,7 +2,7 @@
 
 Carries the jog bearing boss, CUE/PLAY holes, pitch slot, the tilted LCD bezel with the
 USB-A stick slot beside it, and the rear-panel cutouts. Open underneath; base.py closes it.
-python3 shell.py -> build/shell.stl
+python3 shell.py -> build/shell.stl   (ESP_DECK_CONFIG=flat -> build/shell_flat.stl)
 """
 import math, os
 from build123d import *
@@ -111,7 +111,8 @@ MATES = {   # world frame (the shell is the datum); +z points out of the contact
 if __name__ == "__main__":
     os.makedirs("build", exist_ok=True)
     p = part()
-    export_stl(p, "build/shell.stl", tolerance=0.05, angular_tolerance=0.1)
-    import trimesh; m = trimesh.load("build/shell.stl")
-    print("shell:", (m.bounds[1] - m.bounds[0]).round(1),
+    out = f"build/shell{M.SUFFIX}.stl"
+    export_stl(p, out, tolerance=0.05, angular_tolerance=0.1)
+    import trimesh; m = trimesh.load(out)
+    print(out, (m.bounds[1] - m.bounds[0]).round(1),
           "bodies:", len(m.split(only_watertight=False)), "watertight:", m.is_watertight)

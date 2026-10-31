@@ -2,8 +2,12 @@
 
 Frame: x across the deck (0 = left edge), y front-to-back (0 = the edge nearest you),
 z up (0 = underside of the shell). Sized around a 3.5" 480x320 SPI LCD.
+
+Two configurations, picked by ESP_DECK_CONFIG before this module is imported:
+  angled (default)  the CDJ look: screen bezel tilted 12 degrees
+  flat              the whole top flat, so the shell prints top-down with no supports
 """
-import math
+import math, os
 from build123d import Location, Pos, Rot
 
 # Body
@@ -14,9 +18,14 @@ WALL = 2.5                   # side walls
 TOP_T = 4.0                  # top plate (stiff: the jog boss hangs off it)
 EDGE_R = 2.0                 # top-edge round
 
-# Screen bezel: the top tilts up from BEZEL_Y to the back edge
+CONFIG = os.environ.get("ESP_DECK_CONFIG", "angled")
+assert CONFIG in ("angled", "flat"), CONFIG
+NAME = "esp_deck" if CONFIG == "angled" else "esp_deck_flat"   # output file stem
+SUFFIX = "" if CONFIG == "angled" else "_flat"
+
+# Screen bezel: the top tilts up from BEZEL_Y to the back edge (flat: it doesn't)
 BEZEL_Y = 128.0
-TILT = 12.0                  # degrees
+TILT = 12.0 if CONFIG == "angled" else 0.0   # degrees
 SLOPE_L = (D - BEZEL_Y) / math.cos(math.radians(TILT))   # length along the slope
 H_BACK = H + (D - BEZEL_Y) * math.tan(math.radians(TILT))
 
