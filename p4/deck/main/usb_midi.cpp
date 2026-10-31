@@ -7,6 +7,7 @@
 #include "freertos/task.h"
 #include "esp_log.h"
 #include "usb/usb_host.h"
+#include "hal/usb_dwc_ll.h"
 #include "usb_midi.h"
 
 static const char *TAG = "usb";
@@ -123,19 +124,29 @@ static void client_cb(const usb_host_client_event_msg_t *msg, void *arg)
 
 static void client_task(void *arg)
 {
-    usb_host_client_config_t cc = {};
-    cc.is_synchronous = false;
-    cc.max_num_event_msg = 8;
-    cc.async.client_event_callback = client_cb;
-    ESP_ERROR_CHECK(usb_host_client_register(&cc, &P.client));
     for (;;) usb_host_client_handle_events(P.client, portMAX_DELAY);
+}
+
+// Full-speed-only root port. The board's four USB-A ports sit behind a
+// high-speed hub (CH334F), and ESP-IDF's host has no transaction translator,
+// so a full-speed device like the DJ2Go can't work behind it at high speed
+// ("TT is not supported"). Limiting the root port to full speed makes the hub
+// itself run at full speed, so every device behind it is reached directly.
+// The cost: the USB stick runs at 12 Mbit/s too. Trick from espp's usb_host
+// component (Config::full_speed_only).
+static void forceFullSpeed()
+{
+    usb_dwc_ll_hcfg_set_fsls_supp_only(USB_DWC_LL_GET_HW(0));
 }
 
 static void host_task(void *arg)
 {
     for (;;) {
         uint32_t flags;
-        usb_host_lib_handle_events(portMAX_DELAY, &flags);
+        // Wake regularly: a root port recovery (after an error or unplug)
+        // soft-resets the controller and clears the full-speed bit.
+        usb_host_lib_handle_events(pdMS_TO_TICKS(100), &flags);
+        forceFullSpeed();
     }
 }
 
@@ -146,10 +157,25 @@ void begin(PacketFn onPacket)
     s_onPacket = onPacket;
     usb_host_config_t hc = {};
     hc.intr_flags = ESP_INTR_FLAG_LEVEL1;
+    // Port stays off until every class driver has registered (powerOn()):
+    // clients only hear about devices that enumerate after they register.
+    hc.root_port_unpowered = true;
     ESP_ERROR_CHECK(usb_host_install(&hc));
+    forceFullSpeed();
+    usb_host_client_config_t cc = {};
+    cc.is_synchronous = false;
+    cc.max_num_event_msg = 8;
+    cc.async.client_event_callback = client_cb;
+    ESP_ERROR_CHECK(usb_host_client_register(&cc, &P.client));
     xTaskCreate(host_task, "usb_host", 4096, NULL, 6, NULL);
     xTaskCreate(client_task, "usb_midi", 4096, NULL, 5, NULL);
-    ESP_LOGI(TAG, "USB host up");
+}
+
+void powerOn()
+{
+    forceFullSpeed();
+    ESP_ERROR_CHECK(usb_host_lib_set_root_port_power(true));
+    ESP_LOGI(TAG, "USB host up (full-speed root port, for the hub)");
 }
 
 } // namespace usb_midi

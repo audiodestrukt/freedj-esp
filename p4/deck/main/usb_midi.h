@@ -6,4 +6,6 @@
 namespace usb_midi {
 using PacketFn = void (*)(const uint8_t packet[4]);
 void begin(PacketFn onPacket);
+// Power the root port once every USB class driver has registered.
+void powerOn();
 } // namespace usb_midi

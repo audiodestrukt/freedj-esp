@@ -697,6 +697,7 @@ extern "C" void app_main(void)
     // USB first: the track list needs to know whether a rekordbox stick is in.
     usb_midi::begin(onMidiPacket);
     usb_stick::begin();
+    usb_midi::powerOn();
     const bool stick = usb_stick::waitMounted(3000);
     library::scan(sdOk ? sd::kMount : nullptr, stick ? usb_stick::kMount : nullptr);
     ESP_LOGI(TAG, "after scan: internal %u KB free", (unsigned)(heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024));
