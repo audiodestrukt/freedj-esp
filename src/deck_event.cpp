@@ -22,6 +22,7 @@ const char* typeName(Type t)
     case Type::Crossfader:   return "crossfader";
     case Type::MasterVolume: return "master vol";
     case Type::PhonesVolume: return "phones vol";
+    case Type::KeyLock:      return "key lock";
     }
     return "?";
 }

@@ -29,6 +29,8 @@ enum class Type : uint8_t {
     Crossfader,   // 0 = full A, 1 = full B
     MasterVolume,
     PhonesVolume,
+    // Buttons, added later (kept last so existing values do not move).
+    KeyLock,
 };
 
 enum : uint8_t { DeckA = 0, DeckB = 1, DeckAny = 0xFF };
