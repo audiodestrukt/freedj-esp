@@ -11,6 +11,31 @@ playing (see the README's *Audio health* section). Unless noted, it's
 the panel**, so they read high. From 2026-10-31 on, "screen fps" counts
 frames LVGL actually rendered and flushed.
 
+## 2026-10-31: tempo range and reset, hot cues E–H, memory cues, slip, reverse
+
+- **Tempo range** ±6 / ±10 (new default, as on the XDJ; was ±8) / ±16 /
+  WIDE (±100 %). Tap the range label next to the tempo to cycle; long-press
+  it for **tempo reset**, which plays at 0 % regardless of the fader.
+- **PADS has three rows:** all eight hot cues A–H; CALL ◀ ▶, MEM, DEL, /2,
+  x2, RELOOP, SLIP; beat loops 1–16, beat jump ◀4 4▶, REV. The panel now
+  covers the meter and the waveform.
+- **Memory cues can be set on the deck:** MEM stores the cue point (or the
+  active loop's start), DEL removes the one at the cue or the playhead. These
+  last for the session only and aren't written to the stick.
+- **Slip:** during a loop, reverse, or a held hot cue, a shadow playhead
+  keeps going at normal speed. Letting go resumes from it, and a grey line on
+  the waveform shows where it is. In slip mode, hot cues are momentary.
+- **Reverse:** always plays varispeed, because the time-stretcher only runs
+  forwards. Sync correction pauses while reversed.
+
+Measured (synced to the virtual CDJ):
+
+| Test | Result |
+|---|---|
+| Slip through a 6 s loop | resumed 6 s further on, sync 1.5 / 4.8 ms |
+| Reverse 2 s with slip | resumed ahead; one 119 ms sync reading right after, then 1.4 ms |
+| Audio | 100 % real time throughout |
+
 ## 2026-10-31: cues, loops, beat jump, quantize (XDJ parity step 1)
 
 - **Hot cues A–H and memory cues read from rekordbox.** `PCO2` in the

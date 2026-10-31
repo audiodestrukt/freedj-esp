@@ -77,9 +77,11 @@ After changing `sdkconfig.defaults`, delete `sdkconfig` so the defaults are appl
 - Tap the **SYNC** and **KEY** chips in the header for sync and keylock.
 - Touch or drag the **overview** strip under the time to jump there (needle search).
 - Tap the **phase meter** to switch between the beat display and the alignment view.
-- **PADS** opens the performance pads over the waveform:
-  - top row: hot cues A–D (tap to set or jump, long-press to delete), CALL ◀ ▶ through the memory cues, loop 1/2 and x2
-  - bottom row: beat loops 1–16, RELOOP/EXIT, beat jump ◀4 4▶
+- **PADS** opens the performance pads over the meter and waveform:
+  - row 1: hot cues A–H (tap to set or jump, long-press to delete; momentary in slip)
+  - row 2: CALL ◀ ▶ through the memory cues, MEM / DEL memory cue, loop /2 and x2, RELOOP/EXIT, SLIP
+  - row 3: beat loops 1–16, beat jump ◀4 4▶, REV
+- Tap the **range** label next to the tempo to cycle ±6/10/16/WIDE; long-press it for tempo reset.
 - Tap the **Q** chip to toggle quantize.
 
 **DJ2Go LOOP IN / LOOP OUT:** set a manual loop; LOOP OUT while looping exits it.
@@ -104,6 +106,9 @@ After changing `sdkconfig.defaults`, delete `sdkconfig` so the defaults are appl
 | `,` `.` | beat jump -4 / +4 |
 | `<` `>` | call previous / next memory cue |
 | `q` | quantize |
+| `t` / `T` | tempo range / tempo reset |
+| `m` / `M` | memory cue add / delete |
+| `z` / `r` | slip / reverse |
 | `w` | cycle the waveform test mode: normal → drawn but not sent to the screen → off |
 
 [`tools/p4_serial.py`](../../tools/p4_serial.py) holds the port open without resetting the board, logs to a file, and sends anything appended to `<log>.cmd`. A whole experiment can be scripted, for example:

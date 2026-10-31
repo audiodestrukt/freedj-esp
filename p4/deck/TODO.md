@@ -17,15 +17,15 @@ Where things stand (2026-10-30):
 In order. Costs: **cheap** = logic only, no per-sample work; **moderate**; **heavy**.
 
 1. **Performance basics** (cheap; in progress)
-   - [x] Hot cues and memory cues read from rekordbox, plus CALL ◀ ▶, the Bars
-     countdown, and cue marks. Hot cues E–H are read and keyboard-reachable,
-     but there are no pads for them yet (needs a bank switch).
+   - [x] Hot cues A–H and memory cues read from rekordbox, plus CALL ◀ ▶, the
+     Bars countdown, and cue marks.
    - [x] Loops: beat loop 1–16, manual in/out, reloop/exit, halve/double.
    - [x] Beat jump ±4 (it moves an active loop with it).
    - [x] Quantize.
-   - [ ] Setting memory cues on the deck. Today they're read-only, from rekordbox.
-   - [ ] Tempo range ±6/10/16/WIDE, tempo reset.
-   - [ ] Slip mode. Reverse.
+   - [x] Setting memory cues on the deck (MEM / DEL), for the session only.
+   - [ ] Write cues set on the deck back to the stick, as an XDJ does.
+   - [x] Tempo range ±6/10/16/WIDE, tempo reset.
+   - [x] Slip mode. Reverse (always varispeed).
    - [ ] Vinyl-mode jog. Needs a touch-sensitive jog, so it waits for the I2C panel.
 2. **Full Link citizen**
    - [ ] Send beat packets, take tempo master, master handoff (cheap;
