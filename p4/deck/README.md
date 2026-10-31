@@ -248,7 +248,7 @@ Measured 2026-10-31: `house.mp3` from SD, synced to a Pro DJ Link master, with t
 - **Internal RAM:** 102–106 KB free while playing a stick track, 80 KB lowest. The list strings are in PSRAM since 2026-10-31. **This is the tightest resource.**
 - **With a 224-track rekordbox stick, playing MP3s from it:** core 0 49–50 % (LVGL 34 %, about 8 points more than with the SD list; the suspect is the long list), screen 37–38 fps. Internal RAM 65 KB free, **43 KB lowest**. USB transfer buffers are in PSRAM: from internal RAM, a 32 KB stick read failed and crashed the driver.
 - **PSRAM:** 19.4 MB free (12 MB of it is the track window, which could shrink).
-- **App flash:** 9 % of the 1.5 MB partition free. The board has 16 MB, so a bigger partition is an easy fix.
+- **App flash:** 1.4 MB of an 8 MB partition (`partitions.csv`, 83 % free); about 8 MB of the 16 MB flash is unused.
 
 ## Status and next
 

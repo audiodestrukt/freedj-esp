@@ -46,7 +46,7 @@ In order. Costs: **cheap** = logic only, no per-sample work; **moderate**; **hea
 4. **Screen**
    - [x] rekordbox colour waveforms (PWV5), scrolling and overview.
    - [ ] Waveform zoom (cheap). TAG LIST, INFO, MENU screens.
-   - [ ] **Bigger app partition: 6 % left.** 16 MB flash, 1.5 MB used.
+   - [x] Bigger app partition: 8 MB (`partitions.csv`), 83 % free.
    - [ ] The XDJ layout (BROWSE, TAG LIST, INFO, MENU, PERFORM) on the DSI
      screen.
 5. **Hardware**

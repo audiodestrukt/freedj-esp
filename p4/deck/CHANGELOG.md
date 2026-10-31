@@ -11,6 +11,13 @@ playing (see the README's *Audio health* section). Unless noted, it's
 the panel**, so they read high. From 2026-10-31 on, "screen fps" counts
 frames LVGL actually rendered and flushed.
 
+## 2026-10-31: 8 MB app partition
+
+- Our own partition table (`partitions.csv`) gives the app 8 MB instead of
+  the 1.5 MB "single app large". The app is 1.4 MB, so 83 % is free (it was
+  94 % full). About 8 MB of flash stays unallocated, for OTA slots or a
+  cache later.
+
 ## 2026-10-31: XDJ touch keys, boot splash, colour waveforms, "ESP Deck"
 
 - **Bottom row is now the XDJ's touch keys:** BROWSE (SEARCH) · TAG LIST ·

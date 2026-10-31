@@ -1,0 +1,8 @@
+# ESP Deck partition table (16 MB flash).
+# The default "single app large" table gave the app 1.5 MB, and it reached
+# 94 % full. 8 MB here; the other ~8 MB stays free for later (OTA slots, a
+# cache).
+# Name,     Type, SubType, Offset,  Size
+nvs,        data, nvs,     0x9000,  0x6000
+phy_init,   data, phy,     0xf000,  0x1000
+factory,    app,  factory, 0x10000, 8M
