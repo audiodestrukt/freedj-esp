@@ -143,6 +143,12 @@ void TrackStream::close()
     peakBins_ = 0;
 }
 
+void TrackStream::detach()
+{
+    delete src_;
+    src_ = nullptr;
+}
+
 bool TrackStream::open(const char* path)
 {
     close();
@@ -176,7 +182,7 @@ bool TrackStream::open(const char* path)
 
 bool TrackStream::service()
 {
-    if (!open_) return false;
+    if (!open_ || !src_) return false;   // closed, or detached (source gone)
     const size_t behind = cap_ * 35 / 100;   // keep ~25 s back for cue / jog
     const size_t ph = playhead_;
 

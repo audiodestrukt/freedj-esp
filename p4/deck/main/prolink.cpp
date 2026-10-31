@@ -248,7 +248,7 @@ static int buildStatus(uint8_t* p, const Ours& o, uint32_t counter)
     p[0x28] = o.loaded ? s_player : 0;
     p[0x29] = o.loaded ? 0x03 : 0;
     p[0x2a] = o.loaded ? 0x01 : 0;
-    p[0x7b] = !o.loaded ? 0x00 : o.playing ? 0x03 : 0x05;
+    p[0x7b] = !o.loaded ? 0x00 : o.emergencyLoop ? 0x12 : o.playing ? 0x03 : 0x05;
     memcpy(p + 0x7c, "0.1 ", 4);
     p[0x89] = 0x84 | (o.playing ? 0x40 : 0) | (o.sync ? 0x10 : 0);
     p[0x8a] = o.playing ? 0xFF : 0x8D;

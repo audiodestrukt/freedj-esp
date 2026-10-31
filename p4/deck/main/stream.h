@@ -15,6 +15,9 @@ public:
     // Loader-task side.
     bool open(const char* path);      // WAV or MP3 by extension; start filling at frame 0
     void close();
+    // The source is gone (USB stick pulled): close its file but keep the
+    // decoded window, so playback can continue from memory (emergency loop).
+    void detach();
     bool service();                   // refill a chunk; false = nothing to do
     size_t buffered() const { return winEnd_ - winStart_; }
     // Frames decoded ahead of the playhead.

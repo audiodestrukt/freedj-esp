@@ -6,6 +6,7 @@
 // Format reference: Deep Symmetry's djl-analysis ("Track Analysis Files").
 // Plain C++ and stdio: builds on the PC too, for testing.
 #include <stdint.h>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -17,12 +18,6 @@ struct Beat {
     uint8_t  inBar;    // 1..4
 };
 
-struct Track {
-    std::string audio;   // absolute path of the audio file on the mounted stick
-    std::string anlz;    // absolute path of its ANLZ0000.DAT
-    float       bpm = 0; // tempo at the first beat (0 = no grid)
-};
-
 // Read one ANLZ file. `audioRel` gets the PPTH path ("/Contents/..."),
 // `beats` the grid (PQTZ), `preview` the overview waveform (PWAV: 400
 // columns, each byte = height in the low 5 bits (0..31) and whiteness in the
@@ -30,8 +25,11 @@ struct Track {
 bool readAnlz(const char* path, std::string* audioRel, std::vector<Beat>* beats,
               std::vector<uint8_t>* preview = nullptr);
 
-// Every analysed track on media mounted at `root` (e.g. "/usb").
-std::vector<Track> scan(const char* root);
+// Every analysed track on media mounted at `root` (e.g. "/usb"), reported
+// one at a time: absolute audio path, absolute ANLZ path, BPM at the first
+// beat (0 = no grid). Return false from the callback to stop.
+using TrackFn = std::function<bool(const char* audio, const char* anlz, float bpm)>;
+void scan(const char* root, const TrackFn& fn);
 
 // A loaded track's analysis: the beat grid, plus the overview waveform.
 // Beat grid maths: times are in ms from the track start.

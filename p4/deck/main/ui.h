@@ -13,11 +13,13 @@ namespace ui {
 
 struct State {
     int   selected   = 0;      // track list cursor
+    uint32_t libGen  = 0;      // library generation `selected` refers to
     bool  loaded     = false;
     bool  loading    = false;
     bool  playing    = false;
     bool  previewing = false;  // CUE held from pause
     bool  keylock    = false;
+    bool  emergency  = false;  // media pulled mid-play: looping from memory
     bool  sync       = false;  // following the Link tempo master
     bool  hasGrid    = false;  // track has a rekordbox beat grid
     float bpm        = 0;      // our effective tempo (grid BPM x speed), 0 = unknown
@@ -40,10 +42,12 @@ struct State {
 };
 
 using EventFn  = void (*)(const deck::Event&);
-using SelectFn = void (*)(int index);
+// A list pick: the row index in list generation `gen` (the list can change
+// under a touch when a stick comes or goes).
+using SelectFn = void (*)(int index, uint32_t gen);
 using SeekFn   = void (*)(float fraction);   // needle search: 0..1 through the track
 
-// Starts the screen with library::tracks() as the list. `stream` must
+// Starts the screen. The list follows library::get() as it changes. `stream` must
 // outlive the UI; the waveform reads its peaks. Returns false if there's
 // no screen.
 bool begin(const TrackStream& stream, EventFn onEvent, SelectFn onSelect, SeekFn onSeek);

@@ -82,36 +82,34 @@ bool readAnlz(const char* path, std::string* audioRel, std::vector<Beat>* beats,
     return ok;
 }
 
-static void walk(const std::string& dir, int depth, std::vector<std::string>& out)
+// Walks PIONEER/USBANLZ/Pxxx/xxxxxxxx/ for ANLZ0000.DAT. Returns false once
+// the callback asks to stop.
+static bool walk(const std::string& root, const std::string& dir, int depth, const TrackFn& fn)
 {
     DIR* d = opendir(dir.c_str());
-    if (!d) return;
-    while (struct dirent* e = readdir(d)) {
+    if (!d) return true;
+    bool go = true;
+    while (go) {
+        struct dirent* e = readdir(d);
+        if (!e) break;
         if (e->d_name[0] == '.') continue;
         const std::string p = dir + "/" + e->d_name;
-        if (!strcasecmp(e->d_name, "ANLZ0000.DAT")) out.push_back(p);
-        else if (depth < 2 && e->d_type != DT_REG) walk(p, depth + 1, out);
+        if (!strcasecmp(e->d_name, "ANLZ0000.DAT")) {
+            std::string rel;
+            std::vector<Beat> grid;
+            if (readAnlz(p.c_str(), &rel, &grid) && !rel.empty())
+                go = fn((root + rel).c_str(), p.c_str(), grid.empty() ? 0 : grid[0].bpm100 / 100.0f);
+        } else if (depth < 2 && e->d_type != DT_REG) {
+            go = walk(root, p, depth + 1, fn);
+        }
     }
     closedir(d);
+    return go;
 }
 
-std::vector<Track> scan(const char* root)
+void scan(const char* root, const TrackFn& fn)
 {
-    std::vector<std::string> files;
-    walk(std::string(root) + "/PIONEER/USBANLZ", 0, files);
-    std::vector<Track> out;
-    for (const auto& a : files) {
-        std::string rel;
-        std::vector<Beat> grid;
-        if (!readAnlz(a.c_str(), &rel, &grid) || rel.empty()) continue;
-        Track t;
-        t.audio = std::string(root) + rel;
-        t.anlz = a;
-        t.bpm = grid.empty() ? 0 : grid[0].bpm100 / 100.0f;
-        out.push_back(std::move(t));
-    }
-    std::sort(out.begin(), out.end(), [](const Track& x, const Track& y) { return x.audio < y.audio; });
-    return out;
+    walk(root, std::string(root) + "/PIONEER/USBANLZ", 0, fn);
 }
 
 // Index of the last beat at or before `ms` (0 if before the first).

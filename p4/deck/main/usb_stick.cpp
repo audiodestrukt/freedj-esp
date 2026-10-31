@@ -17,6 +17,7 @@ static EventGroupHandle_t s_flags;
 constexpr EventBits_t kMounted = 1;
 static msc_host_device_handle_t s_dev;
 static msc_host_vfs_handle_t s_vfs;
+static Fn s_onMounted, s_onRemoved;
 
 static void onEvent(const msc_host_event_t* e, void*) { xQueueSend(s_q, e, 0); }
 
@@ -48,9 +49,11 @@ static void task(void*)
             }
             ESP_LOGI(TAG, "mounted at %s", kMount);
             xEventGroupSetBits(s_flags, kMounted);
+            if (s_onMounted) s_onMounted();
         } else if (e.event == msc_host_event_t::MSC_DEVICE_DISCONNECTED && e.device.handle == s_dev) {
             ESP_LOGW(TAG, "stick removed");
             xEventGroupClearBits(s_flags, kMounted);
+            if (s_onRemoved) s_onRemoved();     // closes anything open on it first
             msc_host_vfs_unregister(s_vfs);
             msc_host_uninstall_device(s_dev);
             s_dev = nullptr;
@@ -58,8 +61,10 @@ static void task(void*)
     }
 }
 
-void begin()
+void begin(Fn onMounted, Fn onRemoved)
 {
+    s_onMounted = onMounted;
+    s_onRemoved = onRemoved;
     s_q = xQueueCreate(4, sizeof(msc_host_event_t));
     s_flags = xEventGroupCreate();
     msc_host_driver_config_t cfg = {};
@@ -70,11 +75,6 @@ void begin()
     cfg.callback = onEvent;
     ESP_ERROR_CHECK(msc_host_install(&cfg));
     xTaskCreatePinnedToCore(task, "stick", 4096, nullptr, 4, nullptr, 0);
-}
-
-bool waitMounted(int ms)
-{
-    return xEventGroupWaitBits(s_flags, kMounted, pdFALSE, pdTRUE, pdMS_TO_TICKS(ms)) & kMounted;
 }
 
 bool mounted() { return xEventGroupGetBits(s_flags) & kMounted; }

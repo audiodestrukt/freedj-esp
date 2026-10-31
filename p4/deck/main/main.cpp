@@ -60,9 +60,19 @@ constexpr int      kOutLatencyFrames = 6 * 240 + kBlock / 2;
 constexpr float    kSyncGain = 0.3f, kSyncMaxBend = 0.03f;
 
 static QueueHandle_t s_events;      // deck::Event, USB task → audio task
-static QueueHandle_t s_loadReq;     // int track index, audio task → loader
+// Load (or eject) request, audio task / USB task → loader. Carries the
+// paths, not a list index: the list can change while a request is queued.
+struct LoadReq {
+    bool eject = false;             // close the stream if it's on the USB stick
+    char path[200] = "";
+    char anlz[200] = "";
+};
+static QueueHandle_t s_loadReq;     // LoadReq → loader
 static QueueHandle_t s_loadDone;    // bool ok, loader → audio task
-static QueueHandle_t s_select;      // int track index, screen → audio task
+static QueueHandle_t s_ejected;     // bool, loader → audio task: the loaded track's stick is gone
+static SemaphoreHandle_t s_ejectDone;   // loader → USB task: nothing open on the stick
+struct Pick { int index; uint32_t gen; };
+static QueueHandle_t s_select;      // Pick (list index + list generation), screen → audio task
 static QueueHandle_t s_seekReq;     // float 0..1, overview needle search → audio task (latest wins)
 static TrackStream s_stream;        // deck A
 static dj2go::Decoder s_decoder;
@@ -89,15 +99,27 @@ static void onMidiPacket(const uint8_t p[4])
 // filled. Runs on core 0, away from the audio task.
 static void loaderTask(void*)
 {
+    static LoadReq req;           // static: 400 bytes, keep off the stack
+    static char openPath[200];    // what the stream has open
     for (;;) {
-        int index;
-        if (xQueueReceive(s_loadReq, &index, 0) == pdTRUE) {
-            const auto& list = library::tracks();
-            bool ok = index >= 0 && index < (int)list.size() && s_stream.open(list[index].c_str());
+        if (xQueueReceive(s_loadReq, &req, 0) == pdTRUE && req.eject) {
+            // The stick was pulled. Close the stream if it reads from it,
+            // tell the deck, then let the USB task unmount.
+            if (s_stream.isOpen() && !strncmp(openPath, usb_stick::kMount, strlen(usb_stick::kMount))) {
+                s_stream.detach();   // file closed; the decoded audio stays for an emergency loop
+                openPath[0] = 0;
+                const bool gone = true;
+                xQueueOverwrite(s_ejected, &gone);
+            }
+            xSemaphoreGive(s_ejectDone);
+        } else if (req.path[0]) {
+            bool ok = s_stream.open(req.path);
+            strlcpy(openPath, ok ? req.path : "", sizeof openPath);
+            req.path[0] = 0;                  // handled
             spareGrid().beats.clear();
             spareGrid().preview.clear();
-            if (ok && !library::anlz(index).empty())
-                rekordbox::readAnlz(library::anlz(index).c_str(), nullptr, &spareGrid().beats, &spareGrid().preview);
+            if (ok && req.anlz[0])
+                rekordbox::readAnlz(req.anlz, nullptr, &spareGrid().beats, &spareGrid().preview);
             // Prefill ~1 s before handing over so PLAY starts clean.
             while (ok && s_stream.buffered() < 44100 && s_stream.service()) {}
             xQueueSend(s_loadDone, &ok, portMAX_DELAY);
@@ -119,20 +141,41 @@ struct Deck {
     bool   keylock   = false;
     bool   sync      = false;   // follow the Link tempo master
     bool   alignNext = false;   // snap our beat phase to the master before the next block
+    // Emergency loop: the track's media was pulled mid-play, so loop 4 beats
+    // of what's already decoded (as a CDJ does) until another track loads.
+    bool   emergency = false;
+    double loopStart = 0, loopEnd = 0;  // frames
     double pos       = 0;       // frames into track (fractional for varispeed)
     double cue       = 0;
     float  tempo     = 1.0f;
     float  nudge     = 0.0f;
     float  gain      = 0.7f;
     int    selected  = 0;
+    library::Ptr lib;           // the list `selected` indexes
+    uint32_t libGen  = 0;
 };
 
 static void logSelection(const Deck& d)
 {
-    const auto& list = library::tracks();
-    if (list.empty()) { ESP_LOGW(TAG, "no tracks"); return; }
-    ESP_LOGI(TAG, "> [%d/%u] %s", d.selected + 1, (unsigned)list.size(),
-             library::displayName(d.selected).c_str());
+    if (!d.lib || d.lib->empty()) { ESP_LOGW(TAG, "no tracks"); return; }
+    ESP_LOGI(TAG, "> [%d/%d] %s", d.selected + 1, d.lib->size(), d.lib->name(d.selected));
+}
+
+// The list changed (stick in or out): follow it, keeping the selection on
+// the same track when it's still there.
+static void followLibrary(Deck& d)
+{
+    const uint32_t gen = library::generation();
+    if (gen == d.libGen) return;
+    library::Ptr next = library::get();
+    int sel = 0;
+    if (d.lib && next && d.selected < d.lib->size()) {
+        const int same = next->find(d.lib->path(d.selected));
+        if (same >= 0) sel = same;
+    }
+    d.lib = next;
+    d.libGen = gen;
+    d.selected = sel;
 }
 
 static void seek(Deck& d, double frame)
@@ -148,17 +191,22 @@ static void apply(Deck& d, const deck::Event& e)
 {
     using deck::Type;
     if (e.type == Type::Browse) {
-        const int n = library::tracks().size();
+        const int n = d.lib ? d.lib->size() : 0;
         if (n) { d.selected = ((d.selected + e.delta) % n + n) % n; logSelection(d); }
         return;
     }
     if (e.type == Type::Load && e.pressed && (e.deck == deck::DeckA || e.deck == deck::DeckAny)) {
-        if (library::tracks().empty() || d.loading) return;
+        if (!d.lib || d.lib->empty() || d.loading) return;
+        static LoadReq req;
+        req = LoadReq{};
+        strlcpy(req.path, d.lib->path(d.selected), sizeof req.path);
+        strlcpy(req.anlz, d.lib->anlz(d.selected), sizeof req.anlz);
+        if (xQueueSend(s_loadReq, &req, 0) != pdTRUE) return;
         d.playing = d.previewing = false;
         d.loaded = false;
+        d.emergency = false;
         d.loading = true;
         ESP_LOGI(TAG, "loading…");
-        xQueueSend(s_loadReq, &d.selected, 0);
         return;
     }
     if (e.deck != deck::DeckA) return;
@@ -170,7 +218,7 @@ static void apply(Deck& d, const deck::Event& e)
         }
         break;
     case Type::Cue:
-        if (!d.loaded) break;
+        if (!d.loaded || d.emergency) break;   // no media to cue from
         if (e.pressed) {
             if (d.playing) { seek(d, d.cue); d.playing = false; }
             else { d.cue = d.pos; d.previewing = true; d.playing = true; }
@@ -183,7 +231,7 @@ static void apply(Deck& d, const deck::Event& e)
         break;
     case Type::Jog:
         if (d.playing) d.nudge += e.delta * 0.004f;
-        else if (d.loaded) seek(d, d.pos + e.delta * kScrubFrames);
+        else if (d.loaded && !d.emergency) seek(d, d.pos + e.delta * kScrubFrames);
         break;
     case Type::Sync:
         if (e.pressed) {
@@ -217,6 +265,7 @@ static bool renderPitched(Deck& d, float speed, int16_t* out)
         out[2 * i]     = (int16_t)(two[0] + fr * (two[2] - two[0]));
         out[2 * i + 1] = (int16_t)(two[1] + fr * (two[3] - two[1]));
         d.pos += step;
+        if (d.emergency && d.pos >= d.loopEnd) d.pos -= d.loopEnd - d.loopStart;
     }
     return true;
 }
@@ -235,6 +284,7 @@ static bool renderKeylock(Deck& d, float speed, int16_t* out)
     while (got < kBlock) {
         got += s_wsola.pullFrames(out + 2 * got, kBlock - got);
         if (got >= kBlock) break;
+        if (d.emergency && d.pos >= d.loopEnd) d.pos -= d.loopEnd - d.loopStart;
         const size_t base = (size_t)d.pos;
         const size_t total = s_stream.frames();
         if (base + 1 >= total) { memset(out + 2 * got, 0, (kBlock - got) * 4); d.playing = false; return true; }
@@ -244,6 +294,10 @@ static bool renderKeylock(Deck& d, float speed, int16_t* out)
         const double frac = d.pos - base;
         const int fit = (int)((total - 1 - base - frac) / step);
         if (n > fit) n = fit;
+        if (d.emergency) {                      // stop at the loop end; wrap next pass
+            const int toEnd = (int)((d.loopEnd - d.pos) / step) + 1;
+            if (n > toEnd) n = toEnd;
+        }
         if (n <= 0) { memset(out + 2 * got, 0, (kBlock - got) * 4); d.playing = false; return true; }
         // Linear-interpolate n frames at `step` out of a contiguous run of file frames.
         const size_t span = (size_t)(frac + (n - 1) * step) + 2;
@@ -259,6 +313,39 @@ static bool renderKeylock(Deck& d, float speed, int16_t* out)
         d.pos += s_wsola.pushFrames(feed, n) * step;
     }
     return true;
+}
+
+// The loaded track's media is gone while playing: loop 4 beats from the
+// current beat out of what's already decoded (2 s without a grid). Whole
+// beats, so SYNC stays locked through the loop.
+static void startEmergencyLoop(Deck& d)
+{
+    const double rate = s_stream.sampleRate();
+    int16_t probe[2];
+    if (!grid().empty()) {
+        const double b = floor(grid().beatAt(d.pos * 1000.0 / rate));
+        d.loopStart = grid().msAt(b) * rate / 1000.0;
+        d.loopEnd = grid().msAt(b + 4) * rate / 1000.0;
+        // Not decoded that far ahead: loop the 4 beats before instead.
+        if (!s_stream.get((size_t)d.loopEnd + 1, probe, 1)) {
+            d.loopEnd = d.loopStart;
+            d.loopStart = grid().msAt(b - 4) * rate / 1000.0;
+        }
+    } else {
+        d.loopStart = d.pos;
+        d.loopEnd = d.pos + 2 * rate;
+        if (!s_stream.get((size_t)d.loopEnd + 1, probe, 1)) { d.loopEnd = d.pos; d.loopStart = d.pos - 2 * rate; }
+    }
+    if (d.loopStart < 0) d.loopStart = 0;
+    if (!s_stream.get((size_t)d.loopStart, probe, 1) || d.loopEnd <= d.loopStart) {
+        d.loaded = d.playing = false;                  // nothing usable decoded: stop
+        ESP_LOGW(TAG, "track's USB stick removed: nothing buffered to loop, unloaded");
+        return;
+    }
+    d.emergency = true;
+    if (d.pos >= d.loopEnd || d.pos < d.loopStart) d.pos = d.loopStart;
+    ESP_LOGW(TAG, "track's USB stick removed: EMERGENCY LOOP %.2f s (load another track to leave it)",
+             (d.loopEnd - d.loopStart) / rate);
 }
 
 // ── Beat sync ────────────────────────────────────────────────────────────────
@@ -342,7 +429,22 @@ struct ClickProbe {
 static ClickProbe s_clicks;
 
 static void onUiEvent(const deck::Event& e) { xQueueSend(s_events, &e, 0); }
-static void onUiSelect(int index) { xQueueSend(s_select, &index, 0); }
+static void onUiSelect(int index, uint32_t gen) { Pick p{index, gen}; xQueueSend(s_select, &p, 0); }
+static void onStickMounted() { library::scanUsb(usb_stick::kMount); }
+
+// USB task: the stick is gone. Stop the scan, drop its tracks, and close the
+// stream if it plays from the stick, before the USB task unmounts it.
+static void onStickRemoved()
+{
+    library::dropUsb();
+    static LoadReq eject;
+    eject = LoadReq{};
+    eject.eject = true;
+    xSemaphoreTake(s_ejectDone, 0);
+    if (xQueueSend(s_loadReq, &eject, pdMS_TO_TICKS(1000)) == pdTRUE)
+        xSemaphoreTake(s_ejectDone, pdMS_TO_TICKS(3000));
+}
+
 static void onUiSeek(float fraction) { xQueueOverwrite(s_seekReq, &fraction); }
 
 static prolink::Master s_master;     // audio task's copy, refreshed every block
@@ -351,11 +453,13 @@ static void publishState(const Deck& d, float speed)
 {
     ui::State u;
     u.selected = d.selected;
+    u.libGen = d.libGen;
     u.loaded = d.loaded;
     u.loading = d.loading;
     u.playing = d.playing;
     u.previewing = d.previewing;
     u.keylock = d.keylock;
+    u.emergency = d.emergency;
     if (d.loaded) {
         const float rate = s_stream.sampleRate();
         u.pos = d.pos / rate;
@@ -490,6 +594,7 @@ static void audioTask(void*)
     static int16_t buf[kBlock * 2];
     Deck d;
     s_wsola.begin(2);
+    followLibrary(d);
     logSelection(d);
     uint32_t underruns = 0, clicksAtStart = 0;
     int64_t tWrote = esp_timer_get_time();
@@ -499,11 +604,20 @@ static void audioTask(void*)
     for (;;) {
         deck::Event e;
         while (xQueueReceive(s_events, &e, 0) == pdTRUE) apply(d, e);
-        int pick;
-        while (xQueueReceive(s_select, &pick, 0) == pdTRUE)
-            if (pick >= 0 && pick < (int)library::tracks().size() && pick != d.selected) {
-                d.selected = pick; logSelection(d);
+        followLibrary(d);
+        Pick pick;
+        while (xQueueReceive(s_select, &pick, 0) == pdTRUE)    // ignore picks from an older list
+            if (pick.gen == d.libGen && d.lib && pick.index >= 0 && pick.index < d.lib->size() && pick.index != d.selected) {
+                d.selected = pick.index; logSelection(d);
             }
+        bool gone;
+        if (xQueueReceive(s_ejected, &gone, 0) == pdTRUE) {
+            if (d.loaded && d.playing && !d.previewing) startEmergencyLoop(d);
+            else {
+                d.loaded = d.playing = d.previewing = false;
+                ESP_LOGW(TAG, "track's USB stick removed: unloaded");
+            }
+        }
         bool ok;
         if (xQueueReceive(s_loadDone, &ok, 0) == pdTRUE) {
             d.loading = false;
@@ -522,7 +636,7 @@ static void audioTask(void*)
         }
 
         float needle;
-        if (xQueueReceive(s_seekReq, &needle, 0) == pdTRUE && d.loaded && !d.loading) {
+        if (xQueueReceive(s_seekReq, &needle, 0) == pdTRUE && d.loaded && !d.loading && !d.emergency) {
             // Needle search. Synced and playing: land back on the master's beat.
             seek(d, needle * s_stream.frames());
             if (d.sync && d.playing) d.alignNext = true;
@@ -614,6 +728,7 @@ static void audioTask(void*)
             prolink::Ours o;
             o.loaded = d.loaded;
             o.playing = d.playing;
+            o.emergencyLoop = d.emergency && d.playing;
             o.sync = d.sync;
             o.pitch = speed;
             if (d.loaded && !grid().empty()) {
@@ -663,7 +778,7 @@ static void serialKeysTask(void*)
         e.deck = deck::DeckA;
         e.pressed = true;
         switch (ch) {
-        case '1' ... '9': onUiSelect(ch - '1'); continue;
+        case '1' ... '9': onUiSelect(ch - '1', library::generation()); continue;
         case 'l': e.type = deck::Type::Load; break;
         case 'p': e.type = deck::Type::PlayPause; break;
         case 'k': e.type = deck::Type::KeyLock; break;
@@ -686,21 +801,22 @@ static void serialKeysTask(void*)
 extern "C" void app_main(void)
 {
     s_events   = xQueueCreate(64, sizeof(deck::Event));
-    s_loadReq  = xQueueCreate(1, sizeof(int));
+    s_loadReq  = xQueueCreate(2, sizeof(LoadReq));
     s_loadDone = xQueueCreate(1, sizeof(bool));
-    s_select   = xQueueCreate(8, sizeof(int));
+    s_ejected  = xQueueCreate(1, sizeof(bool));
+    s_ejectDone = xSemaphoreCreateBinary();
+    s_select   = xQueueCreate(8, sizeof(Pick));
     s_seekReq  = xQueueCreate(1, sizeof(float));
     s_report   = xQueueCreate(1, sizeof(Report));
     const bool sdOk = sd::begin();
     if (!sdOk) ESP_LOGW(TAG, "no SD card");
     s_stream.begin(12 * 1024 * 1024);
-    // USB first: the track list needs to know whether a rekordbox stick is in.
+    // The SD list now; a stick's tracks join in the background when it mounts
+    // (and leave when it's pulled), so boot doesn't wait for USB.
+    library::begin(sdOk ? sd::kMount : nullptr);
     usb_midi::begin(onMidiPacket);
-    usb_stick::begin();
+    usb_stick::begin(onStickMounted, onStickRemoved);
     usb_midi::powerOn();
-    const bool stick = usb_stick::waitMounted(3000);
-    library::scan(sdOk ? sd::kMount : nullptr, stick ? usb_stick::kMount : nullptr);
-    ESP_LOGI(TAG, "after scan: internal %u KB free", (unsigned)(heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024));
     // Network from core 0, so the EMAC interrupt stays off the audio core.
     net::begin();
     prolink::begin(kLinkPlayer, "P4-DECK");

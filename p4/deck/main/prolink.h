@@ -26,6 +26,7 @@ struct Master {
 struct Ours {
     bool     loaded = false;
     bool     playing = false;
+    bool     emergencyLoop = false;   // play state 0x12, as a CDJ whose media was pulled
     bool     sync = false;
     float    trackBpm = 0;      // grid BPM at the playhead, unpitched; 0 = none
     float    pitch = 1.0f;      // speed multiplier

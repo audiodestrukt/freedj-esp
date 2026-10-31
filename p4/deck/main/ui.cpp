@@ -55,6 +55,8 @@ static lv_obj_t *s_name, *s_state, *s_time, *s_remain, *s_tempo, *s_key, *s_sync
 static lv_obj_t *s_ov, *s_list, *s_cueBtn, *s_playBtn;
 static uint16_t* s_ovBuf;            // kOvW x kOvH RGB565, PSRAM; redrawn when the playhead moves a pixel
 static std::vector<lv_obj_t*> s_rows;
+static uint32_t s_listGen = 0xFFFFFFFF;   // library generation the rows show
+static lv_obj_t* s_toast;                 // "Reading USB…" etc., on the top layer
 
 // Scrolling waveform: playhead fixed in the middle, track moves right to
 // left. Shown while playing, unless the list was used in the last few
@@ -97,8 +99,8 @@ static void send(deck::Type t, bool pressed)
 static void onRow(lv_event_t* e)
 {
     const int i = (int)(intptr_t)lv_event_get_user_data(e);
-    if (i == s_shown.selected) send(deck::Type::Load, true);
-    else s_onSelect(i);
+    if (i == s_shown.selected && s_shown.libGen == s_listGen) send(deck::Type::Load, true);
+    else s_onSelect(i, s_listGen);
 }
 
 static void onCue(lv_event_t* e)
@@ -217,9 +219,89 @@ static void drawOverview(const State& s, int playX, int cueX)
 
 static void buildMeter(lv_obj_t* scr);   // phase meter, below
 
+// (Re)build the list rows from the current library snapshot.
+static void fillList()
+{
+    library::Ptr lib = library::get();
+    s_listGen = library::generation();
+    lv_obj_clean(s_list);
+    s_rows.clear();
+    // One shared style for every row: per-object style setters allocate a
+    // local style each, which adds up over hundreds of tracks.
+    static lv_style_t rowStyle, rowChecked;
+    static bool styled = false;
+    if (!styled) {
+        styled = true;
+        lv_style_init(&rowStyle);
+        lv_style_set_radius(&rowStyle, 0);
+        lv_style_set_shadow_width(&rowStyle, 0);
+        lv_style_set_pad_left(&rowStyle, kMargin);
+        lv_style_set_bg_color(&rowStyle, kBg);
+        lv_style_set_text_color(&rowStyle, kText);
+        lv_style_set_text_font(&rowStyle, &lv_font_montserrat_16);
+        lv_style_set_border_width(&rowStyle, 0);
+        lv_style_init(&rowChecked);
+        lv_style_set_bg_color(&rowChecked, kBlue);
+    }
+    lvgl_mem_psram = true;          // rows live until the next list change: PSRAM
+    const int n = lib ? lib->size() : 0;
+    s_rows.reserve(n);
+    for (int i = 0; i < n; i++) {
+        lv_obj_t* row = lv_button_create(s_list);
+        lv_obj_set_size(row, LV_PCT(100), 36);
+        lv_obj_add_style(row, &rowStyle, 0);
+        lv_obj_add_style(row, &rowChecked, LV_STATE_CHECKED);
+        lv_obj_t* text = lv_label_create(row);
+        lv_label_set_text(text, lib->name(i));
+        lv_label_set_long_mode(text, LV_LABEL_LONG_MODE_DOTS);
+        lv_obj_set_size(text, LV_PCT(100), lv_font_get_line_height(&lv_font_montserrat_16));
+        lv_obj_align(text, LV_ALIGN_LEFT_MID, 0, 0);
+        lv_obj_add_event_cb(row, onRow, LV_EVENT_CLICKED, (void*)(intptr_t)i);
+        s_rows.push_back(row);
+    }
+    if (n == 0) {
+        lv_obj_t* l = label(s_list, &lv_font_montserrat_16, kDim);
+        lv_label_set_text(l, "  no tracks on the USB stick or SD card");
+    }
+    lvgl_mem_psram = false;
+}
+
+// Bottom-left notice for USB activity: scanning progress, or a short
+// message when the list changes.
+static void updateToast()
+{
+    static uint32_t hideAt = 0, lastFound = 0;
+    static bool wasScanning = false, hadUsb = false;
+    const library::Progress p = library::progress();
+    char buf[48];
+    // USB tracks come first and have analysis; their absence means the stick is gone.
+    library::Ptr lib = library::get();
+    const bool usb = lib && !lib->empty() && lib->anlz(0)[0];
+    if (hadUsb && !usb && !p.scanning) {
+        lv_label_set_text(s_toast, "USB stick removed");
+        lv_obj_set_hidden(s_toast, false);
+        hideAt = lv_tick_get() + 3000;
+    }
+    hadUsb = usb;
+    if (p.scanning) {
+        if (!wasScanning || (uint32_t)p.found != lastFound) {
+            snprintf(buf, sizeof buf, "Reading USB stick... %d", p.found);
+            lv_label_set_text(s_toast, buf);
+            lv_obj_set_hidden(s_toast, false);
+            lastFound = p.found;
+        }
+        hideAt = 0;
+    } else if (wasScanning) {
+        snprintf(buf, sizeof buf, "USB stick: %d tracks", (int)lastFound);
+        lv_label_set_text(s_toast, buf);
+        hideAt = lv_tick_get() + 3000;
+    }
+    if (hideAt && (int32_t)(lv_tick_get() - hideAt) >= 0) { lv_obj_set_hidden(s_toast, true); hideAt = 0; }
+    wasScanning = p.scanning;
+}
+
 static void build()
 {
-    const auto& tracks = library::tracks();
     lv_obj_t* scr = lv_screen_active();
     lv_obj_set_style_bg_color(scr, kBg, 0);
     lv_obj_set_scrollable(scr, false);
@@ -274,38 +356,7 @@ static void build()
     lv_obj_set_style_border_width(s_list, 0, 0);
     lv_obj_set_style_pad_all(s_list, 0, 0);
     lv_obj_set_style_pad_row(s_list, 0, 0);
-    // One shared style for every row: per-object style setters allocate a
-    // local style each, which adds up over hundreds of tracks.
-    lvgl_mem_psram = true;          // the rows live for the whole session: PSRAM
-    static lv_style_t rowStyle, rowChecked;
-    lv_style_init(&rowStyle);
-    lv_style_set_radius(&rowStyle, 0);
-    lv_style_set_shadow_width(&rowStyle, 0);
-    lv_style_set_pad_left(&rowStyle, kMargin);
-    lv_style_set_bg_color(&rowStyle, kBg);
-    lv_style_set_text_color(&rowStyle, kText);
-    lv_style_set_text_font(&rowStyle, &lv_font_montserrat_16);
-    lv_style_set_border_width(&rowStyle, 0);
-    lv_style_init(&rowChecked);
-    lv_style_set_bg_color(&rowChecked, kBlue);
-    for (size_t i = 0; i < tracks.size(); i++) {
-        lv_obj_t* row = lv_button_create(s_list);
-        lv_obj_set_size(row, LV_PCT(100), 36);
-        lv_obj_add_style(row, &rowStyle, 0);
-        lv_obj_add_style(row, &rowChecked, LV_STATE_CHECKED);
-        lv_obj_t* text = lv_label_create(row);
-        lv_label_set_text(text, library::displayName(i).c_str());
-        lv_label_set_long_mode(text, LV_LABEL_LONG_MODE_DOTS);
-        lv_obj_set_size(text, LV_PCT(100), lv_font_get_line_height(&lv_font_montserrat_16));
-        lv_obj_align(text, LV_ALIGN_LEFT_MID, 0, 0);
-        lv_obj_add_event_cb(row, onRow, LV_EVENT_CLICKED, (void*)(intptr_t)i);
-        s_rows.push_back(row);
-    }
-    lvgl_mem_psram = false;
-    if (tracks.empty()) {
-        lv_obj_t* l = label(s_list, &lv_font_montserrat_16, kDim);
-        lv_label_set_text(l, "  no tracks on the USB stick or SD card");
-    }
+    fillList();
 
     s_waveBuf = (uint16_t*)heap_caps_malloc(display::W * kWaveH * 2, MALLOC_CAP_SPIRAM);
     s_wave = lv_canvas_create(scr);
@@ -316,6 +367,15 @@ static void build()
     lv_obj_set_hidden(s_wave, true);
 
     buildMeter(scr);
+
+    s_toast = label(lv_layer_top(), &lv_font_montserrat_16, kText);
+    lv_obj_set_style_bg_opa(s_toast, LV_OPA_COVER, 0);
+    lv_obj_set_style_bg_color(s_toast, kPanel, 0);
+    lv_obj_set_style_radius(s_toast, 4, 0);
+    lv_obj_set_style_pad_hor(s_toast, 8, 0);
+    lv_obj_set_style_pad_ver(s_toast, 3, 0);
+    lv_obj_set_pos(s_toast, kMargin, 240);
+    lv_obj_set_hidden(s_toast, true);
 
     s_cueBtn  = button(scr, "CUE",  kMargin,       onCue,  LV_EVENT_ALL);
     s_playBtn = button(scr, "PLAY", kMargin + 157, onPlay, LV_EVENT_PRESSED);
@@ -577,6 +637,7 @@ static void refresh(lv_timer_t*)
     const char* st; lv_color_t sc;
     if (s.loading)          { st = "LOADING"; sc = kDim; }
     else if (!s.loaded)     { st = "EMPTY";   sc = kDim; }
+    else if (s.emergency)   { st = "E.LOOP";  sc = lv_color_hex(0xE0453A); }
     else if (s.previewing)  { st = "CUE";     sc = kOrange; }
     else if (s.playing)     { st = "PLAYING"; sc = kGreen; }
     else                    { st = "PAUSED";  sc = kOrange; }
@@ -635,13 +696,22 @@ static void refresh(lv_timer_t*)
         lv_obj_set_style_bg_color(s_cueBtn, s.loaded && (!s.playing || s.previewing) ? kOrange : kPanel, 0);
     }
 
-    if (!s_first && s.selected != o.selected) s_lastListUse = lv_tick_get();
-    if ((s_first || s.selected != o.selected) && !s_rows.empty()) {
-        if (o.selected >= 0 && o.selected < (int)s_rows.size()) lv_obj_set_checked(s_rows[o.selected], false);
+    // The library changed (stick in or out): rebuild the rows.
+    static int checkedRow = -1;
+    if (library::generation() != s_listGen) {
+        fillList();
+        checkedRow = -1;
+    }
+    updateToast();
+    // Highlight the selection once the deck and the rows agree on the list.
+    if (s.libGen == s_listGen && s.selected != checkedRow && !s_rows.empty()) {
+        if (!s_first && checkedRow >= 0) s_lastListUse = lv_tick_get();
+        if (checkedRow >= 0 && checkedRow < (int)s_rows.size()) lv_obj_set_checked(s_rows[checkedRow], false);
         if (s.selected >= 0 && s.selected < (int)s_rows.size()) {
             lv_obj_set_checked(s_rows[s.selected], true);
-            lv_obj_scroll_to_view(s_rows[s.selected], s_first ? LV_ANIM_OFF : LV_ANIM_ON);
+            lv_obj_scroll_to_view(s_rows[s.selected], checkedRow < 0 ? LV_ANIM_OFF : LV_ANIM_ON);
         }
+        checkedRow = s.selected;
     }
 
     s_shown = s;
@@ -672,7 +742,7 @@ bool begin(const TrackStream& stream, EventFn onEvent, SelectFn onSelect, SeekFn
     lv_timer_create(refresh, 50, nullptr);
     lv_timer_create(waveTick, 5, nullptr);
     lvgl_port_unlock();
-    ESP_LOGI(TAG, "deck screen up, %u track(s)", (unsigned)library::tracks().size());
+    ESP_LOGI(TAG, "deck screen up");
     return true;
 }
 
