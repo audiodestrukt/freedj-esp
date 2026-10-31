@@ -19,7 +19,7 @@ Where things stand (2026-10-30):
 - [ ] **Waveform got slower with a stick track**: 34–41 fps (was 46), core 0 at 42–48 %. It isn't the allocator. Suspects: USB stick reads on core 0, the 224-row list.
 - [ ] **One keylock block took 5.1 of its 5.8 ms** while a track was still loading. Find out why.
 - [ ] **LVGL costs ~8 points more with the 224-track list** (34 % vs 26 %), even with the list hidden behind the waveform. Confirm, then build only the visible rows (a virtual list).
-- [ ] **Internal RAM low-water mark is 43 KB** with the stick list. Find the biggest internal users (task stacks, LVGL draw buffers, lwIP) before adding features.
+- [ ] **Re-plugging the stick during an emergency loop** could pick the track back up where it is. Today the loop runs until another track is loaded.
 - [ ] **Boot +12–14 s** reading 218 ANLZ files at full speed: cache the track list on the stick.
 - [ ] **Slow loads with the stick at full speed** (needed for the hub): MP3 load 4.9 s, because building the index reads the whole file. Build the index in the background once the track is ready to play.
 - [ ] **Deck B and the crossfader.** The DJ2Go already sends deck B events, so this needs a second `TrackStream` and `Deck`, plus mixing.

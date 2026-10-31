@@ -11,7 +11,7 @@ This lives next to the A1S firmware in the repo root and doesn't replace it. The
 | Board | Waveshare ESP32-P4-Module-DEV-KIT. ESP32-P4 rev 1.3 (needs `CONFIG_ESP32P4_SELECTS_REV_LESS_V3`), 2× RISC-V 360 MHz, 32 MB PSRAM, 16 MB flash |
 | Audio out | On-board ES8311 codec (I2C 0x18) → NS4150B amp → speaker. Mono. Amp enable is GPIO 53 |
 | SD | On-board slot, 4-bit SDMMC, 40 MHz, powered from internal LDO channel 4 |
-| USB stick | rekordbox export, FAT32 |
+| USB stick | rekordbox export, FAT32. Can be plugged in or pulled while the deck runs. Its tracks are read in the background (a notice shows progress). Pulled mid-track, the deck goes into an emergency loop |
 | USB ports | Jumper H3 (between the right-hand USB pair and the Ethernet jack) picks between two paths. **Labelled DEVICE** = the on-board CH334F 4-port hub, so three ports work but the fourth (the direct one) is dead. **HOST, or no jumper** = only the direct port works. Use DEVICE, with the DJ2Go and the stick in two of the hub ports. ESP-IDF's USB host has no transaction translator, so the firmware limits the root port to full speed (12 Mbit/s) to reach a full-speed device like the DJ2Go behind the hub. The stick then runs at full speed too |
 | Ethernet | On-board IP101 PHY (RMII). DHCP, or 169.254.x.x link-local on a cable straight to a player |
 | Controller | Numark DJ2Go in any of the four USB-A ports (USB host, class-compliant MIDI) |
@@ -189,7 +189,7 @@ Measured 2026-10-31: `house.mp3` from SD, synced to a Pro DJ Link master, with t
 | Screen | 40–42 fps | 40–42 fps | |
 
 - **Core 0 by task:** LVGL 25–29 %, loader 8 %, Link 2 %. The waveform plus meter cost about 22 points; core 0 is at 20 % with the waveform off.
-- **Internal RAM:** 93 KB free, 73 KB lowest, 38 KB largest block. **This is the tightest resource.**
+- **Internal RAM:** 102–106 KB free while playing a stick track, 80 KB lowest. The list strings are in PSRAM since 2026-10-31. **This is the tightest resource.**
 - **With a 224-track rekordbox stick, playing MP3s from it:** core 0 49–50 % (LVGL 34 %, about 8 points more than with the SD list; the suspect is the long list), screen 37–38 fps. Internal RAM 65 KB free, **43 KB lowest**. USB transfer buffers are in PSRAM: from internal RAM, a 32 KB stick read failed and crashed the driver.
 - **PSRAM:** 19.4 MB free (12 MB of it is the track window, which could shrink).
 - **App flash:** 9 % of the 1.5 MB partition free. The board has 16 MB, so a bigger partition is an easy fix.

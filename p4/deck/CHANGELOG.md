@@ -11,6 +11,34 @@ playing (see the README's *Audio health* section). Unless noted, it's
 the panel**, so they read high. From 2026-10-31 on, "screen fps" counts
 frames LVGL actually rendered and flushed.
 
+## 2026-10-31: boot without waiting for USB, hot-swap sticks, emergency loop
+
+- **Boot no longer waits for the stick.** The screen is up at 3.8 s (was
+  about 19 s) with the SD tracks. A mounted stick is read in the
+  background, with a "Reading USB stick… n" notice, and its tracks join the
+  list when done (13–14 s for 218 tracks at full speed).
+- **Sticks can be pulled and plugged in while the deck runs.** The track list
+  is now an immutable snapshot that gets swapped whole. Load requests carry
+  paths instead of list indexes, and the selection follows its track across
+  list changes. On a pull, the scan is cancelled, the stick's tracks leave
+  the list, and the loader closes its file before the stick is unmounted.
+- **Emergency loop**, as on a CDJ. If the stick is pulled while its track
+  plays, the deck loops 4 beats (from the grid; 2 s without one) out of the
+  audio already decoded in PSRAM. Whole beats keep SYNC locked: measured
+  1.4 ms through the loop. Status goes out as play state `0x12`, the screen
+  shows E.LOOP, and loading another track ends it. Pulled while paused,
+  the track just unloads.
+- **List strings moved to PSRAM.** Internal RAM at boot: 112 KB free (was
+  68 KB).
+
+Budget:
+
+| | |
+|---|---|
+| Boot to screen | 3.8 s |
+| Internal RAM, playing a stick track | 102–106 KB free, **80 KB lowest** (was 43 KB) |
+| Emergency loop | audio 100 % real time, sync 1.4 / 3.4 ms |
+
 ## 2026-10-31: all USB ports (hub) working, DJ2Go and stick together
 
 - **Hardware:** jumper H3 on its **DEVICE** side connects the on-board
