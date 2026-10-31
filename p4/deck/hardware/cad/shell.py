@@ -110,7 +110,7 @@ def part():
     try:
         win_l = M.WINDOW_X - M.LCD_ACTIVE[0] / 2 - M.WINDOW_MARGIN - (M.TOP_T_PERP - M.WINDOW_LIP)
         bx = win_l / 2                                     # centred in the strip left of the window
-        txt = F * Pos(bx - M.W / 2, M.BRAND_V, -0.6) * extrude(Text("FREEDJ-ESP", 3.5, font_style=FontStyle.BOLD,
+        txt = F * Pos(bx - M.W / 2, M.BRAND_V, -0.6) * extrude(Text("FREEDJ", 3.5, font_style=FontStyle.BOLD,
                                                    align=(Align.CENTER, Align.CENTER)), 2)
         cuts.append(txt)
     except Exception as e:

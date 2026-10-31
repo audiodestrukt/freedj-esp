@@ -117,7 +117,7 @@ SCREEN_V = GLASS_MARGIN[0] + (GLASS[1] + 0.4) / 2   # screen centre, measured up
 TOP_T_PERP = TOP_T * math.cos(math.radians(TILT))   # top thickness measured square to the bezel
 GLASS_Z = -(TOP_T_PERP + GASKET)                    # glass top, face-local: behind the top plate
 USBA_V = SCREEN_V + 18.0     # USB-A slot sits up the slope, clear of the screen bosses
-BRAND_V = 9.0                # "FREEDJ-ESP", left of the screen near the bend
+BRAND_V = 9.0                # "FREEDJ", left of the screen near the bend
 
 def face_loc():
     """Location of the tilted bezel face: origin on the bend line at x = W/2,

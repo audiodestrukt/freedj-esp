@@ -11,6 +11,11 @@ playing (see the README's *Audio health* section). Unless noted, it's
 the panel**, so they read high. From 2026-10-31 on, "screen fps" counts
 frames LVGL actually rendered and flushed.
 
+## 2026-10-31: case engraving reads "FREEDJ" (CAD only)
+
+- The hardware brand is freedj (freedj-esp stays the firmware's name), so the
+  bezel engraving is "FREEDJ" instead of "FREEDJ-ESP". Nothing else changed.
+
 ## 2026-10-31: printed jog shaft, AS5600 encoder, M3 inserts on the base (CAD only)
 
 - The jog shaft is printed in one piece with the platter (Ø7.95, snug in the

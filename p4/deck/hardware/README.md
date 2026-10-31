@@ -16,7 +16,7 @@ renders 0001–0004 show that version.)
 | Jog sensing | Ø6 × ~1.6 mm diametric magnet **glued flush into a pocket in the shaft tip** (the pocket centres it on the axis), **1.1 mm over an AS5600** on its 23 × 23 mm breakout (WWZMDiB). The board lies flat on the base plate, chip up and centred under the shaft, on two small M3 heat-set inserts flush in the plate; its right-angle header points back, and the solder tails drop into a slot in the plate. The stack is set by the printed shell: lower bearing at z 10, e-clip groove 9.20–9.95, 0.4 mm of plastic, the magnet pocket, so the tip is at z 7.20; chip top at 6.10 (3 mm plate + 1.6 board + 1.5 SOIC). A magnet 0.4 mm thicker or thinner than 1.6 just moves the gap to 0.7 or 1.5 mm, inside the AS5600's 0.5–3 mm |
 | CUE / PLAY | 19 mm caps in translucent light rings (amber, green), bottom left as on a CDJ, over key switches |
 | Pitch | 45 mm slide pot (Bourns PTA4543 class), knob at the right, tick scale, green tempo-zero LED |
-| Top | USB-A stick slot left of the screen (up the bezel, clear of the screen bosses) with an activity LED; "FREEDJ-ESP" engraved below it |
+| Top | USB-A stick slot left of the screen (up the bezel, clear of the screen bosses) with an activity LED; "FREEDJ" engraved below it |
 | Dev board | The **Waveshare ESP32-P4-Module-DEV-KIT** (Raspberry Pi B+ footprint: 85 × 56 mm, M2.5 holes 58 × 49 mm apart, 3.5 mm from the edges, per [Waveshare's drawing](https://docs.waveshare.com/ESP32-P4-Module-DEV-KIT)) sits back-right, under the screen, clear of the back-right base boss, on **four 3 mm standoffs printed on the base plate**, 8 mm across, with small M3 heat-set inserts (Ø4.0 bore, 4.5 deep: M3 × 3 or × 4). The board's holes are 2.75 mm (M2.5), so open them to 3.2 mm for M3 screws. Its port end faces the back: **Ethernet and both USB-A pairs come straight out the rear wall**. Its USB-C edge faces right: **power and the USB-to-UART port come out the right side** through openings sized for the plug's overmould (the sockets are about 11 mm in from the outside, so the overmould goes into the wall; very bulky plugs may need a short USB-C extension) |
 | Rear | The dev board's Ethernet (Pro DJ Link) and 2 × dual USB-A (DJ2Go etc.); RCA L/R line out (PCM5102A, not placed yet) to their left |
 | Assembly | The base plate screws into **four corner bosses** (M3 countersunk into M3 × 5.7 heat-set inserts). Each boss is 9 mm across and 10 mm tall, fused into the two walls, with a 45° cone above it so it prints without supports upside down; being short, they stay clear of the buttons, the USB slot, the screen and the dev board. Rubber feet |
@@ -33,7 +33,7 @@ renders 0001–0004 show that version.)
 Buttons, slider and connectors are the same parts in both. Three printed parts differ:
 the shell, the **base plate** (`base_flat.stl` is 1.6 mm deeper) and the **platter** (its
 printed shaft is 4 mm longer in `platter_flat.stl`). Build each with `FREEDJ_CONFIG=flat`.
-On the flat print, the engraved "FREEDJ-ESP" and the slider ticks are on the bed side, so
+On the flat print, the engraved "FREEDJ" and the slider ticks are on the bed side, so
 they come out as clean as the bed surface allows.
 
 ![Flat-top version](cad/renders/freedj_esp/0015-recessed-screen-flat-front.jpg)
