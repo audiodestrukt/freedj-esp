@@ -283,7 +283,7 @@ static void build()
 constexpr int kMeterY = 120, kMeterH = 32, kMeterW = 330, kTagW = 92;
 constexpr int kTickW = kMeterW - kTagW, kTickH = kMeterH;
 static lv_obj_t *s_meter, *s_boxes[8], *s_ticks, *s_tag, *s_tagNum;
-static uint16_t* s_tickBuf;           // kTickW x kTickH RGB565, internal RAM (small, drawn every frame)
+static uint16_t* s_tickBuf;           // kTickW x kTickH RGB565, PSRAM (internal RAM is the scarce one)
 static bool s_tickView;
 static int s_litTop = -1, s_litBot = -1;
 
@@ -330,7 +330,7 @@ static void buildMeter(lv_obj_t* scr)
     lv_obj_set_style_bg_color(s_tagNum, kGold, 0);
     lv_obj_set_style_pad_hor(s_tagNum, 5, 0);
     lv_obj_set_pos(s_tagNum, kMargin + 64, 6);
-    s_tickBuf = (uint16_t*)heap_caps_malloc(kTickW * kTickH * 2, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    s_tickBuf = (uint16_t*)heap_caps_malloc(kTickW * kTickH * 2, MALLOC_CAP_SPIRAM);
     s_ticks = lv_canvas_create(s_meter);
     lv_canvas_set_buffer(s_ticks, s_tickBuf, kTickW, kTickH, LV_COLOR_FORMAT_RGB565);
     lv_obj_set_pos(s_ticks, kTagW, 0);

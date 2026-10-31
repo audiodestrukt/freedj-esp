@@ -5,6 +5,10 @@ CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
 # the four USB-A ports may sit behind an onboard hub
 CONFIG_USB_HOST_HUBS_SUPPORTED=y
 CONFIG_USB_HOST_HUB_MULTI_LEVEL=y
+# USB transfer buffers in PSRAM. A stick read can need a ~32 KB DMA buffer;
+# from internal RAM that failed once the largest free block dropped below it,
+# and usb_host_msc then double-freed its transfer and the heap asserted.
+CONFIG_USB_HOST_DWC_DMA_CAP_MEMORY_IN_PSRAM=y
 # long filenames on the SD card
 CONFIG_FATFS_LFN_HEAP=y
 CONFIG_FATFS_MAX_LFN=255
