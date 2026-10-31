@@ -1,5 +1,6 @@
 #include "prolink.h"
 
+#include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
 #include "freertos/FreeRTOS.h"
@@ -17,6 +18,10 @@ static const char* TAG = "link";
 
 constexpr uint16_t kPortAnnounce = 50000, kPortBeat = 50001, kPortStatus = 50002;
 constexpr uint8_t kAnnounce = 0x06, kBeat = 0x28, kStatus = 0x0a;
+// Port 50001 control packets (Deep Symmetry's analysis; freedj-3000 for the
+// handoff, tested against an XDJ-1000MK2).
+constexpr uint8_t kFaderStart = 0x02, kOnAir = 0x03, kMasterReq = 0x26, kMasterRsp = 0x27, kSyncCtl = 0x2a;
+constexpr uint32_t kSyncOn = 0x10, kSyncOff = 0x20, kBecomeMaster = 0x01;
 static const uint8_t kMagic[10] = {'Q', 's', 'p', 't', '1', 'W', 'm', 'J', 'O', 'L'};
 constexpr uint32_t kPitchUnity = 0x00100000;   // pitch field for +0 %
 constexpr int64_t kForgetUs = 5000000;         // a peer silent this long is gone
@@ -68,6 +73,8 @@ struct Peer {
     // From status packets.
     int64_t  statusUs = 0;
     bool     master = false, playing = false;
+    uint8_t  handoffTo = 0xFF;    // Mh: the player it is handing master to
+    uint32_t syncN = 0;
     float    trackBpm = 0, pitch = 1;
     // From beat packets.
     int64_t  beatUs = 0;
@@ -81,6 +88,44 @@ static Peer   s_peers[kMaxPeers];      // guarded by s_mux
 static Ours   s_ours;                  // guarded by s_mux
 static uint8_t s_player;
 static char   s_name[20];
+// Tempo master state, guarded by s_mux.
+static bool     s_weMaster, s_wantMaster;
+static int64_t  s_wantSince;
+static uint8_t  s_handoffTo;           // granted to this player; drop master when it claims
+static uint8_t  s_yieldedFrom;         // the master agreed to yield to us
+static uint32_t s_ourSyncN, s_largestSyncN;
+static int      s_remoteSync, s_faderStart;
+static bool     s_onAir;
+// A line to log after leaving the lock (logging inside it isn't allowed).
+static char     s_note[96];
+
+static void note(const char* fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(s_note, sizeof s_note, fmt, ap);
+    va_end(ap);
+}
+
+static void logNote()
+{
+    char line[sizeof s_note];
+    taskENTER_CRITICAL(&s_mux);
+    strlcpy(line, s_note, sizeof line);
+    s_note[0] = 0;
+    taskEXIT_CRITICAL(&s_mux);
+    if (line[0]) ESP_LOGI(TAG, "%s", line);
+}
+
+// Call inside s_mux.
+static void takeMaster(const char* why)
+{
+    s_weMaster = true;
+    s_wantMaster = false;
+    s_yieldedFrom = 0;
+    s_ourSyncN = s_largestSyncN + 1;
+    note("we are tempo master (%s), sync counter %u", why, (unsigned)s_ourSyncN);
+}
 
 // Find or add a peer. Called inside s_mux, so it must not log: a new peer is
 // reported through s_newPeer and logged by the caller after the lock.
@@ -157,15 +202,32 @@ static void onStatus(const uint8_t* d, int n, uint32_t fromIp, int64_t now)
         p->playing = f & 0x40;
         p->trackBpm = bpm == 0xffff ? 0 : bpm / 100.0f;
         p->pitch = pitchOf(d + 0x8c);
+        p->handoffTo = d[0x9f];
+        p->syncN = be32(d + 0x84);
+        if (p->syncN > s_largestSyncN) s_largestSyncN = p->syncN;
+        // The master names us as its successor: take it. (Only after its
+        // status says so; taking it on the yield reply made an XDJ abort.)
+        if (p->master && p->handoffTo == s_player && !s_weMaster && (s_wantMaster || s_yieldedFrom == player))
+            takeMaster("handed over");
+        // The player we granted master to has claimed it: let go.
+        if (p->master && s_weMaster && s_handoffTo == player) {
+            s_weMaster = false;
+            s_handoffTo = 0;
+            note("handed tempo master to player %u", player);
+        }
     }
     taskEXIT_CRITICAL(&s_mux);
 }
+
+// Port 50001, other than beats: master handoff, sync control, mixer.
+static void onControl(const uint8_t* d, int n, uint32_t fromIp, int sock);
 
 bool master(Master& out)
 {
     const int64_t now = esp_timer_get_time();
     out = Master{};
     taskENTER_CRITICAL(&s_mux);
+    if (s_weMaster) { taskEXIT_CRITICAL(&s_mux); return false; }   // we are the reference
     // The player whose status says master; failing that (no status reaching
     // us yet), the only player sending beats.
     const Peer* m = nullptr;
@@ -193,6 +255,33 @@ bool master(Master& out)
     return out.present;
 }
 
+bool isMaster()
+{
+    taskENTER_CRITICAL(&s_mux);
+    const bool m = s_weMaster;
+    taskEXIT_CRITICAL(&s_mux);
+    return m;
+}
+
+void requestMaster()
+{
+    taskENTER_CRITICAL(&s_mux);
+    if (!s_weMaster) { s_wantMaster = true; s_wantSince = esp_timer_get_time(); s_yieldedFrom = 0; }
+    taskEXIT_CRITICAL(&s_mux);
+}
+
+static int take(int& v)
+{
+    taskENTER_CRITICAL(&s_mux);
+    const int r = v;
+    v = 0;
+    taskEXIT_CRITICAL(&s_mux);
+    return r;
+}
+int takeRemoteSync() { return take(s_remoteSync); }
+int takeFaderStart() { return take(s_faderStart); }
+bool onAir() { return s_onAir; }
+
 void publish(const Ours& o)
 {
     taskENTER_CRITICAL(&s_mux);
@@ -212,8 +301,20 @@ void summary(char* out, int n)
     taskEXIT_CRITICAL(&s_mux);
     int len = snprintf(out, n, "player %u  " IPSTR "%s  peers %d", s_player, IP2STR((esp_ip4_addr_t*)&ip),
                        net::linkUp() ? "" : " (no link)", peers);
-    if (m.present && len < n)
-        snprintf(out + len, n - len, "  master %u @ %.2f BPM%s", m.player, m.bpm, m.beating ? "" : " (not playing)");
+    if (isMaster() && len < n)
+        snprintf(out + len, n - len, "  WE ARE MASTER%s", s_onAir ? "  on air" : "");
+    else if (m.present && len < n)
+        snprintf(out + len, n - len, "  master %u @ %.2f BPM%s%s", m.player, m.bpm, m.beating ? "" : " (not playing)",
+                 s_onAir ? "  on air" : "");
+}
+
+static void sendTo(int s, uint32_t ip, uint16_t port, const uint8_t* d, int n)
+{
+    sockaddr_in a = {};
+    a.sin_family = AF_INET;
+    a.sin_port = htons(port);
+    a.sin_addr.s_addr = ip;
+    sendto(s, d, n, 0, (sockaddr*)&a, sizeof a);
 }
 
 // ── Packets we send ──────────────────────────────────────────────────────────
@@ -250,7 +351,14 @@ static int buildStatus(uint8_t* p, const Ours& o, uint32_t counter)
     p[0x2a] = o.loaded ? 0x01 : 0;
     p[0x7b] = !o.loaded ? 0x00 : o.emergencyLoop ? 0x12 : o.playing ? 0x03 : 0x05;
     memcpy(p + 0x7c, "0.1 ", 4);
-    p[0x89] = 0x84 | (o.playing ? 0x40 : 0) | (o.sync ? 0x10 : 0);
+    bool master;
+    uint8_t handoff;
+    uint32_t syncN;
+    bool air;
+    taskENTER_CRITICAL(&s_mux);
+    master = s_weMaster; handoff = s_handoffTo; syncN = s_ourSyncN; air = s_onAir;
+    taskEXIT_CRITICAL(&s_mux);
+    p[0x89] = 0x84 | (o.playing ? 0x40 : 0) | (master ? 0x20 : 0) | (o.sync ? 0x10 : 0) | (air ? 0x08 : 0);
     p[0x8a] = o.playing ? 0xFF : 0x8D;
     p[0x8b] = o.playing ? 0xFA : 0xFE;
     const uint32_t pitch = (uint32_t)(o.pitch * kPitchUnity);
@@ -259,14 +367,118 @@ static int buildStatus(uint8_t* p, const Ours& o, uint32_t counter)
     put16(p + 0x90, bpm ? 0x8000 : 0x7FFF);
     put16(p + 0x92, bpm ? (uint16_t)(o.trackBpm * 100 + 0.5f) : 0xFFFF);
     p[0x9d] = o.playing ? 0x0D : 0x01;
-    p[0x9e] = 0x00;                 // never master (yet)
-    p[0x9f] = 0xFF;
+    p[0x9e] = master ? 0x01 : 0x00;
+    p[0x9f] = handoff ? handoff : 0xFF;
     put32(p + 0xa0, o.beat ? o.beat : 0xFFFFFFFF);
     put16(p + 0xa4, 0x01FF);
     p[0xa6] = o.beatInBar;
     put32(p + 0xc8, counter);
-    put32(p + 0x84, 0);
+    put32(p + 0x84, syncN);
     return sizeof kStatusTemplate;
+}
+
+// Common header of the small port-50001 control packets.
+static int controlHeader(uint8_t* p, uint8_t kind, uint16_t payload)
+{
+    memset(p, 0, 0x24 + payload);
+    memcpy(p, kMagic, 10);
+    p[0x0a] = kind;
+    memcpy(p + 0x0b, s_name, 20);
+    p[0x1f] = 0x01;
+    p[0x21] = s_player;
+    put16(p + 0x22, payload);
+    return 0x24 + payload;
+}
+
+// Beat packet (0x28, 96 bytes), broadcast on each of our beats. BPM is the
+// track's (unpitched), pitch separate: receivers multiply them (Beat Link's
+// effective tempo). The six countdowns are ms to the next beat, the 2nd beat,
+// the next bar, the 4th beat, the 2nd bar and the 8th beat.
+static int buildBeat(uint8_t* p, const Ours& o)
+{
+    memset(p, 0, 0x60);
+    memcpy(p, kMagic, 10);
+    p[0x0a] = kBeat;
+    memcpy(p + 0x0b, s_name, 20);
+    p[0x1f] = 0x01;
+    p[0x21] = s_player;
+    put16(p + 0x22, 0x60 - 0x24);
+    const float eff = o.trackBpm * o.pitch;
+    const float beatMs = 60000.0f / (eff > 1 ? eff : 1);
+    const int bib = o.nextBeatInBar >= 1 && o.nextBeatInBar <= 4 ? o.nextBeatInBar : 1;
+    const float toBar = 5 - bib;
+    const float counts[6] = {1, 2, toBar, 4, toBar + 4, 8};
+    for (int i = 0; i < 6; i++) put32(p + 0x24 + 4 * i, (uint32_t)(counts[i] * beatMs + 0.5f));
+    memset(p + 0x3c, 0xFF, 24);
+    put32(p + 0x54, (uint32_t)(o.pitch * kPitchUnity));
+    put16(p + 0x5a, (uint16_t)(o.trackBpm * 100 + 0.5f));
+    p[0x5c] = (uint8_t)bib;
+    p[0x5f] = s_player;
+    return 0x60;
+}
+
+static void onControl(const uint8_t* d, int n, uint32_t fromIp, int sock)
+{
+    if (!isLink(d, n) || n < 0x28) return;
+    static uint8_t out[0x2c];
+    switch (d[0x0a]) {
+    case kMasterReq: {                    // a player asks us for master
+        const uint8_t from = d[0x27];
+        bool yield = false;
+        taskENTER_CRITICAL(&s_mux);
+        if (s_weMaster) { yield = true; s_handoffTo = from; note("player %u asks for master: yielding", from); }
+        taskEXIT_CRITICAL(&s_mux);
+        if (yield) {
+            const int len = controlHeader(out, kMasterRsp, 8);
+            put32(out + 0x24, s_player);
+            put32(out + 0x28, 1);
+            sendTo(sock, fromIp, kPortBeat, out, len);
+        }
+        break;
+    }
+    case kMasterRsp:                      // the master answered our request
+        if (n >= 0x2c) {
+            taskENTER_CRITICAL(&s_mux);
+            if (d[0x2b] == 1 && s_wantMaster) {
+                s_yieldedFrom = d[0x27];
+                note("player %u agreed to yield master; waiting for it to name us", d[0x27]);
+            }
+            taskEXIT_CRITICAL(&s_mux);
+        }
+        break;
+    case kSyncCtl:                        // sync on/off, or become master
+        // Sent straight to the target player. (freedj reads 0x27 as the
+        // target, prolink-cpp writes the sender there; don't depend on it.)
+        if (n >= 0x2c) {
+            const uint32_t cmd = be32(d + 0x28);
+            taskENTER_CRITICAL(&s_mux);
+            if (cmd == kSyncOn) s_remoteSync = 1;
+            else if (cmd == kSyncOff) s_remoteSync = 2;
+            else if (cmd == kBecomeMaster && !s_weMaster) { s_wantMaster = true; s_wantSince = esp_timer_get_time(); }
+            note("player %u sent sync control 0x%02x", d[0x21], (unsigned)cmd);
+            taskEXIT_CRITICAL(&s_mux);
+        }
+        break;
+    case kOnAir:                          // mixer: which channels are on air
+        if (s_player >= 1 && s_player <= 4) {
+            const bool air = d[0x24 + s_player - 1] != 0;
+            taskENTER_CRITICAL(&s_mux);
+            if (air != s_onAir) note("mixer: channel %u %s air", s_player, air ? "on" : "off");
+            s_onAir = air;
+            taskEXIT_CRITICAL(&s_mux);
+        }
+        break;
+    case kFaderStart:                     // mixer: 0 start, 1 stop, 2 leave alone
+        if (s_player >= 1 && s_player <= 4) {
+            const uint8_t c = d[0x24 + s_player - 1];
+            if (c == 0 || c == 1) {
+                taskENTER_CRITICAL(&s_mux);
+                s_faderStart = c == 0 ? 1 : 2;
+                taskEXIT_CRITICAL(&s_mux);
+            }
+        }
+        break;
+    }
 }
 
 // ── Task ─────────────────────────────────────────────────────────────────────
@@ -285,26 +497,29 @@ static int udpSocket(uint16_t port)
     return s;
 }
 
-static void sendTo(int s, uint32_t ip, uint16_t port, const uint8_t* d, int n)
-{
-    sockaddr_in a = {};
-    a.sin_family = AF_INET;
-    a.sin_port = htons(port);
-    a.sin_addr.s_addr = ip;
-    sendto(s, d, n, 0, (sockaddr*)&a, sizeof a);
-}
-
 static void task(void*)
 {
     const int sa = udpSocket(kPortAnnounce), sb = udpSocket(kPortBeat), ss = udpSocket(kPortStatus);
     static uint8_t buf[512], out[sizeof kStatusTemplate];
-    int64_t nextAnnounce = 0, nextStatus = 0;
-    uint32_t counter = 0, lastIp = 0;
+    int64_t nextAnnounce = 0, nextStatus = 0, lastMasterReq = 0;
+    uint32_t counter = 0, lastIp = 0, lastBeatSent = 0;
+    // The beat we're waiting to send. Held here, because the audio task's
+    // "next beat" moves on as soon as the beat passes, and a wake-up a
+    // moment late would otherwise skip it.
+    Ours pend;
+    bool pending = false;
     for (;;) {
         fd_set rd;
         FD_ZERO(&rd);
         FD_SET(sa, &rd); FD_SET(sb, &rd); FD_SET(ss, &rd);
-        timeval tv = {0, 50000};   // packets wake us at once; this only paces our own sends
+        // Packets wake us at once; the timeout paces our sends, and wakes us
+        // in time for our next beat.
+        int64_t waitUs = 50000;
+        if (pending) {
+            const int64_t to = pend.nextBeatUs - esp_timer_get_time();
+            if (to < waitUs) waitUs = to < 1000 ? 1000 : to;
+        }
+        timeval tv = {0, (long)waitUs};
         const int maxfd = sa > sb ? (sa > ss ? sa : ss) : (sb > ss ? sb : ss);
         if (select(maxfd + 1, &rd, nullptr, nullptr, &tv) > 0) {
             for (int s : {sb, ss, sa}) {      // beats first: their arrival time is the beat
@@ -314,10 +529,14 @@ static void task(void*)
                 const int n = recvfrom(s, buf, sizeof buf, 0, (sockaddr*)&from, &fl);
                 const int64_t now = esp_timer_get_time();
                 if (n <= 0) continue;
-                if (s == sb) onBeat(buf, n, from.sin_addr.s_addr, now);
+                if (s == sb) {
+                    if (n > 0x0a && buf[0x0a] == kBeat) onBeat(buf, n, from.sin_addr.s_addr, now);
+                    else onControl(buf, n, from.sin_addr.s_addr, sb);
+                }
                 else if (s == ss) onStatus(buf, n, from.sin_addr.s_addr, now);
                 else onAnnounce(buf, n, now);
                 logNewPeer();
+                logNote();
             }
         }
 
@@ -328,15 +547,72 @@ static void task(void*)
         }
         if (!ip) continue;
         const int64_t now = esp_timer_get_time();
+        const uint32_t bcast = ip | ~net::netmask();
+        // Our beat: send it when it's heard.
+        {
+            taskENTER_CRITICAL(&s_mux);
+            const Ours o = s_ours;
+            taskEXIT_CRITICAL(&s_mux);
+            if (!o.playing || o.trackBpm <= 0 || !o.nextBeatUs) {
+                pending = false;
+                lastBeatSent = 0;
+            } else {
+                // Moved backwards (loop wrap, cue, jump): start counting again.
+                if (o.nextBeat < lastBeatSent || (pending && o.nextBeat < pend.nextBeat)) {
+                    lastBeatSent = o.nextBeat - 1;
+                    pending = false;
+                }
+                // The audio moved on past the beat we hold: send it now (late)
+                // rather than lose it, then take the new one.
+                if (pending && o.nextBeat > pend.nextBeat) {
+                    sendTo(sb, bcast, kPortBeat, out, buildBeat(out, pend));
+                    lastBeatSent = pend.nextBeat;
+                    pending = false;
+                }
+                if (o.nextBeat > lastBeatSent) { pend = o; pending = true; }   // refresh the prediction
+                if (pending && now >= pend.nextBeatUs - 500) {
+                    sendTo(sb, bcast, kPortBeat, out, buildBeat(out, pend));
+                    lastBeatSent = pend.nextBeat;
+                    pending = false;
+                }
+            }
+        }
+        // Asking for master: take it if nobody has it, else ask the master.
+        {
+            uint32_t masterIp = 0;
+            bool asking;
+            taskENTER_CRITICAL(&s_mux);
+            asking = s_wantMaster && !s_weMaster;
+            if (asking) {
+                for (const auto& p : s_peers)
+                    if (p.seenUs && now - p.seenUs < kForgetUs && p.master && now - p.statusUs < 2000000) masterIp = p.ip;
+                if (!masterIp) takeMaster("nobody had it");
+                else if (now - s_wantSince > 5000000) { s_wantMaster = false; note("master handoff timed out"); }
+            }
+            const bool send = s_wantMaster && !s_weMaster && masterIp && !s_yieldedFrom && now - lastMasterReq >= 1000000;
+            taskEXIT_CRITICAL(&s_mux);
+            logNote();
+            if (send) {
+                const int len = controlHeader(out, kMasterReq, 4);
+                put32(out + 0x24, s_player);
+                sendTo(sb, masterIp, kPortBeat, out, len);
+                lastMasterReq = now;
+                ESP_LOGI(TAG, "asking the tempo master to hand over");
+            }
+        }
         if (now >= nextAnnounce) {
             nextAnnounce = now + 1500000;
             uint8_t mac[6];
             net::mac(mac);
             const int n = buildAnnounce(out, ip, mac);
-            const uint32_t bcast = ip | ~net::netmask();
             sendTo(sa, bcast, kPortAnnounce, out, n);
         }
-        if (now >= nextStatus) {
+        // Status 5x a second, and at once when our master flag changes: an
+        // outgoing master waits to see the new one claim it.
+        static bool sentMaster = false;
+        const bool masterNow = isMaster();
+        if (now >= nextStatus || masterNow != sentMaster) {
+            sentMaster = masterNow;
             nextStatus = now + 200000;
             Ours o;
             uint32_t ips[kMaxPeers];

@@ -32,12 +32,31 @@ struct Ours {
     float    pitch = 1.0f;      // speed multiplier
     uint32_t beat = 0;          // beat number from the track start (1-based), 0 = none
     uint8_t  beatInBar = 0;     // 1..4, 0 = none
+    // The next beat as it will be heard, for our beat packets: when
+    // (esp_timer us; 0 = none), its number and position in the bar.
+    int64_t  nextBeatUs = 0;
+    uint32_t nextBeat = 0;
+    uint8_t  nextBeatInBar = 0;
 };
 
 void begin(uint8_t player, const char* name);
-bool master(Master& out);       // false if no master; cheap, any task
+// The tempo master to follow; false if there is none, or if we are it.
+bool master(Master& out);       // cheap, any task
 void publish(const Ours& o);    // cheap, any task
 // One line for the status report: address, peers, master.
 void summary(char* out, int n);
+
+// Tempo master. requestMaster(): take it now if nobody has it, else ask the
+// current master to hand it over (it yields, names us, then we take it).
+bool isMaster();
+void requestMaster();
+
+// Commands from other devices, taken once (0 = none):
+//  remoteSync(): 1 a player turned our SYNC on, 2 off.
+//  faderStart(): 1 the mixer's fader start says play, 2 stop.
+int takeRemoteSync();
+int takeFaderStart();
+// Our channel is on air at the mixer (DJM "channels on air").
+bool onAir();
 
 } // namespace prolink

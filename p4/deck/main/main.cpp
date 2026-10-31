@@ -729,6 +729,8 @@ static void publishState(const Deck& d, float speed)
     u.hasGrid = d.loaded && !grid().empty();
     if (u.hasGrid) u.bpm = grid().bpmAt(d.pos * 1000.0 / s_stream.sampleRate()) * speed;
     u.masterPlayer = s_master.present ? s_master.player : 0;
+    u.weMaster = prolink::isMaster();
+    u.onAir = prolink::onAir();
     u.masterBpm = s_master.bpm;
     // Phase meter: where we are in our beat/bar/phrase as heard, and where the
     // master is in its beat.
@@ -860,6 +862,12 @@ static void audioTask(void*)
         deck::Event e;
         while (xQueueReceive(s_events, &e, 0) == pdTRUE) apply(d, e);
         followLibrary(d);
+        // From the network: a player switched our SYNC, or the mixer's fader start.
+        if (const int rs = prolink::takeRemoteSync()) { d.sync = rs == 1; if (d.sync) d.alignNext = d.playing; }
+        if (const int fs = prolink::takeFaderStart(); fs && d.loaded && !d.emergency) {
+            if (fs == 1 && !d.playing) { d.playing = true; if (d.sync) d.alignNext = true; }
+            else if (fs == 2 && d.playing) { d.playing = false; seek(d, d.cue); }   // back to the cue, as a CDJ does
+        }
         Pick pick;
         while (xQueueReceive(s_select, &pick, 0) == pdTRUE)    // ignore picks from an older list
             if (pick.gen == d.libGen && d.lib && pick.index >= 0 && pick.index < d.lib->size() && pick.index != d.selected) {
@@ -991,7 +999,7 @@ static void audioTask(void*)
         if (tWrote - tWrite < r.minSlackUs) r.minSlackUs = tWrote - tWrite;
 
         publishState(d, speed);  // every block (~170 Hz) so the waveform scrolls smoothly
-        if ((r.blocks & 7) == 0) {   // what Link peers see, ~20 Hz
+        if ((r.blocks & 3) == 0) {   // what Link peers see, ~43 Hz (also times our beat packets)
             prolink::Ours o;
             o.loaded = d.loaded;
             o.playing = d.playing;
@@ -1003,6 +1011,14 @@ static void audioTask(void*)
                 const double b = grid().beatAt(ms);
                 o.trackBpm = grid().bpmAt(ms);
                 if (b >= 0) { o.beat = (uint32_t)b + 1; o.beatInBar = (uint8_t)grid().inBarAt((long)b); }
+                // When our next beat will be heard, for the beat packet.
+                if (d.playing && !d.reverse && speed > 0.05f) {
+                    const double next = floor(b) + 1;
+                    const double inMs = (grid().msAt(next) - ms) / speed;   // track ms -> real ms
+                    o.nextBeatUs = esp_timer_get_time() + (int64_t)(inMs * 1000);
+                    o.nextBeat = next >= 0 ? (uint32_t)next + 1 : 0;
+                    o.nextBeatInBar = (uint8_t)grid().inBarAt((long)next);
+                }
             }
             prolink::publish(o);
         }
@@ -1038,6 +1054,7 @@ static void audioTask(void*)
 //   o 4-beat loop   x reloop/exit   ( ) loop 1/2, x2   i u loop in/out
 //   , . beat jump -/+4   < > call previous/next memory cue   q quantize
 //   t tempo range   T tempo reset   m M memory cue add/delete   z slip   r reverse
+//   Y become tempo master
 //   w cycle waveform test mode (normal / no flush / off)
 static void serialKeysTask(void*)
 {
@@ -1080,6 +1097,7 @@ static void serialKeysTask(void*)
         case 'M': e.type = deck::Type::MemoryDelete; break;
         case 'z': e.type = deck::Type::Slip; break;
         case 'r': e.type = deck::Type::Reverse; break;
+        case 'Y': prolink::requestMaster(); ESP_LOGI(TAG, "requesting tempo master"); continue;
         case 'g': s_fakeGridBpm = 120; ESP_LOGI(TAG, "test grid: 120 BPM from the start"); continue;
         case '[': s_syncOffsetMs -= 2; ESP_LOGI(TAG, "sync offset %+d ms", s_syncOffsetMs); continue;
         case ']': s_syncOffsetMs += 2; ESP_LOGI(TAG, "sync offset %+d ms", s_syncOffsetMs); continue;
@@ -1119,7 +1137,7 @@ extern "C" void app_main(void)
     s_audioUp = xSemaphoreCreateBinary();
     xTaskCreatePinnedToCore(audioTask, "audio", 8192, nullptr, 10, nullptr, 1);
     xSemaphoreTake(s_audioUp, portMAX_DELAY);  // the screen's touch shares the codec's I2C bus
-    ui::begin(s_stream, onUiEvent, onUiSelect, onUiSeek);
+    ui::begin(s_stream, onUiEvent, onUiSelect, onUiSeek, [] { prolink::requestMaster(); });
     xTaskCreatePinnedToCore(reporterTask, "report", 6144, nullptr, 1, nullptr, 0);
     xTaskCreatePinnedToCore(serialKeysTask, "keys", 3072, nullptr, 2, nullptr, 0);
     ESP_LOGI(TAG, "memory free: internal %u KB (largest %u KB), PSRAM %u KB",

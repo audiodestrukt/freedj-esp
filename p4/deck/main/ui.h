@@ -40,6 +40,8 @@ struct State {
     bool  hasGrid    = false;  // track has a rekordbox beat grid
     float bpm        = 0;      // our effective tempo (grid BPM x speed), 0 = unknown
     uint8_t masterPlayer = 0;  // Link tempo master, 0 = none
+    bool  weMaster   = false;  // we are the tempo master
+    bool  onAir      = false;  // the mixer has our channel on air
     float masterBpm  = 0;
     // Phase meter. beatPhase/masterPhase are 0..1 through the current beat,
     // -1 when unknown; beatInBar/masterInBar are 1..4 for that beat.
@@ -62,11 +64,13 @@ using EventFn  = void (*)(const deck::Event&);
 // under a touch when a stick comes or goes).
 using SelectFn = void (*)(int index, uint32_t gen);
 using SeekFn   = void (*)(float fraction);   // needle search: 0..1 through the track
+using Fn       = void (*)();
 
 // Starts the screen. The list follows library::get() as it changes. `stream` must
 // outlive the UI; the waveform reads its peaks. Returns false if there's
 // no screen.
-bool begin(const TrackStream& stream, EventFn onEvent, SelectFn onSelect, SeekFn onSeek);
+// onMaster: long press on the SYNC chip (the XDJ's MASTER button).
+bool begin(const TrackStream& stream, EventFn onEvent, SelectFn onSelect, SeekFn onSeek, Fn onMaster);
 
 // Cheap and safe from any task.
 void publish(const State& s);

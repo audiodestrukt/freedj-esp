@@ -50,6 +50,7 @@ static bool  s_first = true;
 static EventFn  s_onEvent;
 static SelectFn s_onSelect;
 static SeekFn   s_onSeek;
+static Fn       s_onMaster;
 
 static lv_obj_t *s_name, *s_state, *s_time, *s_remain, *s_tempo, *s_key, *s_sync, *s_bpm, *s_quant;
 static lv_obj_t *s_barsMem, *s_barsHot;   // XDJ "Bars" countdowns
@@ -426,6 +427,7 @@ static void build()
     s_key = chip(scr, "KEY", onKeyTap);
     lv_obj_align_to(s_key, s_state, LV_ALIGN_OUT_LEFT_MID, -6, 0);
     s_sync = chip(scr, "SYNC", onSyncTap);
+    lv_obj_add_event_cb(s_sync, [](lv_event_t*) { s_onMaster(); }, LV_EVENT_LONG_PRESSED, nullptr);
     lv_obj_align_to(s_sync, s_key, LV_ALIGN_OUT_LEFT_MID, -6, 0);
     s_quant = chip(scr, "Q", onQuantTap);
     lv_obj_align_to(s_quant, s_sync, LV_ALIGN_OUT_LEFT_MID, -6, 0);
@@ -817,13 +819,17 @@ static void refresh(lv_timer_t*)
         lv_obj_set_style_text_color(s_sync, following ? kText : s.sync ? kBlue : kDim, 0);
     }
     if (s_first || fabsf(s.bpm - o.bpm) >= 0.005f || fabsf(s.masterBpm - o.masterBpm) >= 0.005f ||
-        s.masterPlayer != o.masterPlayer) {
+        s.masterPlayer != o.masterPlayer || s.weMaster != o.weMaster) {
         char ours[16] = "--- BPM";
         if (s.bpm > 0) snprintf(ours, sizeof ours, "%.2f BPM", s.bpm);
-        if (s.masterPlayer) snprintf(buf, sizeof buf, "M%u %.2f | %s", s.masterPlayer, s.masterBpm, ours);
+        if (s.weMaster) snprintf(buf, sizeof buf, "MASTER | %s", ours);
+        else if (s.masterPlayer) snprintf(buf, sizeof buf, "M%u %.2f | %s", s.masterPlayer, s.masterBpm, ours);
         else strlcpy(buf, ours, sizeof buf);
         lv_label_set_text(s_bpm, buf);
+        lv_obj_set_style_text_color(s_bpm, s.weMaster ? kOrange : kDim, 0);
     }
+    if (s_first || s.onAir != o.onAir)      // on air at the mixer: red time, like the XDJ's red jog ring
+        lv_obj_set_style_text_color(s_time, s.onAir ? lv_color_hex(0xE0453A) : kText, 0);
 
     if (s_first || s.playing != o.playing || s.loaded != o.loaded || s.previewing != o.previewing) {
         lv_obj_set_style_bg_color(s_playBtn, s.playing && !s.previewing ? kGreen : kPanel, 0);
@@ -894,12 +900,13 @@ void togglePhaseView()
     lvgl_port_unlock();
 }
 
-bool begin(const TrackStream& stream, EventFn onEvent, SelectFn onSelect, SeekFn onSeek)
+bool begin(const TrackStream& stream, EventFn onEvent, SelectFn onSelect, SeekFn onSeek, Fn onMaster)
 {
     s_stream = &stream;
     s_onEvent = onEvent;
     s_onSelect = onSelect;
     s_onSeek = onSeek;
+    s_onMaster = onMaster;
     lv_display_t* disp = display::begin();
     if (!disp) { ESP_LOGE(TAG, "no screen"); return false; }
     lvgl_port_lock(0);
