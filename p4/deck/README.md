@@ -11,7 +11,8 @@ This lives next to the A1S firmware in the repo root and doesn't replace it. The
 | Board | Waveshare ESP32-P4-Module-DEV-KIT. ESP32-P4 rev 1.3 (needs `CONFIG_ESP32P4_SELECTS_REV_LESS_V3`), 2× RISC-V 360 MHz, 32 MB PSRAM, 16 MB flash |
 | Audio out | On-board ES8311 codec (I2C 0x18) → NS4150B amp → speaker. Mono. Amp enable is GPIO 53 |
 | SD | On-board slot, 4-bit SDMMC, 40 MHz, powered from internal LDO channel 4 |
-| USB stick | rekordbox export, FAT32. **Only one USB-A port works** (the one wired straight to the chip; the on-board hub never appears, whichever way jumper H3 is set), so it's the stick or the DJ2Go for now |
+| USB stick | rekordbox export, FAT32 |
+| USB ports | Jumper H3 (between the right-hand USB pair and the Ethernet jack) picks between two paths. **Labelled DEVICE** = the on-board CH334F 4-port hub, so three ports work but the fourth (the direct one) is dead. **HOST, or no jumper** = only the direct port works. Use DEVICE, with the DJ2Go and the stick in two of the hub ports. ESP-IDF's USB host has no transaction translator, so the firmware limits the root port to full speed (12 Mbit/s) to reach a full-speed device like the DJ2Go behind the hub. The stick then runs at full speed too |
 | Ethernet | On-board IP101 PHY (RMII). DHCP, or 169.254.x.x link-local on a cable straight to a player |
 | Controller | Numark DJ2Go in any of the four USB-A ports (USB host, class-compliant MIDI) |
 | Screen (stand-in) | LCDwiki **MSP4021**: 4" 480×320, ST7796S over SPI + FT6336U capacitive touch. Will be replaced by a MIPI-DSI screen |

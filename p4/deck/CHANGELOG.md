@@ -11,6 +11,29 @@ playing (see the README's *Audio health* section). Unless noted, it's
 the panel**, so they read high. From 2026-10-31 on, "screen fps" counts
 frames LVGL actually rendered and flushed.
 
+## 2026-10-31: all USB ports (hub) working, DJ2Go and stick together
+
+- **Hardware:** jumper H3 on its **DEVICE** side connects the on-board
+  CH334F hub. The HOST side, or no jumper, gives only the single direct
+  port. With the hub on, three ports work and the direct one is dead.
+- **Firmware:** ESP-IDF's host has no transaction translator, so the DJ2Go
+  (full speed) failed behind the high-speed hub ("TT is not supported").
+  The root port is now limited to full speed with `HCFG.FSLSSupp`, which is
+  re-asserted every 100 ms because a port recovery clears it. That makes the
+  hub run at full speed. This is the trick from espp's `usb_host`
+  (`full_speed_only`). The port is powered only after the MIDI and MSC
+  clients have registered.
+- **Cost:** the stick runs at 12 Mbit/s too.
+
+| | High speed (direct port) | Full speed (hub) |
+|---|---|---|
+| Boot scan, 218 ANLZ files | 6.9 s | 12.4–13.7 s |
+| MP3 load (index built at load, reads the whole file) | 0.49 s | 4.94 s |
+| Playback | fine | fine (0 underruns) |
+
+Next: build the MP3 index in the background after the track is ready, and
+cache the track list on the stick.
+
 ## 2026-10-31: track overview with needle search
 
 - The progress bar is replaced by an overview of the whole track, drawn from
