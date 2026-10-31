@@ -16,9 +16,9 @@ CONFIG_SPIRAM_SPEED_200M=y
 # 1 ms tick: short vTaskDelay()s in the loader must not round down to 0
 CONFIG_FREERTOS_HZ=1000
 
-# LVGL (deck screen): heap from the C library (PSRAM-backed), dark theme,
+# LVGL (deck screen): small allocations in PSRAM (lvgl_mem.c), dark theme,
 # and the font sizes the UI uses.
-CONFIG_LV_USE_CLIB_MALLOC=y
+CONFIG_LV_USE_CUSTOM_MALLOC=y   # lvgl_mem.c: objects in PSRAM
 CONFIG_LV_USE_CLIB_STRING=y
 CONFIG_LV_USE_CLIB_SPRINTF=y
 CONFIG_LV_THEME_DEFAULT_DARK=y
@@ -41,3 +41,9 @@ CONFIG_CACHE_L2_CACHE_256KB=y
 CONFIG_FREERTOS_GENERATE_RUN_TIME_STATS=y
 CONFIG_FREERTOS_USE_TRACE_FACILITY=y
 CONFIG_FREERTOS_VTASKLIST_INCLUDE_COREID=y
+
+# Pro DJ Link over the on-board Ethernet. Link-local (169.254.x.x) when
+# there's no DHCP server, as on a cable straight to a Pioneer player. The
+# lwIP task stays on core 0 with the rest of the network.
+CONFIG_LWIP_AUTOIP=y
+CONFIG_LWIP_TCPIP_TASK_AFFINITY_CPU0=y

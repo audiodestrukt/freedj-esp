@@ -30,4 +30,9 @@ constexpr gpio_num_t LCD_RST  = GPIO_NUM_4;   // pin 18
 constexpr gpio_num_t LCD_BL   = GPIO_NUM_3;   // pin 19 (LED)
 constexpr gpio_num_t TP_RST   = GPIO_NUM_2;   // pin 21
 constexpr gpio_num_t TP_INT   = GPIO_NUM_23;  // pin 7
+
+// Ethernet: IP101GRI PHY over RMII. The data pins, MDC 31, MDIO 52 and the
+// 50 MHz reference clock in on GPIO 50 are ESP-IDF's P4 defaults.
+constexpr gpio_num_t ETH_PHY_RST = GPIO_NUM_51;
+constexpr int        ETH_PHY_ADDR = 1;
 } // namespace board

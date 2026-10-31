@@ -8,15 +8,19 @@
 #include "esp_lvgl_port.h"
 #include "display.h"
 #include "esp_heap_caps.h"
+#include "library.h"
 #include "stream.h"
+
+extern "C" volatile bool lvgl_mem_psram;   // lvgl_mem.c
 
 namespace ui {
 
 static const char* TAG = "ui";
 
 // Layout (480 x 320):
-//   y   0.. 34  track name ............................. state chip
-//   y  36.. 90  elapsed (big)      -remaining           tempo % / KEY
+//   y   0.. 34  track name ................... SYNC  KEY  state chip
+//   y  36.. 90  elapsed (big)  -remaining               tempo %
+//                                          master BPM | our BPM
 //   y  98..112  progress bar with cue marker
 //   y 120..264  track list, or the scrolling waveform while playing
 //   y 270..316  [ CUE ] [ PLAY ] [ LOAD ]
@@ -39,7 +43,7 @@ static bool  s_first = true;
 static EventFn  s_onEvent;
 static SelectFn s_onSelect;
 
-static lv_obj_t *s_name, *s_state, *s_time, *s_remain, *s_tempo, *s_key;
+static lv_obj_t *s_name, *s_state, *s_time, *s_remain, *s_tempo, *s_key, *s_sync, *s_bpm;
 static lv_obj_t *s_bar, *s_cueMark, *s_list, *s_cueBtn, *s_playBtn;
 static std::vector<lv_obj_t*> s_rows;
 
@@ -93,6 +97,8 @@ static void onCue(lv_event_t* e)
 static void onWaveTap(lv_event_t*) { s_lastListUse = lv_tick_get(); }
 
 static void onPlay(lv_event_t*) { send(deck::Type::PlayPause, true); }
+static void onSyncTap(lv_event_t*) { send(deck::Type::Sync, true); }
+static void onKeyTap(lv_event_t*) { send(deck::Type::KeyLock, true); }
 static void onLoad(lv_event_t*) { send(deck::Type::Load, true); }
 
 static void fmtTime(char* out, size_t n, float sec, bool tenths)
@@ -126,15 +132,32 @@ static lv_obj_t* button(lv_obj_t* parent, const char* text, int x, lv_event_cb_t
     return b;
 }
 
-static void build(const std::vector<std::string>& tracks, const char* prefix)
+// A tappable status chip in the header (SYNC, KEY).
+static lv_obj_t* chip(lv_obj_t* parent, const char* text, lv_event_cb_t cb)
 {
+    lv_obj_t* c = label(parent, &lv_font_montserrat_16, kDim);
+    lv_label_set_text(c, text);
+    lv_obj_set_style_bg_opa(c, LV_OPA_COVER, 0);
+    lv_obj_set_style_bg_color(c, kPanel, 0);
+    lv_obj_set_style_radius(c, 4, 0);
+    lv_obj_set_style_pad_hor(c, 8, 0);
+    lv_obj_set_style_pad_ver(c, 3, 0);
+    lv_obj_set_ext_click_area(c, 8);
+    lv_obj_add_flag(c, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(c, cb, LV_EVENT_PRESSED, nullptr);
+    return c;
+}
+
+static void build()
+{
+    const auto& tracks = library::tracks();
     lv_obj_t* scr = lv_screen_active();
     lv_obj_set_style_bg_color(scr, kBg, 0);
     lv_obj_set_scrollable(scr, false);
 
     s_name = label(scr, &lv_font_montserrat_20, kText);
     lv_obj_set_pos(s_name, kMargin, 8);
-    lv_obj_set_width(s_name, 340);
+    lv_obj_set_width(s_name, 236);
     lv_label_set_long_mode(s_name, LV_LABEL_LONG_MODE_DOTS);
 
     s_state = label(scr, &lv_font_montserrat_16, kBg);
@@ -143,19 +166,24 @@ static void build(const std::vector<std::string>& tracks, const char* prefix)
     lv_obj_set_style_pad_hor(s_state, 8, 0);
     lv_obj_set_style_pad_ver(s_state, 3, 0);
     lv_obj_align(s_state, LV_ALIGN_TOP_RIGHT, -kMargin, 8);
+    lv_label_set_text(s_state, "PLAYING");      // widest text: chips sit left of it
+    lv_obj_update_layout(s_state);
+    s_key = chip(scr, "KEY", onKeyTap);
+    lv_obj_align_to(s_key, s_state, LV_ALIGN_OUT_LEFT_MID, -6, 0);
+    s_sync = chip(scr, "SYNC", onSyncTap);
+    lv_obj_align_to(s_sync, s_key, LV_ALIGN_OUT_LEFT_MID, -6, 0);
 
     s_time = label(scr, &lv_font_montserrat_40, kText);
     lv_obj_set_pos(s_time, kMargin, 42);
 
     s_remain = label(scr, &lv_font_montserrat_24, kDim);
-    lv_obj_set_pos(s_remain, 200, 56);
+    lv_obj_set_pos(s_remain, 160, 56);
 
     s_tempo = label(scr, &lv_font_montserrat_24, kText);
     lv_obj_align(s_tempo, LV_ALIGN_TOP_RIGHT, -kMargin, 44);
 
-    s_key = label(scr, &lv_font_montserrat_16, kOrange);
-    lv_label_set_text(s_key, "KEY LOCK");
-    lv_obj_align(s_key, LV_ALIGN_TOP_RIGHT, -kMargin, 74);
+    s_bpm = label(scr, &lv_font_montserrat_16, kDim);
+    lv_obj_align(s_bpm, LV_ALIGN_TOP_RIGHT, -kMargin, 76);
 
     s_bar = lv_bar_create(scr);
     lv_obj_set_pos(s_bar, kMargin, kBarY);
@@ -181,32 +209,37 @@ static void build(const std::vector<std::string>& tracks, const char* prefix)
     lv_obj_set_style_border_width(s_list, 0, 0);
     lv_obj_set_style_pad_all(s_list, 0, 0);
     lv_obj_set_style_pad_row(s_list, 0, 0);
-    const size_t skip = prefix ? strlen(prefix) : 0;
+    // One shared style for every row: per-object style setters allocate a
+    // local style each, which adds up over hundreds of tracks.
+    lvgl_mem_psram = true;          // the rows live for the whole session: PSRAM
+    static lv_style_t rowStyle, rowChecked;
+    lv_style_init(&rowStyle);
+    lv_style_set_radius(&rowStyle, 0);
+    lv_style_set_shadow_width(&rowStyle, 0);
+    lv_style_set_pad_left(&rowStyle, kMargin);
+    lv_style_set_bg_color(&rowStyle, kBg);
+    lv_style_set_text_color(&rowStyle, kText);
+    lv_style_set_text_font(&rowStyle, &lv_font_montserrat_16);
+    lv_style_set_border_width(&rowStyle, 0);
+    lv_style_init(&rowChecked);
+    lv_style_set_bg_color(&rowChecked, kBlue);
     for (size_t i = 0; i < tracks.size(); i++) {
-        const char* path = tracks[i].c_str();
-        if (strncmp(path, prefix, skip) == 0) path += skip;
-        if (*path == '/') path++;
         lv_obj_t* row = lv_button_create(s_list);
         lv_obj_set_size(row, LV_PCT(100), 36);
-        lv_obj_set_style_radius(row, 0, 0);
-        lv_obj_set_style_shadow_width(row, 0, 0);
-        lv_obj_set_style_pad_left(row, kMargin, 0);
+        lv_obj_add_style(row, &rowStyle, 0);
+        lv_obj_add_style(row, &rowChecked, LV_STATE_CHECKED);
         lv_obj_t* text = lv_label_create(row);
-        lv_label_set_text(text, path);
+        lv_label_set_text(text, library::displayName(i).c_str());
         lv_label_set_long_mode(text, LV_LABEL_LONG_MODE_DOTS);
         lv_obj_set_width(text, LV_PCT(100));
         lv_obj_align(text, LV_ALIGN_LEFT_MID, 0, 0);
-        lv_obj_set_style_bg_color(row, kBg, 0);
-        lv_obj_set_style_bg_color(row, kBlue, LV_STATE_CHECKED);
-        lv_obj_set_style_text_color(row, kText, 0);
-        lv_obj_set_style_text_font(row, &lv_font_montserrat_16, 0);
-        lv_obj_set_style_border_width(row, 0, 0);
         lv_obj_add_event_cb(row, onRow, LV_EVENT_CLICKED, (void*)(intptr_t)i);
         s_rows.push_back(row);
     }
+    lvgl_mem_psram = false;
     if (tracks.empty()) {
         lv_obj_t* l = label(s_list, &lv_font_montserrat_16, kDim);
-        lv_label_set_text(l, "  no tracks on the SD card");
+        lv_label_set_text(l, "  no tracks on the USB stick or SD card");
     }
 
     s_waveBuf = (uint16_t*)heap_caps_malloc(display::W * kWaveH * 2, MALLOC_CAP_SPIRAM);
@@ -339,7 +372,22 @@ static void refresh(lv_timer_t*)
         lv_label_set_text(s_tempo, buf);
     }
     if (s_first || s.keylock != o.keylock) {
-        lv_obj_set_hidden(s_key, !s.keylock);
+        lv_obj_set_style_bg_color(s_key, s.keylock ? kOrange : kPanel, 0);
+        lv_obj_set_style_text_color(s_key, s.keylock ? kBg : kDim, 0);
+    }
+    if (s_first || s.sync != o.sync || s.masterPlayer != o.masterPlayer) {
+        // Blue: synced to a master. Outline only: on, but no master to follow.
+        const bool following = s.sync && s.masterPlayer;
+        lv_obj_set_style_bg_color(s_sync, following ? kBlue : kPanel, 0);
+        lv_obj_set_style_text_color(s_sync, following ? kText : s.sync ? kBlue : kDim, 0);
+    }
+    if (s_first || fabsf(s.bpm - o.bpm) >= 0.005f || fabsf(s.masterBpm - o.masterBpm) >= 0.005f ||
+        s.masterPlayer != o.masterPlayer) {
+        char ours[16] = "--- BPM";
+        if (s.bpm > 0) snprintf(ours, sizeof ours, "%.2f BPM", s.bpm);
+        if (s.masterPlayer) snprintf(buf, sizeof buf, "M%u %.2f | %s", s.masterPlayer, s.masterBpm, ours);
+        else strlcpy(buf, ours, sizeof buf);
+        lv_label_set_text(s_bpm, buf);
     }
 
     if (s_first || s.playing != o.playing || s.loaded != o.loaded || s.previewing != o.previewing) {
@@ -360,19 +408,18 @@ static void refresh(lv_timer_t*)
     s_first = false;
 }
 
-bool begin(const std::vector<std::string>& tracks, const char* prefix, const TrackStream& stream,
-           EventFn onEvent, SelectFn onSelect)
+bool begin(const TrackStream& stream, EventFn onEvent, SelectFn onSelect)
 {
     s_stream = &stream;
     s_onEvent = onEvent;
     s_onSelect = onSelect;
     if (!display::begin()) { ESP_LOGE(TAG, "no screen"); return false; }
     lvgl_port_lock(0);
-    build(tracks, prefix);
+    build();
     lv_timer_create(refresh, 50, nullptr);
     lv_timer_create(waveTick, 5, nullptr);
     lvgl_port_unlock();
-    ESP_LOGI(TAG, "deck screen up, %u track(s)", (unsigned)tracks.size());
+    ESP_LOGI(TAG, "deck screen up, %u track(s)", (unsigned)library::tracks().size());
     return true;
 }
 

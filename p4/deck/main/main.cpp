@@ -1,6 +1,8 @@
-// P4 deck: browse the SD card with the DJ2Go or the touch screen, stream a
-// WAV/MP3 through a PSRAM window, and play it CDJ-style on the board speaker.
-// The screen (ui.cpp) shows the list, time, tempo and state.
+// P4 deck: browse a rekordbox USB stick and the SD card with the DJ2Go or the
+// touch screen, stream a WAV/MP3 through a PSRAM window, and play it
+// CDJ-style on the board speaker. The screen (ui.cpp) shows the list, time,
+// tempo and state. On Pro DJ Link (prolink.cpp) it follows the tempo master
+// when SYNC is on, using the track's rekordbox beat grid.
 //
 // Deck A controls:
 //   browse knob      move through the track list (also touch: tap a row,
@@ -11,7 +13,8 @@
 //                    paused:  set cue here, play while held, return on release
 //   pitch fader      ±8 % tempo
 //   jog              playing: nudge; paused: scrub
-//   SYNC             keylock on/off (WSOLA) — stand-in until a real button
+//   SYNC             beat sync to the Link tempo master on/off (needs a
+//                    rekordbox track); keylock is on the screen's KEY chip
 //   channel volume   level
 
 #include <math.h>
@@ -32,10 +35,14 @@
 #include "deck_event.h"
 #include "dj2go.h"
 #include "library.h"
+#include "net.h"
+#include "prolink.h"
+#include "rekordbox.h"
 #include "sd.h"
 #include "stream.h"
 #include "ui.h"
 #include "usb_midi.h"
+#include "usb_stick.h"
 #include "wsola.h"
 
 static const char* TAG = "deck";
@@ -44,6 +51,13 @@ constexpr uint32_t kRate       = 44100;
 constexpr int      kBlock      = 256;    // frames per write (~5.8 ms)
 constexpr float    kTempoRange = 0.08f;  // ±8 %
 constexpr int      kScrubFrames = 441;   // paused jog: 10 ms per tick
+constexpr uint8_t  kLinkPlayer = 2;      // our Pro DJ Link player number
+// Audio queued between the audio task and the speaker: the I2S driver's
+// default 6 DMA buffers x 240 frames, plus about half a block in flight.
+constexpr int      kOutLatencyFrames = 6 * 240 + kBlock / 2;
+// Beat sync: fraction of the phase error corrected per second-ish, and the
+// most the tempo may bend to do it.
+constexpr float    kSyncGain = 0.3f, kSyncMaxBend = 0.03f;
 
 static QueueHandle_t s_events;      // deck::Event, USB task → audio task
 static QueueHandle_t s_loadReq;     // int track index, audio task → loader
@@ -52,6 +66,9 @@ static QueueHandle_t s_select;      // int track index, screen → audio task
 static TrackStream s_stream;        // deck A
 static dj2go::Decoder s_decoder;
 static wsola::Wsola s_wsola;        // ~40 KB, keep out of task stacks
+static rekordbox::Grid s_grid;      // loaded track's beat grid; written by the loader only while unloaded
+static volatile int s_syncOffsetMs; // serial [ / ]: trim our phase against the master
+static volatile int s_fakeGridBpm;  // serial g: test grid for a track without rekordbox analysis
 
 static void onMidiPacket(const uint8_t p[4])
 {
@@ -69,6 +86,9 @@ static void loaderTask(void*)
         if (xQueueReceive(s_loadReq, &index, 0) == pdTRUE) {
             const auto& list = library::tracks();
             bool ok = index >= 0 && index < (int)list.size() && s_stream.open(list[index].c_str());
+            s_grid.beats.clear();
+            if (ok && !library::anlz(index).empty())
+                rekordbox::readAnlz(library::anlz(index).c_str(), nullptr, &s_grid.beats);
             // Prefill ~1 s before handing over so PLAY starts clean.
             while (ok && s_stream.buffered() < 44100 && s_stream.service()) {}
             xQueueSend(s_loadDone, &ok, portMAX_DELAY);
@@ -83,6 +103,8 @@ struct Deck {
     bool   playing   = false;
     bool   previewing = false;  // CUE held from pause
     bool   keylock   = false;
+    bool   sync      = false;   // follow the Link tempo master
+    bool   alignNext = false;   // snap our beat phase to the master before the next block
     double pos       = 0;       // frames into track (fractional for varispeed)
     double cue       = 0;
     float  tempo     = 1.0f;
@@ -96,7 +118,7 @@ static void logSelection(const Deck& d)
     const auto& list = library::tracks();
     if (list.empty()) { ESP_LOGW(TAG, "no tracks"); return; }
     ESP_LOGI(TAG, "> [%d/%u] %s", d.selected + 1, (unsigned)list.size(),
-             list[d.selected].c_str() + strlen(sd::kMount));
+             library::displayName(d.selected).c_str());
 }
 
 static void seek(Deck& d, double frame)
@@ -128,7 +150,10 @@ static void apply(Deck& d, const deck::Event& e)
     if (e.deck != deck::DeckA) return;
     switch (e.type) {
     case Type::PlayPause:
-        if (e.pressed && d.loaded) { d.playing = !d.playing; d.previewing = false; }
+        if (e.pressed && d.loaded) {
+            d.playing = !d.playing; d.previewing = false;
+            if (d.playing && d.sync) d.alignNext = true;   // start on the master's beat
+        }
         break;
     case Type::Cue:
         if (!d.loaded) break;
@@ -147,7 +172,14 @@ static void apply(Deck& d, const deck::Event& e)
         else if (d.loaded) seek(d, d.pos + e.delta * kScrubFrames);
         break;
     case Type::Sync:
-        if (e.pressed) { d.keylock = !d.keylock; s_wsola.reset(); ESP_LOGI(TAG, "keylock %s", d.keylock ? "ON" : "off"); }
+        if (e.pressed) {
+            d.sync = !d.sync;
+            // Off: the deck keeps the synced tempo until the fader moves.
+            if (d.sync) d.alignNext = d.playing;
+        }
+        break;
+    case Type::KeyLock:
+        if (e.pressed) { d.keylock = !d.keylock; s_wsola.reset(); }
         break;
     case Type::Volume:
         d.gain = e.position;
@@ -215,6 +247,51 @@ static bool renderKeylock(Deck& d, float speed, int16_t* out)
     return true;
 }
 
+// ── Beat sync ────────────────────────────────────────────────────────────────
+// Track time (ms) of what is coming out of the speaker now: the playhead
+// minus the audio still queued in the DMA (and in WSOLA, in keylock).
+static double s_wsolaLag;   // smoothed: the raw estimate is a sawtooth (input arrives in 512-frame chunks)
+
+static double heardMs(const Deck& d, float speed)
+{
+    double lagOut = kOutLatencyFrames * speed;               // output-rate frames, in track time
+    if (d.keylock) {
+        // Approximate: input WSOLA holds (its 4096-frame buffer minus free
+        // space) beyond the middle of the frame it is windowing, plus
+        // output it has made but not handed over. Trim the rest with [ ].
+        const int held = 4096 - s_wsola.inputCapacity() - wsola::Wsola::FRAME_N / 2;
+        const double raw = (held > 0 ? held : 0) + s_wsola.outputAvailable() * speed;
+        s_wsolaLag += (raw - s_wsolaLag) * 0.02;    // ~50 blocks, ~0.3 s
+        lagOut = kOutLatencyFrames * speed + s_wsolaLag;
+    }
+    const double fileRate = s_stream.sampleRate();
+    const double frames = d.pos - lagOut * fileRate / kRate;
+    return frames * 1000.0 / fileRate + s_syncOffsetMs;
+}
+
+// Error between our beat phase and the master's at time `atUs`, in beats,
+// -0.5..0.5. Positive: we are ahead.
+static double phaseError(double ourBeat, const prolink::Master& m, int64_t atUs)
+{
+    const double masterBeat = (atUs - m.beatUs) * (double)m.bpm / 60e6;   // beats since its last beat
+    double e = ourBeat - masterBeat;
+    e -= floor(e + 0.5);
+    return e;
+}
+
+// The master's tempo as a speed for our track, taking half or double time
+// when that's closer (a 70 BPM track against a 140 BPM master plays at 1.0).
+static float syncSpeed(float masterBpm, float trackBpm)
+{
+    float s = masterBpm / trackBpm;
+    if (s > 1.5f) s *= 0.5f;
+    else if (s < 0.75f) s *= 2.0f;
+    return s < 0.5f ? 0.5f : s > 2.0f ? 2.0f : s;
+}
+
+struct SyncStats { double errSumMs = 0, errMaxMs = 0; int n = 0; };
+static SyncStats s_syncStats;
+
 // Click detector on what actually goes to the DAC. A clean signal changes
 // slope smoothly; a dropout, a missed block or a bad splice makes the second
 // difference spike far above its running average. Exact on a test tone
@@ -251,7 +328,9 @@ static ClickProbe s_clicks;
 static void onUiEvent(const deck::Event& e) { xQueueSend(s_events, &e, 0); }
 static void onUiSelect(int index) { xQueueSend(s_select, &index, 0); }
 
-static void publishState(const Deck& d)
+static prolink::Master s_master;     // audio task's copy, refreshed every block
+
+static void publishState(const Deck& d, float speed)
 {
     ui::State u;
     u.selected = d.selected;
@@ -269,7 +348,12 @@ static void publishState(const Deck& d)
         u.cueFrame = (size_t)d.cue;
         strlcpy(u.name, s_stream.name(), sizeof u.name);
     }
-    u.tempoPct = (d.tempo - 1.0f) * 100.0f;
+    u.tempoPct = (speed - 1.0f) * 100.0f;
+    u.sync = d.sync;
+    u.hasGrid = d.loaded && !s_grid.empty();
+    if (u.hasGrid) u.bpm = s_grid.bpmAt(d.pos * 1000.0 / s_stream.sampleRate()) * speed;
+    u.masterPlayer = s_master.present ? s_master.player : 0;
+    u.masterBpm = s_master.bpm;
     ui::publish(u);
 }
 
@@ -285,6 +369,8 @@ struct Report {
     float    pos = 0, speedPct = 0;
     uint32_t underruns = 0, clicks = 0;
     int      clickWorst = 0;
+    bool     synced = false;           // sync on and following a playing master
+    double   syncErrAvgMs = 0, syncErrMaxMs = 0;
 };
 static QueueHandle_t s_report;   // length 1, overwritten
 
@@ -346,6 +432,12 @@ static void reporterTask(void*)
         topTasks(top, sizeof top, wall);
         ESP_LOGI(TAG, "  cpu: core0 %.0f %%  core1 %.0f %%  (%s)", load0, load1, ui::waveStats());
         ESP_LOGI(TAG, "  top: %s", top);
+        static char link[160];
+        prolink::summary(link, sizeof link);
+        ESP_LOGI(TAG, "  link: %s", link);
+        if (r.synced)
+            ESP_LOGI(TAG, "  sync: phase error avg %.1f / max %.1f ms (offset %+d ms)",
+                     r.syncErrAvgMs, r.syncErrMaxMs, s_syncOffsetMs);
     }
 }
 
@@ -379,6 +471,7 @@ static void audioTask(void*)
             d.cue = 0;
             d.pos = 0;
             s_wsola.reset();
+            if (ok) ESP_LOGI(TAG, "beat grid: %s", s_grid.empty() ? "none (SYNC needs a rekordbox track)" : "yes");
             if (!ok) {
                 ESP_LOGE(TAG, "load failed");
             } else {
@@ -387,9 +480,52 @@ static void audioTask(void*)
             }
         }
 
+        if (s_fakeGridBpm && d.loaded) {
+            // Test hook: a constant grid from the track start. Safe here:
+            // the loader only writes the grid while nothing is loaded.
+            const double period = 60000.0 / s_fakeGridBpm;
+            s_grid.beats.clear();
+            for (uint32_t i = 0; i * period < s_stream.seconds() * 1000 + period; i++)
+                s_grid.beats.push_back({(uint32_t)(i * period + 0.5), (uint16_t)(s_fakeGridBpm * 100), (uint8_t)(i % 4 + 1)});
+            s_fakeGridBpm = 0;
+        }
         if (d.nudge > 0.3f) d.nudge = 0.3f;
         if (d.nudge < -0.3f) d.nudge = -0.3f;
-        const float speed = d.tempo + d.nudge;
+        prolink::master(s_master);
+        float speed = d.tempo + d.nudge;
+        bool synced = false;
+        if (d.sync && d.loaded && !s_grid.empty() && s_master.present && s_master.bpm > 0) {
+            const float trackBpm = s_grid.bpmAt(d.pos * 1000.0 / s_stream.sampleRate());
+            const float base = syncSpeed(s_master.bpm, trackBpm);
+            d.tempo = base;                           // stays here if sync is switched off
+            speed = base + d.nudge;
+            if (s_master.beating && d.playing && !d.previewing) {
+                const int64_t now = esp_timer_get_time();
+                if (d.alignNext) {
+                    // Jump so our next block lands on the master's phase. At
+                    // play start nothing is audible yet, so this is silent.
+                    const double audibleUs = now + kOutLatencyFrames * 1e6 / kRate;
+                    const double here = d.pos * 1000.0 / s_stream.sampleRate() + s_syncOffsetMs;
+                    const double e = phaseError(s_grid.beatAt(here), s_master, (int64_t)audibleUs);
+                    double target = s_grid.beatAt(here) - e;
+                    if (s_grid.msAt(target) - s_syncOffsetMs < 0) target += 1;   // can't go before 0:00: next beat instead
+                    seek(d, (s_grid.msAt(target) - s_syncOffsetMs) * s_stream.sampleRate() / 1000.0);
+                    d.alignNext = false;
+                } else {
+                    // Then keep it there by bending the tempo a little.
+                    const double e = phaseError(s_grid.beatAt(heardMs(d, speed)), s_master, now);
+                    float bend = (float)(-kSyncGain * e);
+                    if (bend > kSyncMaxBend) bend = kSyncMaxBend;
+                    if (bend < -kSyncMaxBend) bend = -kSyncMaxBend;
+                    speed = base * (1 + bend) + d.nudge;
+                    const double errMs = fabs(e) * 60000.0 / s_master.bpm;
+                    s_syncStats.errSumMs += errMs;
+                    if (errMs > s_syncStats.errMaxMs) s_syncStats.errMaxMs = errMs;
+                    s_syncStats.n++;
+                    synced = true;
+                }
+            }
+        }
         d.nudge *= 0.97f;
 
         if (d.playing && d.loaded) {
@@ -416,7 +552,21 @@ static void audioTask(void*)
         // Time spent waiting for DMA room = slack before the DAC would starve.
         if (tWrote - tWrite < r.minSlackUs) r.minSlackUs = tWrote - tWrite;
 
-        publishState(d);  // every block (~170 Hz) so the waveform scrolls smoothly
+        publishState(d, speed);  // every block (~170 Hz) so the waveform scrolls smoothly
+        if ((r.blocks & 7) == 0) {   // what Link peers see, ~20 Hz
+            prolink::Ours o;
+            o.loaded = d.loaded;
+            o.playing = d.playing;
+            o.sync = d.sync;
+            o.pitch = speed;
+            if (d.loaded && !s_grid.empty()) {
+                const double ms = heardMs(d, speed);
+                const double b = s_grid.beatAt(ms);
+                o.trackBpm = s_grid.bpmAt(ms);
+                if (b >= 0) { o.beat = (uint32_t)b + 1; o.beatInBar = (uint8_t)s_grid.inBarAt((long)b); }
+            }
+            prolink::publish(o);
+        }
 
         if (tWrote - r.t0 >= 2000000) {
             r.t1 = tWrote;
@@ -424,6 +574,9 @@ static void audioTask(void*)
             r.pos = d.loaded ? d.pos / s_stream.sampleRate() : 0;
             r.speedPct = (speed - 1) * 100;
             r.keylock = d.keylock;
+            r.synced = synced && s_syncStats.n > 0;
+            if (r.synced) { r.syncErrAvgMs = s_syncStats.errSumMs / s_syncStats.n; r.syncErrMaxMs = s_syncStats.errMaxMs; }
+            s_syncStats = SyncStats{};
             r.underruns = underruns;
             r.clicks = s_clicks.clicks - clicksAtStart;
             r.clickWorst = s_clicks.worst;
@@ -438,7 +591,9 @@ static void audioTask(void*)
 
 // Serial console keys, for testing without touching the hardware:
 //   1-9 select track   l load   p play/pause   c cue (press+release)
-//   k keylock          w cycle waveform test mode (normal / no flush / off)
+//   k keylock          s sync             [ ] phase trim -/+ 2 ms
+//   g give the loaded track a 120 BPM test grid (for SYNC without rekordbox)
+//   w cycle waveform test mode (normal / no flush / off)
 static void serialKeysTask(void*)
 {
     uart_driver_install(UART_NUM_0, 256, 0, 0, nullptr, 0);
@@ -452,7 +607,11 @@ static void serialKeysTask(void*)
         case '1' ... '9': onUiSelect(ch - '1'); continue;
         case 'l': e.type = deck::Type::Load; break;
         case 'p': e.type = deck::Type::PlayPause; break;
-        case 'k': e.type = deck::Type::Sync; break;
+        case 'k': e.type = deck::Type::KeyLock; break;
+        case 's': e.type = deck::Type::Sync; break;
+        case 'g': s_fakeGridBpm = 120; ESP_LOGI(TAG, "test grid: 120 BPM from the start"); continue;
+        case '[': s_syncOffsetMs -= 2; ESP_LOGI(TAG, "sync offset %+d ms", s_syncOffsetMs); continue;
+        case ']': s_syncOffsetMs += 2; ESP_LOGI(TAG, "sync offset %+d ms", s_syncOffsetMs); continue;
         case 'c':
             e.type = deck::Type::Cue; onUiEvent(e);
             e.pressed = false; break;
@@ -470,15 +629,23 @@ extern "C" void app_main(void)
     s_loadDone = xQueueCreate(1, sizeof(bool));
     s_select   = xQueueCreate(8, sizeof(int));
     s_report   = xQueueCreate(1, sizeof(Report));
-    if (!sd::begin()) ESP_LOGE(TAG, "no SD card — nothing to play");
+    const bool sdOk = sd::begin();
+    if (!sdOk) ESP_LOGW(TAG, "no SD card");
     s_stream.begin(12 * 1024 * 1024);
-    library::scan(sd::kMount);
+    // USB first: the track list needs to know whether a rekordbox stick is in.
+    usb_midi::begin(onMidiPacket);
+    usb_stick::begin();
+    const bool stick = usb_stick::waitMounted(3000);
+    library::scan(sdOk ? sd::kMount : nullptr, stick ? usb_stick::kMount : nullptr);
+    ESP_LOGI(TAG, "after scan: internal %u KB free", (unsigned)(heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024));
+    // Network from core 0, so the EMAC interrupt stays off the audio core.
+    net::begin();
+    prolink::begin(kLinkPlayer, "P4-DECK");
     xTaskCreatePinnedToCore(loaderTask, "loader", 32768, nullptr, 4, nullptr, 0);
     s_audioUp = xSemaphoreCreateBinary();
     xTaskCreatePinnedToCore(audioTask, "audio", 8192, nullptr, 10, nullptr, 1);
     xSemaphoreTake(s_audioUp, portMAX_DELAY);  // the screen's touch shares the codec's I2C bus
-    usb_midi::begin(onMidiPacket);
-    ui::begin(library::tracks(), sd::kMount, s_stream, onUiEvent, onUiSelect);
+    ui::begin(s_stream, onUiEvent, onUiSelect);
     xTaskCreatePinnedToCore(reporterTask, "report", 6144, nullptr, 1, nullptr, 0);
     xTaskCreatePinnedToCore(serialKeysTask, "keys", 3072, nullptr, 2, nullptr, 0);
     ESP_LOGI(TAG, "memory free: internal %u KB (largest %u KB), PSRAM %u KB",

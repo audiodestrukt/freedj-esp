@@ -17,6 +17,11 @@ struct State {
     bool  playing    = false;
     bool  previewing = false;  // CUE held from pause
     bool  keylock    = false;
+    bool  sync       = false;  // following the Link tempo master
+    bool  hasGrid    = false;  // track has a rekordbox beat grid
+    float bpm        = 0;      // our effective tempo (grid BPM x speed), 0 = unknown
+    uint8_t masterPlayer = 0;  // Link tempo master, 0 = none
+    float masterBpm  = 0;
     float pos        = 0;      // seconds
     float len        = 0;      // seconds
     float cue        = 0;      // seconds
@@ -29,11 +34,10 @@ struct State {
 using EventFn  = void (*)(const deck::Event&);
 using SelectFn = void (*)(int index);
 
-// Starts the screen. `tracks` and `stream` must outlive the UI; `prefix` is
-// stripped from each path for display. The waveform reads the stream's
-// peaks. Returns false if there's no screen.
-bool begin(const std::vector<std::string>& tracks, const char* prefix, const TrackStream& stream,
-           EventFn onEvent, SelectFn onSelect);
+// Starts the screen with library::tracks() as the list. `stream` must
+// outlive the UI; the waveform reads its peaks. Returns false if there's
+// no screen.
+bool begin(const TrackStream& stream, EventFn onEvent, SelectFn onSelect);
 
 // Cheap and safe from any task.
 void publish(const State& s);
