@@ -74,6 +74,8 @@ After changing `sdkconfig.defaults`, delete `sdkconfig` so the defaults are appl
 - The CUE, PLAY and LOAD buttons on screen behave like the DJ2Go's.
 - Tap the waveform to bring the list back.
 - Tap the **SYNC** and **KEY** chips in the header for sync and keylock.
+- Touch or drag the **overview** strip under the time to jump there (needle search).
+- Tap the **phase meter** to switch between the beat display and the alignment view.
 
 **Serial keys** (console UART), for hands-off testing:
 
@@ -87,6 +89,8 @@ After changing `sdkconfig.defaults`, delete `sdkconfig` so the defaults are appl
 | `s` | sync |
 | `[` `]` | trim our beat phase against the master, -/+ 2 ms |
 | `g` | give the loaded track a 120 BPM test grid (SYNC without rekordbox) |
+| `v` | switch the phase meter view |
+| `n` | needle search to the middle of the track |
 | `w` | cycle the waveform test mode: normal → drawn but not sent to the screen → off |
 
 [`tools/p4_serial.py`](../../tools/p4_serial.py) holds the port open without resetting the board, logs to a file, and sends anything appended to `<log>.cmd`. A whole experiment can be scripted, for example:
@@ -109,9 +113,11 @@ Core 1 is reserved for audio. Everything else runs on core 0, and core 0 is kept
 | `keys` | 0 | 2 | Serial keys |
 | `report` | 0 | 1 | Prints the 2 s health report |
 
+**Loader pacing.** After a load or a jump, the loader decodes at full speed until about 8 s are buffered ahead, then paces the rest of the window so the screen keeps its frame rate.
+
 **Streaming.** `TrackStream` decodes into a 12 MB PSRAM ring, about 71 s at 44.1 kHz. It keeps about 35 % behind the playhead for cue and jog, and the rest ahead. A seek outside the window restarts the window there. Sources sit behind one interface:
 - WAV: RIFF walk, including `WAVE_FORMAT_EXTENSIBLE`.
-- MP3: [minimp3](main/third_party/minimp3) with `MP3D_SEEK_TO_SAMPLE`. The file is indexed at load (about 0.6 s for a 2:15 track at 256 kbps), so seeks land on exact samples.
+- MP3: [minimp3](main/third_party/minimp3) with `MP3D_SEEK_TO_SAMPLE`. The file is indexed at load (about 0.5–0.6 s per track), so seeks land on exact samples and a needle jump leaves only a ~46 ms gap. The index is built even when the MP3 has a VBR tag; otherwise minimp3 would build it during the first far seek, mid-track.
 
 **Waveform.** While decoding, the loader also records one peak byte per 128 frames, indexed by absolute frame (`TrackStream::peak`). The UI draws a playhead-centred view from that array into a 480×100 RGB565 canvas in PSRAM. One pixel is 512 frames, so the screen spans about 5.6 s. The audio itself is never read for drawing.
 
