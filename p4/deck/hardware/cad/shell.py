@@ -9,17 +9,18 @@ from build123d import *
 import machine_params as M
 from machine_params import face_loc
 
-CORNER_POST_D, INSERT_BORE = 8.0, 4.6       # M3 heat-set inserts, through from below
-POST_INSET = 7.0
+# Base fixing: a short boss in each corner, fused into the two walls, for an M3 heat-set
+# insert. 10 mm tall with a 45 degree cone on top, so it prints without supports upside
+# down and stays below the buttons, the USB slot, the screen and the dev board's ports.
+CORNER_POST_D, CORNER_POST_H = 9.0, 10.0
+INSERT_BORE, INSERT_DEPTH = 4.6, 6.0       # M3 x 5.7 heat-set insert
+POST_INSET = 7.5                            # keeps the base plate's countersinks inside its rounded corners
 WELL_GAP = (M.WELL_D - M.JOG_D) / 2
 
 def posts():
-    """Base-plate screw posts. The back-right one moves forward, in front of the dev board,
-    whose port corner fills that corner of the deck."""
-    import devboard as B
+    """The four base-plate screw positions, one per corner."""
     i = POST_INSET
-    return [(i, i, CORNER_POST_D), (M.W - i, i, CORNER_POST_D), (i, M.D - i, CORNER_POST_D),
-            (M.W - 5.9, B.YB - 5.0, 7.0)]   # slimmer: squeezed between the pitch pot and the board
+    return [(i, i), (M.W - i, i), (i, M.D - i), (M.W - i, M.D - i)]
 
 def _body(inset=0.0, drop=0.0):
     plan = Pos(M.W / 2, M.D / 2, -1) * extrude(
@@ -40,9 +41,10 @@ def part():
     jx, jy = M.JOG_C
     adds = [Pos(jx, jy, M.BOSS_BOTTOM) * Cylinder(M.BOSS_OD / 2, M.H - M.BOSS_BOTTOM - 0.5,
                                                   align=(Align.CENTER, Align.CENTER, Align.MIN))]
-    for x, y, d in posts():
-        adds.append(Pos(x, y, M.BASE_T) * Cylinder(d / 2, M.H_BACK,
-                                                     align=(Align.CENTER, Align.CENTER, Align.MIN)))
+    r = CORNER_POST_D / 2
+    for x, y in posts():
+        adds.append(Pos(x, y, M.BASE_T) * Cylinder(r, CORNER_POST_H, align=(Align.CENTER, Align.CENTER, Align.MIN)))
+        adds.append(Pos(x, y, M.BASE_T + CORNER_POST_H - 0.01) * Cone(r, 0.3, r - 0.3, align=(Align.CENTER, Align.CENTER, Align.MIN)))
     # light pipes / switch guides under CUE and PLAY
     for c in (M.PLAY_C, M.CUE_C):
         adds.append(Pos(*c, M.H - 12) * Cylinder(M.RING_D / 2 + 2, 11, align=(Align.CENTER, Align.CENTER, Align.MIN)))
@@ -71,9 +73,9 @@ def part():
         y = (y0 + y1) / 2 + k * (y1 - y0 - 12) / 8
         ln = 6.0 if k in (-4, 0, 4) else 3.5
         cuts.append(Pos(M.SLIDER_X + 9.5 + ln / 2, y, M.H - 0.6) * Box(ln, 0.8, 2))
-    for x, y, _ in posts():
-        # blind from below: stops 2 mm under the top skin so nothing shows on the deck
-        cuts.append(Pos(x, y, -1) * Cylinder(INSERT_BORE / 2, M.H - M.TOP_T - 2 + 1, align=(Align.CENTER, Align.CENTER, Align.MIN)))
+    cuts.append(Pos(M.SLIDER_X + 12.5, sum(M.SLIDER_Y) / 2, M.H - 0.6) * Cylinder(1.0, 2))   # tempo-zero LED
+    for x, y in posts():
+        cuts.append(Pos(x, y, -1) * Cylinder(INSERT_BORE / 2, M.BASE_T + INSERT_DEPTH + 1, align=(Align.CENTER, Align.CENTER, Align.MIN)))
     # bezel: a window over the visible area only (off-centre, as the active area is),
     # straight for WINDOW_LIP then chamfered 45 degrees so a finger reaches the edges
     ww, wh = (a + 2 * M.WINDOW_MARGIN for a in M.LCD_ACTIVE)
@@ -103,11 +105,12 @@ def part():
     cuts.append(Pos(x, M.D, top - 0.5) * Box(wd + 1.0, 10, h + 1.0, align=(Align.CENTER, Align.CENTER, Align.MIN)))
     for u in B.USBC:
         _, y = B.deck_xy(u, 0)
-        cuts.append(Pos(M.W, y, top + B.USBC_SIZE[2] / 2) * Box(10, 12.5, 7.0))
+        cuts.append(Pos(M.W, y, top + B.USBC_SIZE[2] / 2) * Box(30, 13.0, 7.5))   # deep: the plug reaches in past the wall
     # brand, engraved on the bezel left of the screen, below the USB-A slot
     try:
-        bx = (M.SCREEN_X - M.GLASS[0] / 2) / 2           # centred in the strip left of the glass
-        txt = F * Pos(bx - M.W / 2, M.BRAND_V, -0.6) * extrude(Text("FREEDJ-ESP", 4.0, font_style=FontStyle.BOLD,
+        win_l = M.WINDOW_X - M.LCD_ACTIVE[0] / 2 - M.WINDOW_MARGIN - (M.TOP_T_PERP - M.WINDOW_LIP)
+        bx = win_l / 2                                     # centred in the strip left of the window
+        txt = F * Pos(bx - M.W / 2, M.BRAND_V, -0.6) * extrude(Text("FREEDJ-ESP", 3.5, font_style=FontStyle.BOLD,
                                                    align=(Align.CENTER, Align.CENTER)), 2)
         cuts.append(txt)
     except Exception as e:

@@ -37,7 +37,8 @@ STACK = CTP_T + CTP_TAPE + TFT_T + TAPE_T
 LCD_PCB = (108.0, 60.88, 1.6)
 LCD_HOLES = (102.0, 54.88)   # 4 x 3.2 mm, 3.00 mm in from the board edges
 LCD_DEPTH = 14.8             # whole module incl. pin header, from the glass top
-SCREEN_X = 84.0              # screen centre x (off-centre to leave room for the USB-A slot)
+WINDOW_X = W / 2             # the visible window is centred on the deck
+SCREEN_X = WINDOW_X - 2.88   # so the module sits 2.88 mm left: its active area is off-centre on the glass
 SCREEN_BOSS_D = 6.8          # bosses on the 4 holes, down to the board; must clear the glass edge (3.7 mm away)
 SCREEN_PILOT = (2.5, 6.0)    # M3 thread-forming screws for plastic: pilot diameter, depth from the board face
 GASKET = 0.5                 # foam between the glass and the top's underside
@@ -80,8 +81,8 @@ KNOB = (14.0, 10.0, 9.0)     # x, y, height above the top
 KNOB_Y = 56.0                # rendered at +1.25 %
 
 # Rear panel (y = D)
-RCA_X, RCA_Z, RCA_HOLE = (70.0, 86.0), 15.0, 8.6   # left of the dev board's ports
-USBA_FACE = (17.0, 13.6, 6.2)     # on the bezel: x, opening w, h (stick goes in from the top)
+RCA_X, RCA_Z, RCA_HOLE = (64.0, 80.0), 15.0, 8.6   # left of the dev board's ports
+USBA_FACE = (14.5, 13.6, 6.2)     # on the bezel: x, opening w, h (stick goes in from the top)
 
 # Screen bezel. Depth follows from the parts: jog well, a gap, the glass with a
 # margin either side. The top tilts up from BEZEL_Y to the back (flat: it doesn't).

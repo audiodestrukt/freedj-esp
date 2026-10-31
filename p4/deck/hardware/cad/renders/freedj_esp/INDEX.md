@@ -21,3 +21,5 @@
 - 0019-renamed-freedj-esp.jpg: 2026-10-31: renamed to freedj-esp: FREEDJ-ESP engraved on the bezel
 - 0020-devboard-rear-ports.jpg: 2026-10-31: Waveshare dev board mounted back-right: Ethernet + 2 x dual USB-A out the rear, USB-C out the right side; RCA moved left
 - 0021-devboard-inside.jpg: 2026-10-31: inside (shell hidden): dev board on base-plate standoffs under the screen
+- 0022-centred-window-front.jpg: 2026-10-31: screen window centred on the deck and over the jog (module shifted 2.88 mm to compensate)
+- 0023-corner-bosses-underside.jpg: 2026-10-31: base fixing: a short boss in each of the 4 corners; dev board moved left to clear the back-right one

@@ -16,7 +16,7 @@ def part():
     w, d = M.W - 2 * (M.WALL + CLEAR), M.D - 2 * (M.WALL + CLEAR)
     p = Pos(M.W / 2, M.D / 2, 0) * extrude(RectangleRounded(w, d, M.CORNER_R - M.WALL - CLEAR), M.BASE_T)
     cuts = []
-    for x, y, _ in posts():
+    for x, y in posts():
         cuts.append(Pos(x, y, -1) * Cylinder(1.7, M.BASE_T + 2, align=C))
         cuts.append(Pos(x, y, -0.01) * Cone(3.2, 1.6, 1.6, align=C))
     for i in range(7):   # vents, left of the dev board's standoffs

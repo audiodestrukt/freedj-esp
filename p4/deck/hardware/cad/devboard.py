@@ -50,8 +50,8 @@ def parts():
 
 # Placement in the deck (world), derived from the walls
 STANDOFF = 3.0                                      # printed on the base plate
-X0 = M.W - M.WALL - 3.5 - (W_ + USBC_OVERHANG)      # deck x of the header edge (w = 0); 3 mm off the
-                                                    # wall so the board's corner clears the shell's round inner corner
+X0 = M.W - 7.5 - 4.5 - 0.5 - W_                    # deck x of the header edge (w = 0): clear of the
+                                                    # back-right base boss (inset 7.5, r 4.5)
 YB = M.D - M.WALL - 1.2 - L_                        # deck y of the left end (u = 0); ports end ~1 mm inside the back face
 Z0 = M.BASE_T + STANDOFF                            # board underside
 LOC = Pos(X0, YB, Z0) * Rot(0, 0, 90)               # board frame -> deck: (u, -w) -> (X0 + w, YB + u)

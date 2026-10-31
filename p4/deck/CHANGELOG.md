@@ -11,6 +11,20 @@ playing (see the README's *Audio health* section). Unless noted, it's
 the panel**, so they read high. From 2026-10-31 on, "screen fps" counts
 frames LVGL actually rendered and flushed.
 
+## 2026-10-31: centred screen window, base screws in all four corners (CAD only)
+
+- The screen window is centred on the deck (over the jog). Before, it sat
+  about 7 mm right: the module was moved 4 mm for the USB slot, and the
+  active area is 2.88 mm off-centre on top of that. Now the module shifts
+  2.88 mm left instead; the USB slot and engraving moved left to suit.
+- Base fixing redone: four short corner bosses (9 mm, 10 mm tall, 45° cone
+  on top) instead of full-height posts. The old front-left post's insert
+  bore broke into the PLAY button hole, and the back-right one had been
+  moved off the corner. The dev board moved 5.5 mm left to clear the
+  back-right boss; RCA moved left again (64/80 mm).
+- Tempo-zero LED hole added (it was missing).
+- No firmware change, so the budget is unchanged.
+
 ## 2026-10-31: dev board mounted in the enclosure (CAD only)
 
 - The Waveshare ESP32-P4-Module-DEV-KIT (Pi B+ footprint, from Waveshare's
