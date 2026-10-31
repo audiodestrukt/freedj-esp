@@ -51,6 +51,32 @@ In order. Costs: **cheap** = logic only, no per-sample work; **moderate**; **hea
    - [ ] PCM5102A stereo line out.
    - [ ] I2C control panel: jog, 14-bit pitch, pads.
    - [ ] DSI screen.
+6. **Undecided: on-deck track analysis** (for tracks rekordbox hasn't analysed)
+   - *Why:* SYNC, quantize, beat loops, beat jump and the phase meter only
+     work on rekordbox tracks today. SD tracks and plain USB folders get none
+     of it. A grid made on the deck would make all of it work for any file,
+     without rekordbox.
+   - *Fits?* Probably. Core 1 is 70–90 % idle beside the audio and core 0
+     about 50 %. Onset envelope plus tempo and phase estimation is cheap; the
+     cost is decoding the whole file. Rough guess, unmeasured: 10–30 s per
+     track in the background, mostly reading at USB full speed. Cache the
+     result on the card or stick so it runs once per track.
+   - *Risks:*
+     - Accuracy: tempo and phase for steady 4/4 dance music are fairly easy;
+       the downbeat (which beat is "1") is hard. freedj-3000 is off by 1–3
+       beats on bars.
+     - PSRAM contention could slow the audio; measure with the health report.
+     - A wrong grid is worse than none, so it needs a grid adjust (shift the
+       grid, tap the downbeat), like the XDJ's GRID ADJUST.
+   - *Options, cheapest first:*
+     1. Overview waveform only, for non-rekordbox tracks. No accuracy risk.
+     2. Constant-tempo grid (BPM + phase), cached, plus grid adjust.
+        Suggested choice.
+     3. Varying-tempo grids, key, phrase detection. Bigger; pays off mostly
+        outside dance music.
+   - *If yes:* do it after item 3 (browsing and loading). Test it on the SD
+     tracks, and on rekordbox tracks with their grid hidden, comparing the
+     deck's result with rekordbox's.
 
 ## Features
 - [ ] **Pro DJ Link, next steps** (following the master works; see README):
