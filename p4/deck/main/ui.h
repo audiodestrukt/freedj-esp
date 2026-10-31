@@ -20,6 +20,17 @@ struct State {
     bool  previewing = false;  // CUE held from pause
     bool  keylock    = false;
     bool  emergency  = false;  // media pulled mid-play: looping from memory
+    bool  quantize   = true;
+    bool  looping    = false;
+    size_t loopStart = 0, loopEnd = 0;     // frames (active loop)
+    uint8_t hotSet = 0, hotLoop = 0;       // bit i = hot cue A+i is set / is a loop
+    size_t hotFrame[8] = {};
+    static constexpr int kMaxMem = 16;
+    uint8_t nMem = 0;
+    size_t memFrame[kMaxMem] = {};
+    // XDJ "Bars" readouts: bars.beats to the next memory cue (orange) and
+    // the next hot cue (blue); -1 = none ahead.
+    int   barsToMem  = -1, barsToHot = -1;     // in beats
     bool  sync       = false;  // following the Link tempo master
     bool  hasGrid    = false;  // track has a rekordbox beat grid
     float bpm        = 0;      // our effective tempo (grid BPM x speed), 0 = unknown

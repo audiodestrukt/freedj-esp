@@ -118,8 +118,11 @@ static void loaderTask(void*)
             req.path[0] = 0;                  // handled
             spareGrid().beats.clear();
             spareGrid().preview.clear();
-            if (ok && req.anlz[0])
+            spareGrid().cues.clear();
+            if (ok && req.anlz[0]) {
                 rekordbox::readAnlz(req.anlz, nullptr, &spareGrid().beats, &spareGrid().preview);
+                spareGrid().cues = rekordbox::readCues(req.anlz);
+            }
             // Prefill ~1 s before handing over so PLAY starts clean.
             while (ok && s_stream.buffered() < 44100 && s_stream.service()) {}
             xQueueSend(s_loadDone, &ok, portMAX_DELAY);
@@ -141,10 +144,22 @@ struct Deck {
     bool   keylock   = false;
     bool   sync      = false;   // follow the Link tempo master
     bool   alignNext = false;   // snap our beat phase to the master before the next block
-    // Emergency loop: the track's media was pulled mid-play, so loop 4 beats
-    // of what's already decoded (as a CDJ does) until another track loads.
+    // Loops. One active region at a time: a beat loop, a manual in/out
+    // loop, a hot loop, or the emergency loop (the track's media was pulled
+    // mid-play, so it loops 4 beats of what's already decoded, as a CDJ does,
+    // until another track loads).
+    bool   looping   = false;
     bool   emergency = false;
-    double loopStart = 0, loopEnd = 0;  // frames
+    double loopStart = 0, loopEnd = 0;  // frames; kept after exit for RELOOP
+    double loopBeats = 0;               // > 0: a beat-sized loop (halve/double in beats)
+    bool   loopInSet = false;           // manual LOOP IN pressed, waiting for OUT
+    double loopIn    = 0;
+    bool   quantize  = true;            // XDJ default
+    struct HotCue { bool set = false, loop = false; double start = 0, end = 0; };
+    HotCue hot[8];                      // A..H
+    static constexpr int kMaxMem = 16;
+    double mem[kMaxMem];                // memory cues, sorted (frames)
+    int    nMem = 0;
     double pos       = 0;       // frames into track (fractional for varispeed)
     double cue       = 0;
     float  tempo     = 1.0f;
@@ -187,6 +202,78 @@ static void seek(Deck& d, double frame)
     s_wsola.reset();
 }
 
+// ── Performance: cues, loops, beat jump, quantize ───────────────────────────
+// Positions are in track frames; the rekordbox grid converts to beats.
+static double rate() { return s_stream.sampleRate() ? s_stream.sampleRate() : kRate; }
+static double beatOf(double frame) { return grid().beatAt(frame * 1000.0 / rate()); }
+static double frameOf(double beat) { return grid().msAt(beat) * rate() / 1000.0; }
+
+// Quantize: snap to the nearest beat (needs a grid).
+static double snap(const Deck& d, double frame)
+{
+    if (!d.quantize || grid().empty()) return frame;
+    return frameOf(floor(beatOf(frame) + 0.5));
+}
+
+// Jump to `target`. Quantized and playing, land at the same point within the
+// beat as we left, so the track keeps its time (and stays in sync).
+static void jumpTo(Deck& d, double target)
+{
+    if (d.quantize && d.playing && !grid().empty()) {
+        const double b = beatOf(d.pos);
+        target = frameOf(floor(beatOf(target) + 0.5) + (b - floor(b)));
+    } else if (d.sync && d.playing) {
+        d.alignNext = true;
+    }
+    seek(d, target);
+}
+
+static void setLoop(Deck& d, double start, double end, double beats)
+{
+    d.loopStart = start;
+    d.loopEnd = end;
+    d.loopBeats = beats;
+    d.looping = end > start;
+    if (d.looping && (d.pos >= end || d.pos < start))      // keep the playhead inside, same phase
+        d.pos = start + fmod(fmax(0, d.pos - start), end - start);
+}
+
+static void resize(Deck& d, double factor)
+{
+    if (!d.looping || d.emergency) return;
+    if (d.loopBeats > 0 && !grid().empty()) {
+        const double nb = d.loopBeats * factor;
+        if (nb < 1.0 / 32 || nb > 32) return;
+        setLoop(d, d.loopStart, frameOf(beatOf(d.loopStart) + nb), nb);
+    } else {
+        const double len = (d.loopEnd - d.loopStart) * factor;
+        if (len < 32) return;
+        setLoop(d, d.loopStart, d.loopStart + len, 0);
+    }
+    ESP_LOGI(TAG, "loop %s", factor < 1 ? "1/2" : "x2");
+}
+
+// Hot cues and memory cues from the track's rekordbox analysis.
+static void loadCues(Deck& d)
+{
+    for (auto& h : d.hot) h = Deck::HotCue{};
+    d.nMem = 0;
+    const double r = rate() / 1000.0;
+    for (const auto& c : grid().cues) {
+        if (c.hot >= 1 && c.hot <= 8) {
+            auto& h = d.hot[c.hot - 1];
+            h.set = true; h.loop = c.loop; h.start = c.ms * r; h.end = c.loopMs * r;
+        } else if (c.hot == 0 && d.nMem < Deck::kMaxMem) {
+            d.mem[d.nMem++] = c.ms * r;                     // sorted by readCues
+        }
+    }
+    int hots = 0;
+    for (auto& h : d.hot) hots += h.set;
+    if (hots || d.nMem) ESP_LOGI(TAG, "cues: %d hot, %d memory", hots, d.nMem);
+    // Like a CDJ, start at the first memory cue.
+    if (d.nMem) { d.cue = d.mem[0]; seek(d, d.cue); }
+}
+
 static void apply(Deck& d, const deck::Event& e)
 {
     using deck::Type;
@@ -204,7 +291,7 @@ static void apply(Deck& d, const deck::Event& e)
         if (xQueueSend(s_loadReq, &req, 0) != pdTRUE) return;
         d.playing = d.previewing = false;
         d.loaded = false;
-        d.emergency = false;
+        d.emergency = d.looping = d.loopInSet = false;
         d.loading = true;
         ESP_LOGI(TAG, "loading…");
         return;
@@ -221,10 +308,90 @@ static void apply(Deck& d, const deck::Event& e)
         if (!d.loaded || d.emergency) break;   // no media to cue from
         if (e.pressed) {
             if (d.playing) { seek(d, d.cue); d.playing = false; }
-            else { d.cue = d.pos; d.previewing = true; d.playing = true; }
+            else { d.cue = snap(d, d.pos); if (d.cue != d.pos) seek(d, d.cue); d.previewing = true; d.playing = true; }
         } else if (d.previewing) {
             d.previewing = false; d.playing = false; seek(d, d.cue);
         }
+        break;
+    case Type::HotCue: {
+        const int i = e.delta - 1;
+        if (!e.pressed || !d.loaded || d.emergency || i < 0 || i > 7) break;
+        auto& h = d.hot[i];
+        const char letter = 'A' + i;
+        if (e.position > 0.5f) { h = Deck::HotCue{}; ESP_LOGI(TAG, "hot cue %c deleted", letter); break; }
+        if (!h.set) {                                // empty: store here (or the active loop)
+            h.set = true;
+            h.loop = d.looping;
+            h.start = d.looping ? d.loopStart : snap(d, d.pos);
+            h.end = d.looping ? d.loopEnd : 0;
+            ESP_LOGI(TAG, "hot cue %c set%s", letter, h.loop ? " (loop)" : "");
+        } else {
+            jumpTo(d, h.start);
+            if (h.loop) setLoop(d, h.start, h.end, grid().empty() ? 0 : beatOf(h.end) - beatOf(h.start));
+            else d.looping = false;
+            if (!d.playing) { d.playing = true; if (d.sync) d.alignNext = true; }   // like a CDJ: plays from the cue
+            d.previewing = false;
+        }
+        break;
+    }
+    case Type::BeatLoop: {
+        if (!e.pressed || !d.loaded || d.emergency) break;
+        if (grid().empty()) { ESP_LOGW(TAG, "beat loop needs a beat grid"); break; }
+        const double beats = e.position > 0 ? e.position : 4;
+        const double start = d.quantize ? frameOf(floor(beatOf(d.pos) + 1e-6)) : d.pos;
+        setLoop(d, start, frameOf(beatOf(start) + beats), beats);
+        ESP_LOGI(TAG, "loop %g beat%s", beats, beats == 1 ? "" : "s");
+        break;
+    }
+    case Type::LoopIn:
+        if (!e.pressed || !d.loaded || d.emergency) break;
+        d.loopIn = snap(d, d.pos);
+        d.loopInSet = true;
+        break;
+    case Type::LoopOut:
+        if (!e.pressed || !d.loaded || d.emergency) break;
+        if (d.looping) { d.looping = false; ESP_LOGI(TAG, "loop exit"); break; }  // no RELOOP button on the DJ2Go
+        if (d.loopInSet && snap(d, d.pos) > d.loopIn) {
+            const double end = snap(d, d.pos);
+            setLoop(d, d.loopIn, end, 0);
+            d.loopInSet = false;
+            ESP_LOGI(TAG, "loop in/out %.2f s", (end - d.loopStart) / rate());
+        }
+        break;
+    case Type::ReloopExit:
+        if (!e.pressed || !d.loaded || d.emergency) break;
+        if (d.looping) d.looping = false;
+        else if (d.loopEnd > d.loopStart) { jumpTo(d, d.loopStart); setLoop(d, d.loopStart, d.loopEnd, d.loopBeats); }
+        ESP_LOGI(TAG, "%s", d.looping ? "reloop" : "loop exit");
+        break;
+    case Type::LoopHalve:  if (e.pressed) resize(d, 0.5); break;
+    case Type::LoopDouble: if (e.pressed) resize(d, 2.0); break;
+    case Type::BeatJump: {
+        if (!e.pressed || !d.loaded || d.emergency || e.delta == 0) break;
+        if (grid().empty()) { seek(d, d.pos + e.delta * 0.5 * rate()); break; }
+        const double to = frameOf(beatOf(d.pos) + e.delta);
+        if (d.looping) {                                     // a jump moves the loop with it
+            const double shift = to - d.pos;
+            d.loopStart += shift; d.loopEnd += shift;
+        }
+        seek(d, to);
+        break;
+    }
+    case Type::CueCall: {
+        if (!e.pressed || !d.loaded || d.emergency || d.nMem == 0) break;
+        const double eps = 0.05 * rate();
+        int pick = -1;
+        if (e.delta > 0) { for (int i = 0; i < d.nMem; i++) if (d.mem[i] > d.pos + eps) { pick = i; break; } }
+        else { for (int i = d.nMem - 1; i >= 0; i--) if (d.mem[i] < d.pos - eps) { pick = i; break; } }
+        if (pick < 0) break;
+        d.cue = d.mem[pick];
+        d.looping = false;
+        jumpTo(d, d.cue);
+        ESP_LOGI(TAG, "call memory cue %d/%d", pick + 1, d.nMem);
+        break;
+    }
+    case Type::Quantize:
+        if (e.pressed) { d.quantize = !d.quantize; ESP_LOGI(TAG, "quantize %s", d.quantize ? "on" : "off"); }
         break;
     case Type::TempoFader:
         d.tempo = 1.0f + (e.position - 0.5f) * 2.0f * kTempoRange;
@@ -265,7 +432,7 @@ static bool renderPitched(Deck& d, float speed, int16_t* out)
         out[2 * i]     = (int16_t)(two[0] + fr * (two[2] - two[0]));
         out[2 * i + 1] = (int16_t)(two[1] + fr * (two[3] - two[1]));
         d.pos += step;
-        if (d.emergency && d.pos >= d.loopEnd) d.pos -= d.loopEnd - d.loopStart;
+        if (d.looping && d.pos >= d.loopEnd) d.pos -= d.loopEnd - d.loopStart;
     }
     return true;
 }
@@ -284,7 +451,7 @@ static bool renderKeylock(Deck& d, float speed, int16_t* out)
     while (got < kBlock) {
         got += s_wsola.pullFrames(out + 2 * got, kBlock - got);
         if (got >= kBlock) break;
-        if (d.emergency && d.pos >= d.loopEnd) d.pos -= d.loopEnd - d.loopStart;
+        if (d.looping && d.pos >= d.loopEnd) d.pos -= d.loopEnd - d.loopStart;
         const size_t base = (size_t)d.pos;
         const size_t total = s_stream.frames();
         if (base + 1 >= total) { memset(out + 2 * got, 0, (kBlock - got) * 4); d.playing = false; return true; }
@@ -294,7 +461,7 @@ static bool renderKeylock(Deck& d, float speed, int16_t* out)
         const double frac = d.pos - base;
         const int fit = (int)((total - 1 - base - frac) / step);
         if (n > fit) n = fit;
-        if (d.emergency) {                      // stop at the loop end; wrap next pass
+        if (d.looping) {                        // stop at the loop end; wrap next pass
             const int toEnd = (int)((d.loopEnd - d.pos) / step) + 1;
             if (n > toEnd) n = toEnd;
         }
@@ -343,6 +510,8 @@ static void startEmergencyLoop(Deck& d)
         return;
     }
     d.emergency = true;
+    d.looping = true;
+    d.loopBeats = 0;
     if (d.pos >= d.loopEnd || d.pos < d.loopStart) d.pos = d.loopStart;
     ESP_LOGW(TAG, "track's USB stick removed: EMERGENCY LOOP %.2f s (load another track to leave it)",
              (d.loopEnd - d.loopStart) / rate);
@@ -460,6 +629,24 @@ static void publishState(const Deck& d, float speed)
     u.previewing = d.previewing;
     u.keylock = d.keylock;
     u.emergency = d.emergency;
+    u.quantize = d.quantize;
+    u.looping = d.looping;
+    u.loopStart = (size_t)d.loopStart;
+    u.loopEnd = (size_t)d.loopEnd;
+    for (int i = 0; i < 8; i++) {
+        if (d.hot[i].set) { u.hotSet |= 1 << i; u.hotFrame[i] = (size_t)d.hot[i].start; }
+        if (d.hot[i].loop) u.hotLoop |= 1 << i;
+    }
+    u.nMem = (uint8_t)d.nMem;
+    for (int i = 0; i < d.nMem && i < ui::State::kMaxMem; i++) u.memFrame[i] = (size_t)d.mem[i];
+    if (d.loaded && !grid().empty()) {
+        const double here = beatOf(d.pos);
+        auto beatsTo = [&](double frame) { return (int)ceil(beatOf(frame) - here - 1e-6); };
+        for (int i = 0; i < d.nMem; i++) if (d.mem[i] > d.pos + 1) { u.barsToMem = beatsTo(d.mem[i]); break; }
+        double next = -1;
+        for (const auto& h : d.hot) if (h.set && h.start > d.pos + 1 && (next < 0 || h.start < next)) next = h.start;
+        if (next >= 0) u.barsToHot = beatsTo(next);
+    }
     if (d.loaded) {
         const float rate = s_stream.sampleRate();
         u.pos = d.pos / rate;
@@ -626,6 +813,9 @@ static void audioTask(void*)
             d.pos = 0;
             s_wsola.reset();
             swapGrid();
+            d.looping = d.emergency = d.loopInSet = false;
+            d.loopStart = d.loopEnd = 0;
+            if (ok) loadCues(d);
             if (ok) ESP_LOGI(TAG, "beat grid: %s", grid().empty() ? "none (SYNC needs a rekordbox track)" : "yes");
             if (!ok) {
                 ESP_LOGE(TAG, "load failed");
@@ -767,6 +957,9 @@ static void audioTask(void*)
 //   g give the loaded track a 120 BPM test grid (for SYNC without rekordbox)
 //   v switch the phase meter view (beat boxes / alignment ticks)
 //   n needle search to the middle of the track
+//   ! @ # $ % ^ & * (shift 1-8) hot cue A-H, set / jump   D delete hot cue A
+//   o 4-beat loop   x reloop/exit   ( ) loop 1/2, x2   i u loop in/out
+//   , . beat jump -/+4   < > call previous/next memory cue   q quantize
 //   w cycle waveform test mode (normal / no flush / off)
 static void serialKeysTask(void*)
 {
@@ -785,6 +978,22 @@ static void serialKeysTask(void*)
         case 's': e.type = deck::Type::Sync; break;
         case 'v': ui::togglePhaseView(); continue;
         case 'n': onUiSeek(0.5f); continue;   // needle search to the middle (test)
+        case '!': case '@': case '#': case '$': case '%': case '^': case '&': case '*': {
+            static const char kHot[] = "!@#$%^&*";               // shift + 1..8 = hot cue A..H
+            e.type = deck::Type::HotCue; e.delta = (int16_t)(strchr(kHot, ch) - kHot + 1); break;
+        }
+        case 'D': e.type = deck::Type::HotCue; e.delta = 1; e.position = 1; break;   // delete hot cue A
+        case 'o': e.type = deck::Type::BeatLoop; e.position = 4; break;
+        case 'x': e.type = deck::Type::ReloopExit; break;
+        case '(': e.type = deck::Type::LoopHalve; break;
+        case ')': e.type = deck::Type::LoopDouble; break;
+        case 'i': e.type = deck::Type::LoopIn; break;
+        case 'u': e.type = deck::Type::LoopOut; break;
+        case ',': e.type = deck::Type::BeatJump; e.delta = -4; break;
+        case '.': e.type = deck::Type::BeatJump; e.delta = 4; break;
+        case '<': e.type = deck::Type::CueCall; e.delta = -1; break;
+        case '>': e.type = deck::Type::CueCall; e.delta = 1; break;
+        case 'q': e.type = deck::Type::Quantize; break;
         case 'g': s_fakeGridBpm = 120; ESP_LOGI(TAG, "test grid: 120 BPM from the start"); continue;
         case '[': s_syncOffsetMs -= 2; ESP_LOGI(TAG, "sync offset %+d ms", s_syncOffsetMs); continue;
         case ']': s_syncOffsetMs += 2; ESP_LOGI(TAG, "sync offset %+d ms", s_syncOffsetMs); continue;

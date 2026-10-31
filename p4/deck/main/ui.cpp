@@ -51,7 +51,12 @@ static EventFn  s_onEvent;
 static SelectFn s_onSelect;
 static SeekFn   s_onSeek;
 
-static lv_obj_t *s_name, *s_state, *s_time, *s_remain, *s_tempo, *s_key, *s_sync, *s_bpm;
+static lv_obj_t *s_name, *s_state, *s_time, *s_remain, *s_tempo, *s_key, *s_sync, *s_bpm, *s_quant;
+static lv_obj_t *s_barsMem, *s_barsHot;   // XDJ "Bars" countdowns
+// PADS panel (the XDJ's PERFORM pads): hot cues, CALL, loop size, beat
+// loops, RELOOP/EXIT, beat jump. Covers the waveform while it's open.
+static lv_obj_t *s_pads, *s_padsBtn, *s_hotPad[4], *s_reloopPad;
+static bool s_padsOn;
 static lv_obj_t *s_ov, *s_list, *s_cueBtn, *s_playBtn;
 static uint16_t* s_ovBuf;            // kOvW x kOvH RGB565, PSRAM; redrawn when the playhead moves a pixel
 static std::vector<lv_obj_t*> s_rows;
@@ -114,6 +119,7 @@ static void onWaveTap(lv_event_t*) { s_lastListUse = lv_tick_get(); }
 
 static void onPlay(lv_event_t*) { send(deck::Type::PlayPause, true); }
 static void onSyncTap(lv_event_t*) { send(deck::Type::Sync, true); }
+static void onQuantTap(lv_event_t*) { send(deck::Type::Quantize, true); }
 static void onKeyTap(lv_event_t*) { send(deck::Type::KeyLock, true); }
 static void onLoad(lv_event_t*) { send(deck::Type::Load, true); }
 
@@ -134,11 +140,13 @@ static lv_obj_t* label(lv_obj_t* parent, const lv_font_t* font, lv_color_t color
     return l;
 }
 
+constexpr int kBtnW = (display::W - 2 * kMargin - 3 * 8) / 4;   // four buttons along the bottom
+
 static lv_obj_t* button(lv_obj_t* parent, const char* text, int x, lv_event_cb_t cb, lv_event_code_t code)
 {
     lv_obj_t* b = lv_button_create(parent);
     lv_obj_set_pos(b, x, 270);
-    lv_obj_set_size(b, 146, 44);
+    lv_obj_set_size(b, kBtnW, 44);
     lv_obj_set_style_bg_color(b, kPanel, 0);
     lv_obj_set_style_radius(b, 8, 0);
     lv_obj_t* l = label(b, &lv_font_montserrat_20, kText);
@@ -207,6 +215,15 @@ static void drawOverview(const State& s, int playX, int cueX)
         }
         for (int y = kOvH - h; y < kOvH; y++) s_ovBuf[y * kOvW + x] = c;
     }
+    if (s.loaded && s.len > 0) {
+        const double fpx = s.len * (s_stream->sampleRate() ? s_stream->sampleRate() : 44100) / (kOvW - 1);
+        auto tick = [&](size_t frame, uint16_t c) {
+            const int x = (int)(frame / fpx);
+            if (x >= 0 && x < kOvW) for (int y = 0; y < 6; y++) s_ovBuf[y * kOvW + x] = c;
+        };
+        for (int i = 0; i < s.nMem; i++) tick(s.memFrame[i], lv_color_to_u16(lv_color_hex(0xE0453A)));
+        for (int i = 0; i < 8; i++) if (s.hotSet & (1 << i)) tick(s.hotFrame[i], lv_color_to_u16(kGreen));
+    }
     if (s.loaded) {
         if (cueX >= 0 && cueX < kOvW) for (int y = 0; y < kOvH; y++) s_ovBuf[y * kOvW + cueX] = lv_color_to_u16(kOrange);
         if (playX >= 0 && playX < kOvW) for (int y = 0; y < kOvH; y++) {
@@ -215,6 +232,76 @@ static void drawOverview(const State& s, int playX, int cueX)
         }
     }
     lv_obj_invalidate(s_ov);
+}
+
+// ── PADS ─────────────────────────────────────────────────────────────────────
+struct PadDef { const char* text; deck::Type type; int16_t delta; float position; };
+static const PadDef kPadRows[2][8] = {
+    {{"A", deck::Type::HotCue, 1, 0}, {"B", deck::Type::HotCue, 2, 0}, {"C", deck::Type::HotCue, 3, 0},
+     {"D", deck::Type::HotCue, 4, 0}, {LV_SYMBOL_LEFT, deck::Type::CueCall, -1, 0},
+     {LV_SYMBOL_RIGHT, deck::Type::CueCall, 1, 0}, {"1/2", deck::Type::LoopHalve, 0, 0},
+     {"x2", deck::Type::LoopDouble, 0, 0}},
+    {{"1", deck::Type::BeatLoop, 0, 1}, {"2", deck::Type::BeatLoop, 0, 2}, {"4", deck::Type::BeatLoop, 0, 4},
+     {"8", deck::Type::BeatLoop, 0, 8}, {"16", deck::Type::BeatLoop, 0, 16},
+     {"RELOOP", deck::Type::ReloopExit, 0, 0}, {LV_SYMBOL_PREV " 4", deck::Type::BeatJump, -4, 0},
+     {"4 " LV_SYMBOL_NEXT, deck::Type::BeatJump, 4, 0}},
+};
+
+static void onPad(lv_event_t* e)
+{
+    const PadDef* p = (const PadDef*)lv_event_get_user_data(e);
+    deck::Event ev;
+    ev.type = p->type;
+    ev.deck = deck::DeckA;
+    ev.pressed = true;
+    ev.delta = p->delta;
+    ev.position = p->position;
+    // Long press on a hot cue pad deletes it.
+    if (lv_event_get_code(e) == LV_EVENT_LONG_PRESSED) {
+        if (p->type != deck::Type::HotCue) return;
+        ev.position = 1;
+    }
+    s_onEvent(ev);
+}
+
+static void showPads(bool on)
+{
+    s_padsOn = on;
+    lv_obj_set_hidden(s_pads, !on);
+    lv_obj_set_style_bg_color(s_padsBtn, on ? kBlue : kPanel, 0);
+}
+
+static void onPadsBtn(lv_event_t*) { showPads(!s_padsOn); }
+
+static void buildPads(lv_obj_t* scr)
+{
+    s_pads = lv_obj_create(scr);
+    lv_obj_remove_style_all(s_pads);
+    lv_obj_set_pos(s_pads, 0, 156);
+    lv_obj_set_size(s_pads, display::W, 108);
+    lv_obj_set_style_bg_opa(s_pads, LV_OPA_COVER, 0);
+    lv_obj_set_style_bg_color(s_pads, kBg, 0);
+    const int gap = 4, w = (display::W - 2 * kMargin - 7 * gap) / 8, h = 48;
+    for (int r = 0; r < 2; r++)
+        for (int c = 0; c < 8; c++) {
+            const PadDef* p = &kPadRows[r][c];
+            lv_obj_t* b = lv_button_create(s_pads);
+            lv_obj_set_pos(b, kMargin + c * (w + gap), 4 + r * (h + gap + 2));
+            lv_obj_set_size(b, w, h);
+            lv_obj_set_style_radius(b, 6, 0);
+            lv_obj_set_style_shadow_width(b, 0, 0);
+            lv_obj_set_style_bg_color(b, r == 0 && c < 4 ? kDimBlue : kPanel, 0);
+            lv_obj_t* l = label(b, &lv_font_montserrat_16, kText);
+            lv_label_set_text(l, p->text);
+            lv_obj_center(l);
+            lv_obj_add_event_cb(b, onPad, LV_EVENT_PRESSED, (void*)p);
+            if (p->type == deck::Type::HotCue) {
+                lv_obj_add_event_cb(b, onPad, LV_EVENT_LONG_PRESSED, (void*)p);
+                s_hotPad[c] = b;
+            }
+            if (p->type == deck::Type::ReloopExit) s_reloopPad = b;
+        }
+    showPads(false);
 }
 
 static void buildMeter(lv_obj_t* scr);   // phase meter, below
@@ -310,7 +397,7 @@ static void build()
     lv_obj_set_pos(s_name, kMargin, 8);
     // DOTS only truncates a label with a fixed height; without one a long
     // name wraps onto the time counter.
-    lv_obj_set_size(s_name, 236, lv_font_get_line_height(&lv_font_montserrat_20));
+    lv_obj_set_size(s_name, 200, lv_font_get_line_height(&lv_font_montserrat_20));
     lv_label_set_long_mode(s_name, LV_LABEL_LONG_MODE_DOTS);
 
     s_state = label(scr, &lv_font_montserrat_16, kBg);
@@ -325,6 +412,8 @@ static void build()
     lv_obj_align_to(s_key, s_state, LV_ALIGN_OUT_LEFT_MID, -6, 0);
     s_sync = chip(scr, "SYNC", onSyncTap);
     lv_obj_align_to(s_sync, s_key, LV_ALIGN_OUT_LEFT_MID, -6, 0);
+    s_quant = chip(scr, "Q", onQuantTap);
+    lv_obj_align_to(s_quant, s_sync, LV_ALIGN_OUT_LEFT_MID, -6, 0);
 
     s_time = label(scr, &lv_font_montserrat_40, kText);
     lv_obj_set_pos(s_time, kMargin, 42);
@@ -377,9 +466,11 @@ static void build()
     lv_obj_set_pos(s_toast, kMargin, 240);
     lv_obj_set_hidden(s_toast, true);
 
-    s_cueBtn  = button(scr, "CUE",  kMargin,       onCue,  LV_EVENT_ALL);
-    s_playBtn = button(scr, "PLAY", kMargin + 157, onPlay, LV_EVENT_PRESSED);
-    button(scr, "LOAD", kMargin + 314, onLoad, LV_EVENT_CLICKED);
+    s_cueBtn  = button(scr, "CUE",  kMargin,                  onCue,  LV_EVENT_ALL);
+    s_playBtn = button(scr, "PLAY", kMargin + (kBtnW + 8),    onPlay, LV_EVENT_PRESSED);
+    s_padsBtn = button(scr, "PADS", kMargin + 2 * (kBtnW + 8), onPadsBtn, LV_EVENT_CLICKED);
+    button(scr, "LOAD", kMargin + 3 * (kBtnW + 8), onLoad, LV_EVENT_CLICKED);
+    buildPads(scr);
 }
 
 // ── Phase meter, XDJ style ───────────────────────────────────────────────────
@@ -458,6 +549,7 @@ static void buildMeter(lv_obj_t* scr)
         lv_obj_t* v = label(s_meter, &lv_font_montserrat_16, c);
         lv_label_set_text(v, "--.-");
         lv_obj_set_pos(v, bx, row * (rh + gap) - 2);
+        (row ? s_barsHot : s_barsMem) = v;
         lv_obj_t* u = label(s_meter, &lv_font_montserrat_16, c);
         lv_label_set_text(u, "Bars");
         lv_obj_set_pos(u, bx + 48, row * (rh + gap) - 2);
@@ -573,10 +665,25 @@ static void drawWave(const State& s)
             }
         }
     }
-    // Cue marker, then the playhead on top.
+    // Active loop: tint its background, as on the XDJ.
+    if (s.loaded && s.looping && s.loopEnd > s.loopStart) {
+        const uint16_t tint = lv_color_to_u16(lv_color_hex(0x3A2A10));
+        long x0 = (long)(s.loopStart / framesPerPx) - centre + W / 2, x1 = (long)(s.loopEnd / framesPerPx) - centre + W / 2;
+        if (x0 < 0) x0 = 0;
+        if (x1 > W) x1 = W;
+        for (int y = 0; y < kWaveH; y++)
+            for (long x = x0; x < x1; x++) if (s_waveBuf[y * W + x] == bg) s_waveBuf[y * W + x] = tint;
+    }
+    // Memory cues red, hot cues green (top half), the cue point orange, then
+    // the playhead on top.
     if (s.loaded) {
-        const long cx = (long)(s.cueFrame / framesPerPx) - centre + W / 2;
-        if (cx >= 0 && cx < W) for (int y = 0; y < kWaveH; y++) s_waveBuf[y * W + cx] = lv_color_to_u16(kOrange);
+        auto mark = [&](size_t frame, uint16_t c, int h) {
+            const long x = (long)(frame / framesPerPx) - centre + W / 2;
+            if (x >= 0 && x < W) for (int y = 0; y < h; y++) s_waveBuf[y * W + x] = c;
+        };
+        for (int i = 0; i < s.nMem; i++) mark(s.memFrame[i], lv_color_to_u16(lv_color_hex(0xE0453A)), kWaveH);
+        for (int i = 0; i < 8; i++) if (s.hotSet & (1 << i)) mark(s.hotFrame[i], lv_color_to_u16(kGreen), kWaveH / 2);
+        mark(s.cueFrame, lv_color_to_u16(kOrange), kWaveH);
     }
     for (int y = 0; y < kWaveH; y++) {
         s_waveBuf[y * W + W / 2 - 1] = 0xFFFF;
@@ -619,7 +726,7 @@ static void waveTick(lv_timer_t*)
         s_screenFrames = 0;
         s_waveT0 = lv_tick_get();
     }
-    if (want && s_waveTest != 2) { drawWave(s); updateMeter(s); }
+    if (want && s_waveTest != 2) { if (!s_padsOn) drawWave(s); updateMeter(s); }
 }
 
 static void refresh(lv_timer_t*)
@@ -662,9 +769,12 @@ static void refresh(lv_timer_t*)
         const int playX = s.loaded && s.len > 0 ? (int)((kOvW - 1) * s.pos / s.len) : -1;
         const int cueX = s.loaded && s.len > 0 ? (int)((kOvW - 1) * s.cue / s.len) : -1;
         const void* g = overviewGrid();
-        if (s_first || playX != shownPlay || cueX != shownCue || g != shownGrid || s.loaded != shownLoaded) {
+        static uint8_t shownHot = 0, shownMem = 0;
+        if (s_first || playX != shownPlay || cueX != shownCue || g != shownGrid || s.loaded != shownLoaded ||
+            s.hotSet != shownHot || s.nMem != shownMem) {
             drawOverview(s, playX, cueX);
             shownPlay = playX; shownCue = cueX; shownGrid = g; shownLoaded = s.loaded;
+            shownHot = s.hotSet; shownMem = s.nMem;
         }
     }
 
@@ -695,6 +805,28 @@ static void refresh(lv_timer_t*)
         lv_obj_set_style_bg_color(s_playBtn, s.playing && !s.previewing ? kGreen : kPanel, 0);
         lv_obj_set_style_bg_color(s_cueBtn, s.loaded && (!s.playing || s.previewing) ? kOrange : kPanel, 0);
     }
+
+    if (s_first || s.quantize != o.quantize) {
+        lv_obj_set_style_bg_color(s_quant, s.quantize ? lv_color_hex(0xE0453A) : kPanel, 0);
+        lv_obj_set_style_text_color(s_quant, s.quantize ? kText : kDim, 0);
+    }
+    if (s_first || s.barsToMem != o.barsToMem || s.barsToHot != o.barsToHot) {
+        auto fmt = [](lv_obj_t* l, int beats) {
+            char b[12] = "--.-";
+            if (beats >= 0) snprintf(b, sizeof b, "%02d.%d", beats / 4 > 99 ? 99 : beats / 4, beats % 4);
+            lv_label_set_text(l, b);
+        };
+        fmt(s_barsMem, s.barsToMem);
+        fmt(s_barsHot, s.barsToHot);
+    }
+    if (s_first || s.hotSet != o.hotSet || s.hotLoop != o.hotLoop) {
+        for (int i = 0; i < 4; i++) {
+            const bool set = s.hotSet & (1 << i), loop = s.hotLoop & (1 << i);
+            lv_obj_set_style_bg_color(s_hotPad[i], !set ? kDimBlue : loop ? kOrange : kGreen, 0);
+        }
+    }
+    if (s_first || s.looping != o.looping)
+        lv_obj_set_style_bg_color(s_reloopPad, s.looping ? kOrange : kPanel, 0);
 
     // The library changed (stick in or out): rebuild the rows.
     static int checkedRow = -1;

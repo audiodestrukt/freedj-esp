@@ -18,6 +18,20 @@ struct Beat {
     uint8_t  inBar;    // 1..4
 };
 
+// A memory cue (hot == 0) or hot cue (hot 1..8 = A..H), point or loop.
+struct Cue {
+    uint8_t  hot = 0;
+    bool     loop = false;
+    uint32_t ms = 0;        // cue point / loop start
+    uint32_t loopMs = 0;    // loop end, when `loop`
+};
+
+// Cues from a track's analysis. rekordbox writes them as PCOB in the .DAT
+// and/or PCO2 (extended: colours, comments) in the .EXT next to it; newer
+// versions may fill only PCO2. Reads the .EXT if there is one, else the .DAT.
+// `anlzDat` is the .DAT path. Sorted by time.
+std::vector<Cue> readCues(const char* anlzDat);
+
 // Read one ANLZ file. `audioRel` gets the PPTH path ("/Contents/..."),
 // `beats` the grid (PQTZ), `preview` the overview waveform (PWAV: 400
 // columns, each byte = height in the low 5 bits (0..31) and whiteness in the
@@ -36,6 +50,7 @@ void scan(const char* root, const TrackFn& fn);
 struct Grid {
     std::vector<Beat> beats;
     std::vector<uint8_t> preview;   // PWAV columns, empty if none
+    std::vector<Cue> cues;          // memory and hot cues
     bool  empty() const { return beats.size() < 2; }
     // Beats since the first grid beat, fractional (negative before it).
     double beatAt(double ms) const;
