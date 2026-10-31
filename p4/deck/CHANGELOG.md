@@ -11,6 +11,14 @@ playing (see the README's *Audio health* section). Unless noted, it's
 the panel**, so they read high. From 2026-10-31 on, "screen fps" counts
 frames LVGL actually rendered and flushed.
 
+## 2026-10-31: enclosure design (CAD only)
+
+- First design for a 3D-printed ESP Deck in `hardware/`: a 160 × 195 mm
+  CDJ around a 3.5" ST7796S LCD. 100 mm jog on two 608 bearings with an
+  MT6701 magnetic encoder, CUE/PLAY with light rings, 45 mm pitch slider,
+  12° screen bezel. Parametric build123d model, Blender renders.
+- No firmware change, so the budget is unchanged.
+
 ## 2026-10-31: 8 MB app partition
 
 - Our own partition table (`partitions.csv`) gives the app 8 MB instead of
