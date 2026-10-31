@@ -83,8 +83,8 @@ def scene_parts():
     add("tft", seat_on(stock.tft(), "screen"), "lcd")
     add("lcd_pcb", seat_on(stock.lcd_pcb(), "screen"), "pcb")
     add("lcd_header", seat_on(stock.lcd_header(), "screen"), "chip")
-    for side in ("clamp_l", "clamp_r"):
-        add(side, seat_on(shell.clamp(), side), "base")
+    for i in range(4):
+        add(f"screen_screw{i}", seat_on(stock.screw_m3(), f"screen_screw{i}"), "steel")
     add("usb_a", seat_on(stock.usb_a(), "usb_a"), "steel")
     add("usb_a_tongue", seat_on(stock.usb_a_tongue(), "usb_a"), "usb_blue")
     add("rj45", seat_on(stock.rj45(), "rj45"), "steel")
@@ -97,7 +97,8 @@ def scene_parts():
 def screen_mesh():
     """The LCD image as a textured quad just under the cover glass."""
     aw, ah = M.LCD_ACTIVE
-    loc = shell.MATES["screen"] * Pos(0, 0, -M.CTP_T + 0.03)   # just above the TFT, under the touch glass
+    # just above the TFT, under the touch glass; the active area is off-centre away from the header
+    loc = shell.MATES["screen"] * Pos(M.LCD_AA_DX, 0, -M.CTP_T - M.CTP_TAPE + 0.03)
     pts = []
     for x, y in ((-aw / 2, -ah / 2), (aw / 2, -ah / 2), (aw / 2, ah / 2), (-aw / 2, ah / 2)):
         p = (loc * Pos(x, y, 0)).position; pts.append((p.X, p.Y, p.Z))

@@ -12,3 +12,5 @@
 - 0010-compact-flat-hero.jpg: 2026-10-31: same, flat-top, 160 x 186.3 mm
 - 0011-compact-angled-hero.jpg: 2026-10-31: same, angled, hero angle
 - 0012-compact-flat-front.jpg: 2026-10-31: same, flat-top, from the front
+- 0013-screen-bosses-underside.jpg: 2026-10-31: flat shell from below: 4 screen bosses on the module's 102.00 x 54.88 hole pattern (clamps gone)
+- 0014-screen-mounted-underside.jpg: 2026-10-31: same, with the module board screwed on (M3 x 5 thread-formers)

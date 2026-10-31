@@ -11,15 +11,22 @@ def touch_glass():  # local: z = 0 at the glass top (flush with the deck face)
     return Box(*M.GLASS, M.CTP_T, align=CM)
 
 def tft():
-    return Pos(0, 0, -M.CTP_T) * Box(*M.GLASS, M.TFT_T, align=CM)
+    return Pos(0, 0, -M.CTP_T - M.CTP_TAPE) * Box(*M.GLASS, M.TFT_T, align=CM)
 
 def lcd_pcb():
     w, h, t = M.LCD_PCB
-    return Pos(0, 0, -(M.CTP_T + M.TFT_T + M.TAPE_T)) * Box(w, h, t, align=CM)
+    pcb = Pos(0, 0, -M.STACK) * Box(w, h, t, align=CM)
+    hx, hy = M.LCD_HOLES
+    return pcb.cut(*[Pos(sx * hx / 2, sy * hy / 2, -M.STACK - 5) * Cylinder(1.6, 10)
+                     for sx in (-1, 1) for sy in (-1, 1)])
 
-def lcd_header():   # pin header + parts behind the board, down to LCD_DEPTH
-    top = M.CTP_T + M.TFT_T + M.TAPE_T + M.LCD_PCB[2]
-    return Pos(-M.LCD_PCB[0] / 2 + 5, 0, -top) * Box(8, 40, M.LCD_DEPTH - top, align=CM)
+def lcd_header():   # 14-pin header along the board's left end, down to LCD_DEPTH
+    top = M.STACK + M.LCD_PCB[2]
+    return Pos(-M.LCD_PCB[0] / 2 + 3.3, 0, -top) * Box(2.5, 35.6, M.LCD_DEPTH - top, align=CM)
+
+def screw_m3():     # pan head M3 x 5 thread-former (1.6 board + 3.4 into a 3.8 pilot); z = 0 under the head
+    head = Pos(0, 0, -2.0) * Cylinder(2.8, 2.0, align=C)
+    return head.fuse(Cylinder(1.5, 5.0, align=C))
 
 def usb_a():        # receptacle, mouth 1 mm below the bezel face
     shell = Pos(0, 0, -1) * Box(13.1, 5.7, 14, align=CM)

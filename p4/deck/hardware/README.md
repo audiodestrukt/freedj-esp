@@ -11,7 +11,7 @@ renders 0001–0004 show that version.)
 | | |
 |---|---|
 | Footprint | **160 × 185 mm** (angled; 186 mm flat), 34 mm tall at the front, 48 mm at the back of the angled bezel. The top shell fits a 256 mm bed in one piece. The depth is derived from the layout (jog well, an 8 mm gap, the glass with 4 and 5 mm margins), so moving the jog or changing the screen resizes the deck |
-| Screen | LCDwiki **MSP4021**: 4" 480×320 ST7796S, FT6336U touch, the panel on the bench now. The 60.9 × 94.6 mm glass stack (2.5 mm TFT + 1.35 mm touch glass) sits **flush in an opening through the top**. The module board (108 × 61.7 mm) rests on the top's underside on 0.35 mm tape, held by two printed clamps on M2.5 self-tappers just past its ends. 14.8 mm deep overall with the pin header. Screen centred at x = 84 mm, leaving room for the USB-A slot on the left |
+| Screen | **Hosyond 4.0" 320×480 capacitive** (ST7796S, FT6336U touch), the panel on the bench. It's the LCDwiki/QDtech **MSP4031** module ([drawing](https://www.lcdwiki.com/res/MSP4030_MSP4031/4.0inch_SPI_Module_MSP4031_Size.pdf)): 108.00 × 60.88 mm board, 60.88 × 94.57 mm glass centred on it, 4.85 mm of glass and tape above the board, 14.8 mm deep with the header. The glass sits **flush in an opening through the top**. The board screws onto **four bosses on its four Ø3.2 mounting holes** (102.00 × 54.88 mm apart), with M3 × 5 thread-forming screws into 2.5 mm pilots 3.8 mm deep, leaving 1 mm under the face. Screen centred at x = 84 mm, leaving room for the USB-A slot on the left |
 | Jog | 100 mm printed platter, knurled rim, on an **8 mm shaft through two 608 skateboard bearings** pressed into a boss under the top. Steel inertia ring (r 38–46 mm, 5 mm) in the platter's underside. Aluminium top plate, which doubles as the capacitive touch electrode |
 | Jog sensing | 6×2.5 mm diametric magnet in the shaft end, 0.9 mm over an **MT6701** on a 22 mm board. A/B quadrature into the P4's pulse counter: no CPU, off the shared I2C bus |
 | CUE / PLAY | 19 mm caps in translucent light rings (amber, green), bottom left as on a CDJ, over key switches |
@@ -36,16 +36,18 @@ they come out as clean as the bed surface allows.
 
 ![Flat-top version](cad/renders/esp_deck/0012-compact-flat-front.jpg)
 
+![Screen bosses, from below](cad/renders/esp_deck/0013-screen-bosses-underside.jpg)
+
 ![Section through the jog](cad/renders/esp_deck/0003-first-design-jog-section.jpg)
 
 ## Open questions
 
-- **Screen dimensions are from vendor data**, not measured: the size data on
-  [lcdwiki](https://www.lcdwiki.com/4.0inch_SPI_Module_ST7796) and
-  [Elecrow](https://elecrow.com/wiki/4.0_Inch_480320_SPI_TFT_LCD_Module_with_ST7796_DriverWith_Touch_Function.html)
-  (61.74 × 108.04 mm module, 55.68 × 83.52 mm active area). Check the glass outline
-  and where it sits on the board with calipers before printing; they're all in
-  `machine_params.py`.
+- **Screen dimensions are from the MSP4031 drawing**, not measured. The Hosyond
+  listing doesn't publish a drawing, and Hosyond usually resells these LCDwiki
+  modules, but check with calipers before printing: the hole spacing (102.00 ×
+  54.88 mm), the glass outline (94.57 × 60.88) and that the glass is centred on
+  the board. They're all in `machine_params.py`. The resistive MSP4021 is slightly
+  different (108.04 × 61.74 board, 102.04 × 54.90 holes).
 - **Does the electronics fit?** Not checked yet: the Waveshare dev board has to fit
   inside 155 × 180 × ~28 mm, around the screen module's 14.8 mm, with its Ethernet, USB and audio reaching the back.
   Measure it before printing the shell. If it doesn't fit, grow the shell or use
@@ -75,11 +77,11 @@ that depends on it.
 | File | What |
 |---|---|
 | `machine_params.py` | All shared dimensions, and `place()` |
-| `shell.py` | Top shell: jog bearing boss, button holes, pitch slot, screen opening and clamp bosses, rear cutouts. Also the two screen clamps |
+| `shell.py` | Top shell: jog bearing boss, button holes, pitch slot, screen opening and its 4 screw bosses, rear cutouts |
 | `base.py` | Base plate and feet |
 | `jog.py` | Platter, touch plate, centre cap, inertia ring, bearings, shaft, magnet, encoder board |
 | `controls.py` | Button caps and light rings, slider knob, pot, LEDs |
-| `stock.py` | Bought parts as stand-ins: LCD (touch glass, TFT, board, header), connectors |
+| `stock.py` | Bought parts as stand-ins: LCD (touch glass, TFT, board, header), screws, connectors |
 | `machine.py` | The assembly, exported as GLB (plus a cutaway through the jog) |
 | `machine_flat.py` | The same assembly in the flat-top configuration |
 | `screen_mock.py` | A picture of the play screen for the render, laid out from `main/ui.cpp`. The waveform is synthetic |

@@ -11,6 +11,14 @@ playing (see the README's *Audio health* section). Unless noted, it's
 the panel**, so they read high. From 2026-10-31 on, "screen fps" counts
 frames LVGL actually rendered and flushed.
 
+## 2026-10-31: screen mounts on its own 4 holes (CAD only)
+
+- The screen is a Hosyond 4" capacitive, i.e. the LCDwiki MSP4031: the model
+  now follows that drawing (108.00 × 60.88 board, 4.85 mm glass + tape stack).
+- Four bosses on the module's mounting holes (102.00 × 54.88 mm, Ø3.2), with
+  M3 × 5 thread-formers, replace the two printed clamps.
+- No firmware change, so the budget is unchanged.
+
 ## 2026-10-31: compacted enclosure (CAD only)
 
 - 20 mm shorter: 160 × 185 mm angled, 186 mm flat (was 205). The glass now

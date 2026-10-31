@@ -24,16 +24,20 @@ assert CONFIG in ("angled", "flat"), CONFIG
 NAME = "esp_deck" if CONFIG == "angled" else "esp_deck_flat"   # output file stem
 SUFFIX = "" if CONFIG == "angled" else "_flat"
 
-# 4" LCD: LCDwiki MSP4021 (ST7796S, FT6336U touch). From the vendor size data
-# (lcdwiki / Elecrow 4.0" SPI module); check against the real board before printing.
+# 4" LCD: the capacitive-touch version of the LCDwiki 4" SPI module (FT6336U, I2C), whose
+# drawing is MSP4031 (lcdwiki.com/res/MSP4030_MSP4031/4.0inch_SPI_Module_MSP4031_Size.pdf).
+# The resistive MSP4021 differs slightly (108.04 x 61.74 board, 102.04 x 54.90 holes).
 LCD_ACTIVE = (83.52, 55.68)
-GLASS = (94.57, 60.88)       # TFT + touch glass outline (bonded stack)
-TFT_T, CTP_T = 2.5, 1.35     # the stack sits flush in an opening through the top
-TAPE_T = 0.35                # stack-to-board tape; the board's ends then rest on the top's underside
-LCD_PCB = (108.04, 61.74, 1.6)
+LCD_AA_DX = 2.88             # active area sits off-centre, away from the 14-pin header end
+GLASS = (94.57, 60.88)       # touch lens / TFT outline, centred on the board
+CTP_T, CTP_TAPE, TFT_T, TAPE_T = 1.35, 0.5, 2.5, 0.5   # glass top -> board: 4.85 mm
+STACK = CTP_T + CTP_TAPE + TFT_T + TAPE_T
+LCD_PCB = (108.0, 60.88, 1.6)
+LCD_HOLES = (102.0, 54.88)   # 4 x 3.2 mm, 3.00 mm in from the board edges
 LCD_DEPTH = 14.8             # whole module incl. pin header, from the glass top
 SCREEN_X = 84.0              # screen centre x (off-centre to leave room for the USB-A slot)
-CLAMP_DX = LCD_PCB[0] / 2 + 4.5   # clamp screws, just past the board's ends (boss r 4 clears it)
+SCREEN_BOSS_D = 6.0          # bosses on the 4 holes; keep < 2*(hole - glass edge) - clearance
+SCREEN_PILOT = (2.5, 3.8)    # M3 thread-forming screws for plastic: pilot diameter, depth from the board
 
 # Jog
 JOG_C = (80.0, 60.0)
@@ -86,7 +90,7 @@ BEZEL_Y = JOG_C[1] + WELL_D / 2 + JOG_SCREEN_GAP - GLASS_MARGIN[0]
 D = round(BEZEL_Y + SLOPE_L * math.cos(math.radians(TILT)), 1)
 H_BACK = H + SLOPE_L * math.sin(math.radians(TILT))
 SCREEN_V = GLASS_MARGIN[0] + (GLASS[1] + 0.4) / 2   # screen centre, measured up the slope
-USBA_V = SCREEN_V + 18.0     # USB-A slot sits up the slope, clear of the left clamp boss
+USBA_V = SCREEN_V + 18.0     # USB-A slot sits up the slope, clear of the screen bosses
 BRAND_V = 9.0                # "ESP DECK", left of the screen near the bend
 
 def face_loc():
