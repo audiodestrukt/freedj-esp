@@ -87,10 +87,11 @@ def part():
         cuts.append(Pos(x, M.D, M.RCA_Z) * Rot(90, 0, 0) * Cylinder(M.RCA_HOLE / 2, 10))
     x, z, w, h = M.USBC
     cuts.append(Pos(x, M.D, z) * Box(w, 10, h))
-    # brand, engraved on the flat strip under the bezel
+    # brand, engraved on the bezel left of the screen, below the USB-A slot
     try:
-        txt = Pos(14, 121, M.H - 0.6) * extrude(Text("ESP DECK", 5.0, font_style=FontStyle.BOLD,
-                                                   align=(Align.MIN, Align.CENTER)), 2)
+        bx = (M.SCREEN_X - M.GLASS[0] / 2) / 2           # centred in the strip left of the glass
+        txt = F * Pos(bx - M.W / 2, M.BRAND_V, -0.6) * extrude(Text("ESP DECK", 4.0, font_style=FontStyle.BOLD,
+                                                   align=(Align.CENTER, Align.CENTER)), 2)
         cuts.append(txt)
     except Exception as e:
         print("  (brand text skipped:", e, ")")

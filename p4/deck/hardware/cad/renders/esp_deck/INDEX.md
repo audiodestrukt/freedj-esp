@@ -8,3 +8,7 @@
 - 0006-4in-angled-front.jpg: 2026-10-31: same, from the front
 - 0007-4in-flat-hero.jpg: 2026-10-31: 4" flat-top version (print this one first)
 - 0008-4in-flat-front.jpg: 2026-10-31: same, from the front
+- 0009-compact-angled-front.jpg: 2026-10-31: compacted: 8 mm from jog well to glass, jog and buttons 5 mm forward, brand moved onto the bezel. Angled 160 x 184.7 mm
+- 0010-compact-flat-hero.jpg: 2026-10-31: same, flat-top, 160 x 186.3 mm
+- 0011-compact-angled-hero.jpg: 2026-10-31: same, angled, hero angle
+- 0012-compact-flat-front.jpg: 2026-10-31: same, flat-top, from the front

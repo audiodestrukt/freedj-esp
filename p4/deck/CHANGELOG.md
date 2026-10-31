@@ -11,6 +11,14 @@ playing (see the README's *Audio health* section). Unless noted, it's
 the panel**, so they read high. From 2026-10-31 on, "screen fps" counts
 frames LVGL actually rendered and flushed.
 
+## 2026-10-31: compacted enclosure (CAD only)
+
+- 20 mm shorter: 160 × 185 mm angled, 186 mm flat (was 205). The glass now
+  starts 8 mm behind the jog well (was about 20). Jog, buttons and slider
+  moved 5 mm forward, and the brand engraving moved onto the bezel. The
+  depth is now derived from the layout instead of set by hand.
+- No firmware change, so the budget is unchanged.
+
 ## 2026-10-31: enclosure around the 4" MSP4021, plus a flat-top version (CAD only)
 
 - Redesigned around the 4" MSP4021 we actually have, not a 3.5" panel: 160 ×
