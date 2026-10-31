@@ -1,6 +1,6 @@
 # ESP Deck hardware: a small 3D-printed CDJ
 
-A scaled-down CDJ around the **4" MSP4021** the deck already runs on: the CDJ
+A scaled-down CDJ around the **Hosyond 4" capacitive screen** (LCDwiki MSP4031) the deck already runs on: the CDJ
 layout with only a jog wheel, CUE / PLAY and a pitch slider as physical controls,
 and the screen at the top. Everything else is touch, on the screen. Designed
 2026-10-31; nothing printed yet. (It started around a 3.5" panel, 195 mm deep;
@@ -16,7 +16,7 @@ renders 0001–0004 show that version.)
 | Jog sensing | 6×2.5 mm diametric magnet in the shaft end, 0.9 mm over an **MT6701** on a 22 mm board. A/B quadrature into the P4's pulse counter: no CPU, off the shared I2C bus |
 | CUE / PLAY | 19 mm caps in translucent light rings (amber, green), bottom left as on a CDJ, over key switches |
 | Pitch | 45 mm slide pot (Bourns PTA4543 class), knob at the right, tick scale, green tempo-zero LED |
-| Top | USB-A stick slot left of the screen (up the bezel, clear of the left clamp) with an activity LED; "ESP DECK" engraved below it |
+| Top | USB-A stick slot left of the screen (up the bezel, clear of the screen bosses) with an activity LED; "ESP DECK" engraved below it |
 | Rear | RJ45 (Pro DJ Link), RCA L/R line out (PCM5102A), USB-C power |
 | Assembly | The base plate screws into four corner posts (M3 countersunk into heat-set inserts). Rubber feet |
 
