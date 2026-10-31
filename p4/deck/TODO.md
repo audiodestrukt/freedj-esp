@@ -44,7 +44,9 @@ In order. Costs: **cheap** = logic only, no per-sample work; **moderate**; **hea
    - [ ] Faster stick loads (index built in the background), cache the track
      list on the stick, load the player settings saved on the stick.
 4. **Screen**
-   - [ ] rekordbox colour waveforms (moderate), waveform zoom (cheap).
+   - [x] rekordbox colour waveforms (PWV5), scrolling and overview.
+   - [ ] Waveform zoom (cheap). TAG LIST, INFO, MENU screens.
+   - [ ] **Bigger app partition: 6 % left.** 16 MB flash, 1.5 MB used.
    - [ ] The XDJ layout (BROWSE, TAG LIST, INFO, MENU, PERFORM) on the DSI
      screen.
 5. **Hardware**

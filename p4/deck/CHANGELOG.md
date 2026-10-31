@@ -11,6 +11,28 @@ playing (see the README's *Audio health* section). Unless noted, it's
 the panel**, so they read high. From 2026-10-31 on, "screen fps" counts
 frames LVGL actually rendered and flushed.
 
+## 2026-10-31: XDJ touch keys, boot splash, colour waveforms, "ESP Deck"
+
+- **Bottom row is now the XDJ's touch keys:** BROWSE (SEARCH) · TAG LIST ·
+  INFO (LINK INFO) · MENU (UTILITY) · PERFORM, in freedj-3000's colours.
+  - TAG LIST, INFO and MENU are dimmed: not built yet.
+  - BROWSE holds the list until pressed again or a track loads.
+  - PERFORM replaces PADS.
+  - The CUE / PLAY / LOAD buttons are gone: they're on the DJ2Go, and
+    tapping the selected row still loads.
+- **Boot:** the bootloader hook switches the backlight off about 50 ms after
+  power-on (no more white screen). The splash is the app's first step, now
+  at 1.0 s (the white screen used to last 3.7 s). The deck screen comes at
+  3.1 s (was 3.8). The PSRAM self-test is off (−1 s), and touch now starts
+  after audio, because it shares the I2C bus.
+- **Colour waveforms** from rekordbox's PWV5, on the scrolling waveform and
+  the overview. Bit order checked: red 15–13, green 12–10, blue 9–7, height
+  6–2; that layout correlates 0.86 with the PWV3 heights, rekordcrate's 0.63.
+  Same cost as the blue waveform: 37.8 fps, core 0 59 % while the buffer
+  refills.
+- **Named ESP Deck:** on the splash, and as the Pro DJ Link device name.
+- App: 6 % of the partition left. The bigger partition is due.
+
 ## 2026-10-31: scratch when paused, waveform stays up, feel parameters
 
 - **Paused jog scratches.** The jog moves a target, and the playhead chases

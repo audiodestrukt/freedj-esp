@@ -1,4 +1,6 @@
-# P4 deck
+# ESP Deck
+
+(in `p4/deck`; it started as "the P4 deck")
 
 A small CDJ-style deck on the **Waveshare ESP32-P4-Module-DEV-KIT**. It plays WAV and MP3 from a rekordbox USB stick or the SD card. You control it with a Numark DJ2Go over USB, the touch screen, or serial keys. It has varispeed and keylock, CDJ-style CUE, a scrolling waveform, and beat sync to other players over Pro DJ Link.
 
@@ -72,13 +74,14 @@ After changing `sdkconfig.defaults`, delete `sdkconfig` so the defaults are appl
 
 **Touch:**
 - Tap a row to select it; tap it again, or press LOAD, to load it.
-- The CUE, PLAY and LOAD buttons on screen behave like the DJ2Go's.
 - Tap the waveform to bring the list back.
 - Tap the **SYNC** and **KEY** chips in the header for sync and keylock.
 - Touch or drag the **overview** strip under the time to jump there (needle search).
 - Tap the **phase meter** to switch between the beat display and the alignment view.
 - The **waveform stays up while paused**; the list comes back for a few seconds while browsing.
-- **PADS** opens the performance pads over the meter and waveform:
+- **Bottom row: the XDJ's touch keys**, BROWSE · TAG LIST · INFO · MENU · PERFORM. TAG LIST, INFO and MENU are drawn dimmed: not built yet.
+  - **BROWSE** shows the track list until pressed again or a track loads (then back to the waveform, as on the XDJ).
+  - **PERFORM** opens the performance pads over the meter and waveform:
   - row 1: hot cues A–H (tap to set or jump, long-press to delete; momentary in slip)
   - row 2: CALL ◀ ▶ through the memory cues, MEM / DEL memory cue, loop /2 and x2, RELOOP/EXIT, SLIP
   - row 3: beat loops 1–16, beat jump ◀4 4▶, REV
@@ -140,6 +143,10 @@ Core 1 is reserved for audio. Everything else runs on core 0, and core 0 is kept
 **Streaming.** `TrackStream` decodes into a 12 MB PSRAM ring, about 71 s at 44.1 kHz. It keeps about 35 % behind the playhead for cue and jog, and the rest ahead. A seek outside the window restarts the window there. Sources sit behind one interface:
 - WAV: RIFF walk, including `WAVE_FORMAT_EXTENSIBLE`.
 - MP3: [minimp3](main/third_party/minimp3) with `MP3D_SEEK_TO_SAMPLE`. The file is indexed at load (about 0.5–0.6 s per track), so seeks land on exact samples and a needle jump leaves only a ~46 ms gap. The index is built even when the MP3 has a VBR tag; otherwise minimp3 would build it during the first far seek, mid-track.
+
+**Boot.** The bootloader turns the screen's backlight off about 50 ms after power-on (`bootloader_components/backlight_off`); the module's backlight is otherwise on, showing blank, white panel memory. The app draws a splash ("ESP DECK", build date, a status line) as its first step, at about 1.0 s, and the deck screen replaces it at about 3.1 s. The 32 MB PSRAM self-test is off (`CONFIG_SPIRAM_MEMTEST=n`); it cost about 1 s per boot.
+
+**Colour waveform.** For rekordbox tracks, the scrolling waveform and the overview use rekordbox's colour detail waveform (`PWV5` in the `.EXT`: 150 columns per second, RGB 3 bits each plus a 5-bit height). The bit order was checked against the monochrome `PWV3` heights. Other tracks use the blue waveform below.
 
 **Waveform.** While decoding, the loader also records one peak byte per 128 frames, indexed by absolute frame (`TrackStream::peak`). The UI draws a playhead-centred view from that array into a 480×100 RGB565 canvas in PSRAM. One pixel is 512 frames, so the screen spans about 5.6 s. The audio itself is never read for drawing.
 
