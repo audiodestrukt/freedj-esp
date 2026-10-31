@@ -49,7 +49,8 @@ static const char* TAG = "deck";
 
 constexpr uint32_t kRate       = 44100;
 constexpr int      kBlock      = 256;    // frames per write (~5.8 ms)
-constexpr float    kTempoRange = 0.08f;  // ±8 %
+// Pitch fader ranges, as on the XDJ: ±6, ±10 (default), ±16 %, WIDE (±100 %).
+constexpr float    kRanges[] = {0.06f, 0.10f, 0.16f, 1.0f};
 constexpr int      kScrubFrames = 441;   // paused jog: 10 ms per tick
 constexpr uint8_t  kLinkPlayer = 2;      // our Pro DJ Link player number
 // Audio queued between the audio task and the speaker: the I2S driver's
@@ -160,6 +161,16 @@ struct Deck {
     static constexpr int kMaxMem = 16;
     double mem[kMaxMem];                // memory cues, sorted (frames)
     int    nMem = 0;
+    // Tempo: fader position, range, and TEMPO RESET (play at 0 %).
+    float  fader     = 0.5f;
+    int    range     = 1;               // index into kRanges
+    bool   tempoReset = false;
+    // Slip: while a loop, reverse or held hot cue plays, a shadow playhead
+    // keeps going at normal speed; letting go resumes from it.
+    bool   slip      = false;
+    double slipPos   = 0;
+    bool   hotHeld   = false;           // a hot cue pad is held (momentary in slip)
+    bool   reverse   = false;
     double pos       = 0;       // frames into track (fractional for varispeed)
     double cue       = 0;
     float  tempo     = 1.0f;
@@ -315,7 +326,11 @@ static void apply(Deck& d, const deck::Event& e)
         break;
     case Type::HotCue: {
         const int i = e.delta - 1;
-        if (!e.pressed || !d.loaded || d.emergency || i < 0 || i > 7) break;
+        if (!e.pressed) {                            // pad released: in slip, a hot cue is momentary
+            if (d.hotHeld) { d.hotHeld = false; if (d.slip) d.looping = false; }
+            break;
+        }
+        if (!d.loaded || d.emergency || i < 0 || i > 7) break;
         auto& h = d.hot[i];
         const char letter = 'A' + i;
         if (e.position > 0.5f) { h = Deck::HotCue{}; ESP_LOGI(TAG, "hot cue %c deleted", letter); break; }
@@ -331,6 +346,7 @@ static void apply(Deck& d, const deck::Event& e)
             else d.looping = false;
             if (!d.playing) { d.playing = true; if (d.sync) d.alignNext = true; }   // like a CDJ: plays from the cue
             d.previewing = false;
+            d.hotHeld = true;
         }
         break;
     }
@@ -394,7 +410,52 @@ static void apply(Deck& d, const deck::Event& e)
         if (e.pressed) { d.quantize = !d.quantize; ESP_LOGI(TAG, "quantize %s", d.quantize ? "on" : "off"); }
         break;
     case Type::TempoFader:
-        d.tempo = 1.0f + (e.position - 0.5f) * 2.0f * kTempoRange;
+        d.fader = e.position;
+        if (!d.tempoReset) d.tempo = 1.0f + (d.fader - 0.5f) * 2.0f * kRanges[d.range];
+        break;
+    case Type::TempoRange:
+        if (!e.pressed) break;
+        d.range = (d.range + 1) % 4;
+        if (!d.tempoReset && !d.sync) d.tempo = 1.0f + (d.fader - 0.5f) * 2.0f * kRanges[d.range];
+        ESP_LOGI(TAG, "tempo range %s", d.range == 3 ? "WIDE" : d.range == 0 ? "6 %" : d.range == 1 ? "10 %" : "16 %");
+        break;
+    case Type::TempoReset:
+        if (!e.pressed) break;
+        d.tempoReset = !d.tempoReset;
+        if (!d.sync) d.tempo = d.tempoReset ? 1.0f : 1.0f + (d.fader - 0.5f) * 2.0f * kRanges[d.range];
+        ESP_LOGI(TAG, "tempo reset %s", d.tempoReset ? "on" : "off");
+        break;
+    case Type::MemoryAdd: {
+        if (!e.pressed || !d.loaded || d.emergency) break;
+        const double at = d.looping ? d.loopStart : d.cue;
+        for (int i = 0; i < d.nMem; i++) if (fabs(d.mem[i] - at) < 0.01 * rate()) return;   // already there
+        if (d.nMem >= Deck::kMaxMem) break;
+        int i = d.nMem++;
+        while (i > 0 && d.mem[i - 1] > at) { d.mem[i] = d.mem[i - 1]; i--; }
+        d.mem[i] = at;
+        ESP_LOGI(TAG, "memory cue stored (%d); this session only, not written to the stick", d.nMem);
+        break;
+    }
+    case Type::MemoryDelete: {
+        if (!e.pressed || !d.loaded) break;
+        int pick = -1;
+        for (int i = 0; i < d.nMem; i++)
+            if (fabs(d.mem[i] - d.cue) < 0.1 * rate() || fabs(d.mem[i] - d.pos) < 0.1 * rate()) { pick = i; break; }
+        if (pick < 0) break;
+        for (int i = pick; i + 1 < d.nMem; i++) d.mem[i] = d.mem[i + 1];
+        d.nMem--;
+        ESP_LOGI(TAG, "memory cue deleted (%d left)", d.nMem);
+        break;
+    }
+    case Type::Slip:
+        if (e.pressed) { d.slip = !d.slip; d.slipPos = d.pos; ESP_LOGI(TAG, "slip %s", d.slip ? "on" : "off"); }
+        break;
+    case Type::Reverse:
+        if (!e.pressed || !d.loaded || d.emergency) break;
+        d.reverse = !d.reverse;
+        s_wsola.reset();
+        if (!d.reverse && d.sync && !d.slip) d.alignNext = true;
+        ESP_LOGI(TAG, "reverse %s", d.reverse ? "on" : "off");
         break;
     case Type::Jog:
         if (d.playing) d.nudge += e.delta * 0.004f;
@@ -422,8 +483,9 @@ static void apply(Deck& d, const deck::Event& e)
 // Returns false on a stream underrun (window not filled yet).
 static bool renderPitched(Deck& d, float speed, int16_t* out)
 {
-    const double step = speed * (double)s_stream.sampleRate() / kRate;
+    const double step = (d.reverse ? -1 : 1) * speed * (double)s_stream.sampleRate() / kRate;
     for (int i = 0; i < kBlock; i++) {
+        if (d.pos < 0) { d.pos = 0; memset(out + 2 * i, 0, (kBlock - i) * 4); d.playing = false; return true; }  // reversed to 0:00
         const size_t i0 = (size_t)d.pos;
         if (i0 + 1 >= s_stream.frames()) { memset(out + 2 * i, 0, (kBlock - i) * 4); d.playing = false; return true; }
         int16_t two[4];
@@ -433,6 +495,7 @@ static bool renderPitched(Deck& d, float speed, int16_t* out)
         out[2 * i + 1] = (int16_t)(two[1] + fr * (two[3] - two[1]));
         d.pos += step;
         if (d.looping && d.pos >= d.loopEnd) d.pos -= d.loopEnd - d.loopStart;
+        else if (d.looping && d.reverse && d.pos < d.loopStart) d.pos += d.loopEnd - d.loopStart;
     }
     return true;
 }
@@ -630,6 +693,11 @@ static void publishState(const Deck& d, float speed)
     u.keylock = d.keylock;
     u.emergency = d.emergency;
     u.quantize = d.quantize;
+    u.rangePct = (int)lroundf(kRanges[d.range] * 100);
+    u.tempoReset = d.tempoReset;
+    u.slip = d.slip;
+    u.reverse = d.reverse;
+    u.slipFrame = (size_t)d.slipPos;
     u.looping = d.looping;
     u.loopStart = (size_t)d.loopStart;
     u.loopEnd = (size_t)d.loopEnd;
@@ -848,7 +916,7 @@ static void audioTask(void*)
         float speed = d.tempo + d.nudge;
         if (d.keylock) stepWsolaLag(speed);
         bool synced = false;
-        if (d.sync && d.loaded && !grid().empty() && s_master.present && s_master.bpm > 0) {
+        if (d.sync && d.loaded && !d.reverse && !grid().empty() && s_master.present && s_master.bpm > 0) {
             const float trackBpm = grid().bpmAt(d.pos * 1000.0 / s_stream.sampleRate());
             const float base = syncSpeed(s_master.bpm, trackBpm);
             d.tempo = base;                           // stays here if sync is switched off
@@ -886,8 +954,17 @@ static void audioTask(void*)
         }
         d.nudge *= 0.97f;
 
+        // Slip: while slipping, the shadow playhead runs on at normal speed;
+        // when it ends, playback resumes from it.
+        static bool wasSlipping = false;
+        const bool slipping = d.slip && d.playing && (((d.looping && !d.emergency)) || d.reverse || d.hotHeld);
+        if (wasSlipping && !slipping && d.loaded) seek(d, d.slipPos);
+        wasSlipping = slipping;
         if (d.playing && d.loaded) {
-            const bool fed = d.keylock ? renderKeylock(d, speed, buf) : renderPitched(d, speed, buf);
+            // Reverse always plays varispeed: the time-stretcher only runs forwards.
+            const bool fed = d.keylock && !d.reverse ? renderKeylock(d, speed, buf) : renderPitched(d, speed, buf);
+            if (slipping) d.slipPos += kBlock * speed * (double)s_stream.sampleRate() / kRate;
+            else d.slipPos = d.pos;
             if (!fed) {
                 underruns++;
                 if (d.sync) d.alignNext = true;   // we stalled; the master didn't: re-snap
@@ -960,6 +1037,7 @@ static void audioTask(void*)
 //   ! @ # $ % ^ & * (shift 1-8) hot cue A-H, set / jump   D delete hot cue A
 //   o 4-beat loop   x reloop/exit   ( ) loop 1/2, x2   i u loop in/out
 //   , . beat jump -/+4   < > call previous/next memory cue   q quantize
+//   t tempo range   T tempo reset   m M memory cue add/delete   z slip   r reverse
 //   w cycle waveform test mode (normal / no flush / off)
 static void serialKeysTask(void*)
 {
@@ -980,7 +1058,9 @@ static void serialKeysTask(void*)
         case 'n': onUiSeek(0.5f); continue;   // needle search to the middle (test)
         case '!': case '@': case '#': case '$': case '%': case '^': case '&': case '*': {
             static const char kHot[] = "!@#$%^&*";               // shift + 1..8 = hot cue A..H
-            e.type = deck::Type::HotCue; e.delta = (int16_t)(strchr(kHot, ch) - kHot + 1); break;
+            e.type = deck::Type::HotCue; e.delta = (int16_t)(strchr(kHot, ch) - kHot + 1);
+            onUiEvent(e);                                        // press + release, like a tap
+            e.pressed = false; break;
         }
         case 'D': e.type = deck::Type::HotCue; e.delta = 1; e.position = 1; break;   // delete hot cue A
         case 'o': e.type = deck::Type::BeatLoop; e.position = 4; break;
@@ -994,6 +1074,12 @@ static void serialKeysTask(void*)
         case '<': e.type = deck::Type::CueCall; e.delta = -1; break;
         case '>': e.type = deck::Type::CueCall; e.delta = 1; break;
         case 'q': e.type = deck::Type::Quantize; break;
+        case 't': e.type = deck::Type::TempoRange; break;
+        case 'T': e.type = deck::Type::TempoReset; break;
+        case 'm': e.type = deck::Type::MemoryAdd; break;
+        case 'M': e.type = deck::Type::MemoryDelete; break;
+        case 'z': e.type = deck::Type::Slip; break;
+        case 'r': e.type = deck::Type::Reverse; break;
         case 'g': s_fakeGridBpm = 120; ESP_LOGI(TAG, "test grid: 120 BPM from the start"); continue;
         case '[': s_syncOffsetMs -= 2; ESP_LOGI(TAG, "sync offset %+d ms", s_syncOffsetMs); continue;
         case ']': s_syncOffsetMs += 2; ESP_LOGI(TAG, "sync offset %+d ms", s_syncOffsetMs); continue;

@@ -53,9 +53,11 @@ static SeekFn   s_onSeek;
 
 static lv_obj_t *s_name, *s_state, *s_time, *s_remain, *s_tempo, *s_key, *s_sync, *s_bpm, *s_quant;
 static lv_obj_t *s_barsMem, *s_barsHot;   // XDJ "Bars" countdowns
+static lv_obj_t *s_range;                 // pitch range; tap cycles, long press = tempo reset
+static lv_obj_t *s_slipPad, *s_revPad;
 // PADS panel (the XDJ's PERFORM pads): hot cues, CALL, loop size, beat
 // loops, RELOOP/EXIT, beat jump. Covers the waveform while it's open.
-static lv_obj_t *s_pads, *s_padsBtn, *s_hotPad[4], *s_reloopPad;
+static lv_obj_t *s_pads, *s_padsBtn, *s_hotPad[8], *s_reloopPad;
 static bool s_padsOn;
 static lv_obj_t *s_ov, *s_list, *s_cueBtn, *s_playBtn;
 static uint16_t* s_ovBuf;            // kOvW x kOvH RGB565, PSRAM; redrawn when the playhead moves a pixel
@@ -236,15 +238,18 @@ static void drawOverview(const State& s, int playX, int cueX)
 
 // ── PADS ─────────────────────────────────────────────────────────────────────
 struct PadDef { const char* text; deck::Type type; int16_t delta; float position; };
-static const PadDef kPadRows[2][8] = {
+static const PadDef kPadRows[3][8] = {
     {{"A", deck::Type::HotCue, 1, 0}, {"B", deck::Type::HotCue, 2, 0}, {"C", deck::Type::HotCue, 3, 0},
-     {"D", deck::Type::HotCue, 4, 0}, {LV_SYMBOL_LEFT, deck::Type::CueCall, -1, 0},
-     {LV_SYMBOL_RIGHT, deck::Type::CueCall, 1, 0}, {"1/2", deck::Type::LoopHalve, 0, 0},
-     {"x2", deck::Type::LoopDouble, 0, 0}},
+     {"D", deck::Type::HotCue, 4, 0}, {"E", deck::Type::HotCue, 5, 0}, {"F", deck::Type::HotCue, 6, 0},
+     {"G", deck::Type::HotCue, 7, 0}, {"H", deck::Type::HotCue, 8, 0}},
+    {{LV_SYMBOL_LEFT, deck::Type::CueCall, -1, 0}, {LV_SYMBOL_RIGHT, deck::Type::CueCall, 1, 0},
+     {"MEM", deck::Type::MemoryAdd, 0, 0}, {"DEL", deck::Type::MemoryDelete, 0, 0},
+     {"/2", deck::Type::LoopHalve, 0, 0}, {"x2", deck::Type::LoopDouble, 0, 0},
+     {"RELOOP", deck::Type::ReloopExit, 0, 0}, {"SLIP", deck::Type::Slip, 0, 0}},
     {{"1", deck::Type::BeatLoop, 0, 1}, {"2", deck::Type::BeatLoop, 0, 2}, {"4", deck::Type::BeatLoop, 0, 4},
      {"8", deck::Type::BeatLoop, 0, 8}, {"16", deck::Type::BeatLoop, 0, 16},
-     {"RELOOP", deck::Type::ReloopExit, 0, 0}, {LV_SYMBOL_PREV " 4", deck::Type::BeatJump, -4, 0},
-     {"4 " LV_SYMBOL_NEXT, deck::Type::BeatJump, 4, 0}},
+     {LV_SYMBOL_PREV " 4", deck::Type::BeatJump, -4, 0}, {"4 " LV_SYMBOL_NEXT, deck::Type::BeatJump, 4, 0},
+     {"REV", deck::Type::Reverse, 0, 0}},
 };
 
 static void onPad(lv_event_t* e)
@@ -256,10 +261,15 @@ static void onPad(lv_event_t* e)
     ev.pressed = true;
     ev.delta = p->delta;
     ev.position = p->position;
-    // Long press on a hot cue pad deletes it.
-    if (lv_event_get_code(e) == LV_EVENT_LONG_PRESSED) {
+    const lv_event_code_t code = lv_event_get_code(e);
+    // Long press on a hot cue pad deletes it; releasing it ends a momentary
+    // (slip) hot cue.
+    if (code == LV_EVENT_LONG_PRESSED) {
         if (p->type != deck::Type::HotCue) return;
         ev.position = 1;
+    } else if (code == LV_EVENT_RELEASED || code == LV_EVENT_PRESS_LOST) {
+        if (p->type != deck::Type::HotCue) return;
+        ev.pressed = false;
     }
     s_onEvent(ev);
 }
@@ -275,31 +285,36 @@ static void onPadsBtn(lv_event_t*) { showPads(!s_padsOn); }
 
 static void buildPads(lv_obj_t* scr)
 {
+    // Three rows over the meter and waveform (y 120..264).
     s_pads = lv_obj_create(scr);
     lv_obj_remove_style_all(s_pads);
-    lv_obj_set_pos(s_pads, 0, 156);
-    lv_obj_set_size(s_pads, display::W, 108);
+    lv_obj_set_pos(s_pads, 0, 120);
+    lv_obj_set_size(s_pads, display::W, 144);
     lv_obj_set_style_bg_opa(s_pads, LV_OPA_COVER, 0);
     lv_obj_set_style_bg_color(s_pads, kBg, 0);
-    const int gap = 4, w = (display::W - 2 * kMargin - 7 * gap) / 8, h = 48;
-    for (int r = 0; r < 2; r++)
+    const int gap = 4, w = (display::W - 2 * kMargin - 7 * gap) / 8, h = 44;
+    for (int r = 0; r < 3; r++)
         for (int c = 0; c < 8; c++) {
             const PadDef* p = &kPadRows[r][c];
             lv_obj_t* b = lv_button_create(s_pads);
-            lv_obj_set_pos(b, kMargin + c * (w + gap), 4 + r * (h + gap + 2));
+            lv_obj_set_pos(b, kMargin + c * (w + gap), 2 + r * (h + gap));
             lv_obj_set_size(b, w, h);
             lv_obj_set_style_radius(b, 6, 0);
             lv_obj_set_style_shadow_width(b, 0, 0);
-            lv_obj_set_style_bg_color(b, r == 0 && c < 4 ? kDimBlue : kPanel, 0);
+            lv_obj_set_style_bg_color(b, r == 0 ? kDimBlue : kPanel, 0);
             lv_obj_t* l = label(b, &lv_font_montserrat_16, kText);
             lv_label_set_text(l, p->text);
             lv_obj_center(l);
             lv_obj_add_event_cb(b, onPad, LV_EVENT_PRESSED, (void*)p);
             if (p->type == deck::Type::HotCue) {
                 lv_obj_add_event_cb(b, onPad, LV_EVENT_LONG_PRESSED, (void*)p);
+                lv_obj_add_event_cb(b, onPad, LV_EVENT_RELEASED, (void*)p);
+                lv_obj_add_event_cb(b, onPad, LV_EVENT_PRESS_LOST, (void*)p);
                 s_hotPad[c] = b;
             }
             if (p->type == deck::Type::ReloopExit) s_reloopPad = b;
+            if (p->type == deck::Type::Slip) s_slipPad = b;
+            if (p->type == deck::Type::Reverse) s_revPad = b;
         }
     showPads(false);
 }
@@ -423,6 +438,13 @@ static void build()
 
     s_tempo = label(scr, &lv_font_montserrat_24, kText);
     lv_obj_align(s_tempo, LV_ALIGN_TOP_RIGHT, -kMargin, 44);
+
+    s_range = label(scr, &lv_font_montserrat_16, kDim);
+    lv_obj_align(s_range, LV_ALIGN_TOP_RIGHT, -122, 52);
+    lv_obj_set_ext_click_area(s_range, 10);
+    lv_obj_add_flag(s_range, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(s_range, [](lv_event_t*) { send(deck::Type::TempoRange, true); }, LV_EVENT_SHORT_CLICKED, nullptr);
+    lv_obj_add_event_cb(s_range, [](lv_event_t*) { send(deck::Type::TempoReset, true); }, LV_EVENT_LONG_PRESSED, nullptr);
 
     s_bpm = label(scr, &lv_font_montserrat_16, kDim);
     lv_obj_align(s_bpm, LV_ALIGN_TOP_RIGHT, -kMargin, 76);
@@ -684,6 +706,8 @@ static void drawWave(const State& s)
         for (int i = 0; i < s.nMem; i++) mark(s.memFrame[i], lv_color_to_u16(lv_color_hex(0xE0453A)), kWaveH);
         for (int i = 0; i < 8; i++) if (s.hotSet & (1 << i)) mark(s.hotFrame[i], lv_color_to_u16(kGreen), kWaveH / 2);
         mark(s.cueFrame, lv_color_to_u16(kOrange), kWaveH);
+        // Slip: where the track would be, as a grey line.
+        if (s.slip && s.slipFrame != s.frame) mark(s.slipFrame, lv_color_to_u16(kDim), kWaveH);
     }
     for (int y = 0; y < kWaveH; y++) {
         s_waveBuf[y * W + W / 2 - 1] = 0xFFFF;
@@ -820,13 +844,23 @@ static void refresh(lv_timer_t*)
         fmt(s_barsHot, s.barsToHot);
     }
     if (s_first || s.hotSet != o.hotSet || s.hotLoop != o.hotLoop) {
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < 8; i++) {
             const bool set = s.hotSet & (1 << i), loop = s.hotLoop & (1 << i);
             lv_obj_set_style_bg_color(s_hotPad[i], !set ? kDimBlue : loop ? kOrange : kGreen, 0);
         }
     }
     if (s_first || s.looping != o.looping)
         lv_obj_set_style_bg_color(s_reloopPad, s.looping ? kOrange : kPanel, 0);
+    if (s_first || s.slip != o.slip) lv_obj_set_style_bg_color(s_slipPad, s.slip ? kBlue : kPanel, 0);
+    if (s_first || s.reverse != o.reverse) lv_obj_set_style_bg_color(s_revPad, s.reverse ? kOrange : kPanel, 0);
+    if (s_first || s.rangePct != o.rangePct || s.tempoReset != o.tempoReset) {
+        char r[16];
+        if (s.tempoReset) strlcpy(r, "RESET", sizeof r);
+        else if (s.rangePct >= 100) strlcpy(r, "WIDE", sizeof r);
+        else snprintf(r, sizeof r, "+-%d", s.rangePct);   // the font has no "±"
+        lv_label_set_text(s_range, r);
+        lv_obj_set_style_text_color(s_range, s.tempoReset ? kOrange : kDim, 0);
+    }
 
     // The library changed (stick in or out): rebuild the rows.
     static int checkedRow = -1;

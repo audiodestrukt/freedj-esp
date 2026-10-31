@@ -21,6 +21,11 @@ struct State {
     bool  keylock    = false;
     bool  emergency  = false;  // media pulled mid-play: looping from memory
     bool  quantize   = true;
+    int   rangePct   = 10;     // pitch range: 6, 10, 16, 100 (WIDE)
+    bool  tempoReset = false;
+    bool  slip       = false;
+    bool  reverse    = false;
+    size_t slipFrame = 0;      // slip's shadow playhead
     bool  looping    = false;
     size_t loopStart = 0, loopEnd = 0;     // frames (active loop)
     uint8_t hotSet = 0, hotLoop = 0;       // bit i = hot cue A+i is set / is a loop
