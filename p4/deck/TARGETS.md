@@ -16,7 +16,7 @@ From the [README's resource budget](README.md#resource-budget) and the
 | **Internal RAM** | Task stacks, DMA buffers, LVGL's per-frame work | 77–80 KB free at the lowest point. **The tightest resource** |
 | **PSRAM, large and fast** | 12 MB track window (~70 s), peaks, waveform canvases, track list | ~13 MB used of 32 MB. Bandwidth matters: screen traffic through PSRAM measurably slows keylock |
 | **USB host** | DJ2Go (full speed) and the USB stick | Root port forced to full speed so the DJ2Go works behind the hub (ESP-IDF has no transaction translator) |
-| **Ethernet MAC** | Pro DJ Link, wired as Pioneer gear expects | 100 Mbit is plenty; the Link task uses 2–4 % of core 0 |
+| **Ethernet MAC** | Pro DJ Link, wired as Pioneer gear expects | **100 Mbit** (IP101GRI PHY; log: "working in 100Mbps"), and plenty: the Link task uses 2–4 % of core 0, and even streaming a 320 kbps track to another player would be ~0.3 % of the link. Gigabit buys nothing here |
 | **I2S** | DAC out (and a timecode ADC later) | |
 | **A display interface** | SPI today (the MSP4021 stand-in); MIPI-DSI for the planned XDJ-style screen | |
 | **Flash** | App 1.4 MB | 8 MB app partition |
@@ -54,7 +54,7 @@ preliminary).
 
 | For ESP Deck | |
 |---|---|
-| Good | Same CPU family as the P4, so it's mostly a re-target, not a rewrite. Ethernet and USB host on chip. Wi-Fi built in |
+| Good | Same CPU family as the P4, so it's mostly a re-target, not a rewrite. Ethernet and USB host on chip. Wi-Fi built in. (Its MAC is gigabit, but ESP Deck has no use for more than 100 Mbit) |
 | CPU | ~10 % slower clock; probably fine given the headroom |
 | **Internal RAM** | **A third less (512 vs 768 KB).** Our tightest resource, so it would need a trimming pass first (move more to PSRAM) |
 | **PSRAM bandwidth** | Octal (8-bit) vs the P4's hex (16-bit) at 200 MHz: likely about half. Screen-versus-keylock contention is already measurable on the P4, so whether waveform and keylock still fit together needs measuring |
