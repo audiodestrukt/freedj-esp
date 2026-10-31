@@ -12,6 +12,44 @@ Where things stand (2026-10-30):
   - Confirm timecode lock and steering still work with real vinyl.
   - See whether the DAC volume cap (vol=50, added for DAC→ADC crosstalk) can come up now.
 
+## XDJ-1000 parity roadmap
+
+In order. Costs: **cheap** = logic only, no per-sample work; **moderate**; **heavy**.
+
+1. **Performance basics** (cheap; in progress)
+   - [x] Hot cues and memory cues read from rekordbox, plus CALL ◀ ▶, the Bars
+     countdown, and cue marks. Hot cues E–H are read and keyboard-reachable,
+     but there are no pads for them yet (needs a bank switch).
+   - [x] Loops: beat loop 1–16, manual in/out, reloop/exit, halve/double.
+   - [x] Beat jump ±4 (it moves an active loop with it).
+   - [x] Quantize.
+   - [ ] Setting memory cues on the deck. Today they're read-only, from rekordbox.
+   - [ ] Tempo range ±6/10/16/WIDE, tempo reset.
+   - [ ] Slip mode. Reverse.
+   - [ ] Vinyl-mode jog. Needs a touch-sensitive jog, so it waits for the I2C panel.
+2. **Full Link citizen**
+   - [ ] Send beat packets, take tempo master, master handoff (cheap;
+     freedj-3000 has the state machine).
+   - [ ] Mixer integration: on-air light, fader start (cheap).
+   - [ ] Load from other players' media: network file client plus
+     `export.pdb` (heavy).
+   - [ ] Let other players load from our stick: file server plus rekordbox
+     database server (heavy).
+3. **Library and browsing**
+   - [ ] Parse `export.pdb`: playlists, artist, BPM, key, search, history;
+     track info on screen (moderate).
+   - [ ] FLAC and AIFF (cheap–moderate), AAC/M4A (moderate).
+   - [ ] Faster stick loads (index built in the background), cache the track
+     list on the stick, load the player settings saved on the stick.
+4. **Screen**
+   - [ ] rekordbox colour waveforms (moderate), waveform zoom (cheap).
+   - [ ] The XDJ layout (BROWSE, TAG LIST, INFO, MENU, PERFORM) on the DSI
+     screen.
+5. **Hardware**
+   - [ ] PCM5102A stereo line out.
+   - [ ] I2C control panel: jog, 14-bit pitch, pads.
+   - [ ] DSI screen.
+
 ## Features
 - [ ] **Pro DJ Link, next steps** (following the master works; see README):
   - Test against the XDJ-1000MK2 and trim the phase by ear (`[` `]`).

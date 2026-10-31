@@ -11,6 +11,47 @@ playing (see the README's *Audio health* section). Unless noted, it's
 the panel**, so they read high. From 2026-10-31 on, "screen fps" counts
 frames LVGL actually rendered and flushed.
 
+## 2026-10-31: cues, loops, beat jump, quantize (XDJ parity step 1)
+
+- **Hot cues A–H and memory cues read from rekordbox.** `PCO2` in the
+  `.EXT` is preferred, falling back to `PCOB` in the `.DAT`. A track loads at
+  its first memory cue, as on a CDJ.
+- **Hot cue pad:**
+  - empty: stores a cue at the (quantized) position, or the active loop
+  - set: jumps there and plays, as a CDJ does; a hot loop starts its loop
+  - long press: deletes it
+- **Loops:**
+  - beat loops of 1–16 beats from the current beat
+  - manual in/out, on the DJ2Go's LOOP IN / LOOP OUT
+  - RELOOP/EXIT, and halve/double (in beats for beat loops)
+  - the emergency loop now shares this loop engine
+- **Beat jump ±4.** It moves an active loop along with it. **CALL ◀ ▶** steps
+  through the memory cues.
+- **Quantize** (on by default, as on the XDJ): cue, hot cue and loop points
+  snap to the beat. Jumps land at the same point within the beat as where
+  you left, so the track keeps time and SYNC holds.
+- **Screen:**
+  - PADS panel over the waveform: A–D, CALL ◀ ▶, 1/2, x2, loops 1–16,
+    RELOOP, ◀4 4▶
+  - Q chip in the header
+  - the Bars countdowns are live: bars.beats to the next memory cue and the
+    next hot cue
+  - waveform: loop band, hot cues green, memory cues red; overview ticks too
+
+Measured synced to the virtual CDJ: phase error 1.4 / 3–4 ms through every
+loop, halve, double, exit, hot cue jump, beat jump and manual loop.
+
+Budget (stick track, synced, hot cue + 4-beat loop, waveform up, buffer
+still filling):
+
+| | |
+|---|---|
+| Screen | 34 fps |
+| Core 0 | 60 % (LVGL 36 %, loader 18 % refilling, Link 3 %) |
+| Core 1 | 12 % |
+| Worst audio block | 1.5 ms |
+| Internal RAM | 95 KB free, 79 KB lowest |
+
 ## 2026-10-31: boot without waiting for USB, hot-swap sticks, emergency loop
 
 - **Boot no longer waits for the stick.** The screen is up at 3.8 s (was
