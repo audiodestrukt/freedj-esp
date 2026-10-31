@@ -14,3 +14,7 @@
 - 0012-compact-flat-front.jpg: 2026-10-31: same, flat-top, from the front
 - 0013-screen-bosses-underside.jpg: 2026-10-31: flat shell from below: 4 screen bosses on the module's 102.00 x 54.88 hole pattern (clamps gone)
 - 0014-screen-mounted-underside.jpg: 2026-10-31: same, with the module board screwed on (M3 x 5 thread-formers)
+- 0015-recessed-screen-flat-front.jpg: 2026-10-31: screen recessed behind the top; a chamfered window shows only the active area (off-centre, as on the panel)
+- 0016-recessed-screen-angled-hero.jpg: 2026-10-31: same, angled
+- 0017-window-and-bosses-underside.jpg: 2026-10-31: from below: the window and 4 screen bosses coming down to the board
+- 0018-section-through-screen-boss.jpg: 2026-10-31: section through a boss: top, glass, board, M3 screw in the pilot

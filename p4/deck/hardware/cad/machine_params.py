@@ -36,8 +36,11 @@ LCD_PCB = (108.0, 60.88, 1.6)
 LCD_HOLES = (102.0, 54.88)   # 4 x 3.2 mm, 3.00 mm in from the board edges
 LCD_DEPTH = 14.8             # whole module incl. pin header, from the glass top
 SCREEN_X = 84.0              # screen centre x (off-centre to leave room for the USB-A slot)
-SCREEN_BOSS_D = 6.0          # bosses on the 4 holes; keep < 2*(hole - glass edge) - clearance
-SCREEN_PILOT = (2.5, 3.8)    # M3 thread-forming screws for plastic: pilot diameter, depth from the board
+SCREEN_BOSS_D = 6.8          # bosses on the 4 holes, down to the board; must clear the glass edge (3.7 mm away)
+SCREEN_PILOT = (2.5, 6.0)    # M3 thread-forming screws for plastic: pilot diameter, depth from the board face
+GASKET = 0.5                 # foam between the glass and the top's underside
+WINDOW_MARGIN = 0.5          # window = active area + this all round
+WINDOW_LIP = 1.0             # straight part of the window wall; above it a 45 degree chamfer for fingers
 
 # Jog
 JOG_C = (80.0, 60.0)
@@ -90,6 +93,8 @@ BEZEL_Y = JOG_C[1] + WELL_D / 2 + JOG_SCREEN_GAP - GLASS_MARGIN[0]
 D = round(BEZEL_Y + SLOPE_L * math.cos(math.radians(TILT)), 1)
 H_BACK = H + SLOPE_L * math.sin(math.radians(TILT))
 SCREEN_V = GLASS_MARGIN[0] + (GLASS[1] + 0.4) / 2   # screen centre, measured up the slope
+TOP_T_PERP = TOP_T * math.cos(math.radians(TILT))   # top thickness measured square to the bezel
+GLASS_Z = -(TOP_T_PERP + GASKET)                    # glass top, face-local: behind the top plate
 USBA_V = SCREEN_V + 18.0     # USB-A slot sits up the slope, clear of the screen bosses
 BRAND_V = 9.0                # "ESP DECK", left of the screen near the bend
 

@@ -11,6 +11,15 @@ playing (see the README's *Audio health* section). Unless noted, it's
 the panel**, so they read high. From 2026-10-31 on, "screen fps" counts
 frames LVGL actually rendered and flushed.
 
+## 2026-10-31: screen recessed behind a window (CAD only)
+
+- The screen now sits behind the top plate on a 0.5 mm foam gasket. The
+  window shows only the visible area: it's off-centre by 2.88 mm, as the
+  panel's active area is, and chamfered 45° so fingers reach the edges.
+- The four screen bosses come down to the board (6.8 mm OD); the M3 pilots
+  are 6 mm deep, 3.3 mm under the face.
+- No firmware change, so the budget is unchanged.
+
 ## 2026-10-31: screen mounts on its own 4 holes (CAD only)
 
 - The screen is a Hosyond 4" capacitive, i.e. the LCDwiki MSP4031: the model

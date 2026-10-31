@@ -6,12 +6,12 @@ and the screen at the top. Everything else is touch, on the screen. Designed
 2026-10-31; nothing printed yet. (It started around a 3.5" panel, 195 mm deep;
 renders 0001–0004 show that version.)
 
-![ESP Deck, 4" screen](cad/renders/esp_deck/0011-compact-angled-hero.jpg)
+![ESP Deck, 4" screen](cad/renders/esp_deck/0016-recessed-screen-angled-hero.jpg)
 
 | | |
 |---|---|
 | Footprint | **160 × 185 mm** (angled; 186 mm flat), 34 mm tall at the front, 48 mm at the back of the angled bezel. The top shell fits a 256 mm bed in one piece. The depth is derived from the layout (jog well, an 8 mm gap, the glass with 4 and 5 mm margins), so moving the jog or changing the screen resizes the deck |
-| Screen | **Hosyond 4.0" 320×480 capacitive** (ST7796S, FT6336U touch), the panel on the bench. It's the LCDwiki/QDtech **MSP4031** module ([drawing](https://www.lcdwiki.com/res/MSP4030_MSP4031/4.0inch_SPI_Module_MSP4031_Size.pdf)): 108.00 × 60.88 mm board, 60.88 × 94.57 mm glass centred on it, 4.85 mm of glass and tape above the board, 14.8 mm deep with the header. The glass sits **flush in an opening through the top**. The board screws onto **four bosses on its four Ø3.2 mounting holes** (102.00 × 54.88 mm apart), with M3 × 5 thread-forming screws into 2.5 mm pilots 3.8 mm deep, leaving 1 mm under the face. Screen centred at x = 84 mm, leaving room for the USB-A slot on the left |
+| Screen | **Hosyond 4.0" 320×480 capacitive** (ST7796S, FT6336U touch), the panel on the bench. It's the LCDwiki/QDtech **MSP4031** module ([drawing](https://www.lcdwiki.com/res/MSP4030_MSP4031/4.0inch_SPI_Module_MSP4031_Size.pdf)): 108.00 × 60.88 mm board, 60.88 × 94.57 mm glass centred on it, 4.85 mm of glass and tape above the board, 14.8 mm deep with the header. The screen sits **behind the top**: a window shows only the visible area (active area + 0.5 mm, 2.88 mm off-centre away from the header end, as on the panel), straight for 1 mm then chamfered 45° so a finger reaches the edges of the touch area. A 0.5 mm foam gasket sits between the glass and the top. **Four bosses come down from the top to the board** on its four Ø3.2 mounting holes (102.00 × 54.88 mm apart): 6.8 mm OD, with 2.5 mm pilots 6 mm deep for M3 × 5 thread-forming screws (about 3.3 mm of plastic left under the face). Screen centred at x = 84 mm, leaving room for the USB-A slot on the left |
 | Jog | 100 mm printed platter, knurled rim, on an **8 mm shaft through two 608 skateboard bearings** pressed into a boss under the top. Steel inertia ring (r 38–46 mm, 5 mm) in the platter's underside. Aluminium top plate, which doubles as the capacitive touch electrode |
 | Jog sensing | 6×2.5 mm diametric magnet in the shaft end, 0.9 mm over an **MT6701** on a 22 mm board. A/B quadrature into the P4's pulse counter: no CPU, off the shared I2C bus |
 | CUE / PLAY | 19 mm caps in translucent light rings (amber, green), bottom left as on a CDJ, over key switches |
@@ -34,9 +34,11 @@ only the tilt changes (`TILT` in `machine_params.py`, set by `ESP_DECK_CONFIG`).
 On the flat print, the engraved "ESP DECK" and the slider ticks are on the bed side, so
 they come out as clean as the bed surface allows.
 
-![Flat-top version](cad/renders/esp_deck/0012-compact-flat-front.jpg)
+![Flat-top version](cad/renders/esp_deck/0015-recessed-screen-flat-front.jpg)
 
-![Screen bosses, from below](cad/renders/esp_deck/0013-screen-bosses-underside.jpg)
+![Window and screen bosses, from below](cad/renders/esp_deck/0017-window-and-bosses-underside.jpg)
+
+![Section through a screen boss](cad/renders/esp_deck/0018-section-through-screen-boss.jpg)
 
 ![Section through the jog](cad/renders/esp_deck/0003-first-design-jog-section.jpg)
 

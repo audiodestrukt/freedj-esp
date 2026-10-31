@@ -7,7 +7,12 @@ import machine_params as M
 C = (Align.CENTER, Align.CENTER, Align.MIN)
 CM = (Align.CENTER, Align.CENTER, Align.MAX)
 
-def touch_glass():  # local: z = 0 at the glass top (flush with the deck face)
+def gasket():       # 0.5 mm foam frame between glass and top; local z = 0 at the glass top
+    w, h = M.GLASS
+    ww, wh = (a + 2 * M.WINDOW_MARGIN + 1.0 for a in M.LCD_ACTIVE)
+    return Box(w, h, M.GASKET, align=C) - Pos(M.LCD_AA_DX, 0, -1) * Box(ww, wh, 3, align=C)
+
+def touch_glass():  # local: z = 0 at the glass top
     return Box(*M.GLASS, M.CTP_T, align=CM)
 
 def tft():

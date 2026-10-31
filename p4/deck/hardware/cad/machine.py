@@ -79,6 +79,7 @@ def scene_parts():
     add("usb_led", place(controls.led(), controls.MATES["seat"], S["usb_led"]), "led_blue")
     # screen + connectors
     seat_on = lambda s, m: place(s, stock.MATES["seat"], S[m])
+    add("gasket", seat_on(stock.gasket(), "screen"), "feet")
     add("glass", seat_on(stock.touch_glass(), "screen"), "glass")
     add("tft", seat_on(stock.tft(), "screen"), "lcd")
     add("lcd_pcb", seat_on(stock.lcd_pcb(), "screen"), "pcb")
