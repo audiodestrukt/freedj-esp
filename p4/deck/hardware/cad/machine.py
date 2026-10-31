@@ -12,7 +12,7 @@ from PIL import Image
 from build123d import *
 import machine_params as M
 from machine_params import place
-import shell, base, jog, controls, stock
+import shell, base, jog, controls, stock, devboard
 
 # name: (rgba, metallic, roughness, emissive rgb or None)
 LOOK = {
@@ -40,6 +40,7 @@ LOOK = {
     "glass":    ((0.02, 0.02, 0.025, 0.12), 0, 0.04, None),
     "lcd":      ((0.02, 0.02, 0.02, 1), 0, 0.5, None),
     "usb_blue": ((0.1, 0.25, 0.8, 1), 0, 0.5, None),
+    "pcb_black": ((0.03, 0.03, 0.035, 1), 0, 0.5, None),
     "rca_red":  ((0.75, 0.08, 0.06, 1), 0, 0.5, None),
     "rca_white": ((0.85, 0.85, 0.85, 1), 0, 0.5, None),
     "gold":     ((0.95, 0.75, 0.35, 1), 1, 0.3, None),
@@ -88,8 +89,12 @@ def scene_parts():
         add(f"screen_screw{i}", seat_on(stock.screw_m3(), f"screen_screw{i}"), "steel")
     add("usb_a", seat_on(stock.usb_a(), "usb_a"), "steel")
     add("usb_a_tongue", seat_on(stock.usb_a_tongue(), "usb_a"), "usb_blue")
-    add("rj45", seat_on(stock.rj45(), "rj45"), "steel")
-    add("usb_c", seat_on(stock.usb_c(), "usb_c"), "steel")
+    # Waveshare dev board on the base plate's standoffs
+    add("devboard", devboard.LOC * devboard.board(), "pcb_black")
+    for n, s in devboard.ports():
+        add(n, devboard.LOC * s, "steel")
+    for n, s in devboard.parts():
+        add(n, devboard.LOC * s, "chip")
     for side, look in (("rca_l", "rca_white"), ("rca_r", "rca_red")):
         add(side, seat_on(stock.rca(), side), "gold")
         add(side + "_ring", seat_on(stock.rca_ring(), side), look)

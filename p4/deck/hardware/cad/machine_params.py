@@ -11,18 +11,20 @@ Two configurations, picked by FREEDJ_CONFIG before this module is imported:
 import math, os
 from build123d import Location, Pos, Rot
 
-# Body
-W = 160.0                    # width; the depth D is derived below from the jog + screen layout
-H = 34.0                     # height of the flat top (jog area)
-CORNER_R = 10.0              # plan-view corner radius
-WALL = 2.5                   # side walls
-TOP_T = 4.0                  # top plate (stiff: the jog boss hangs off it)
-EDGE_R = 2.0                 # top-edge round
-
 CONFIG = os.environ.get("FREEDJ_CONFIG", "angled")
 assert CONFIG in ("angled", "flat"), CONFIG
 NAME = "freedj_esp" if CONFIG == "angled" else "freedj_esp_flat"   # output file stem
 SUFFIX = "" if CONFIG == "angled" else "_flat"
+
+# Body
+W = 160.0                    # width; the depth D is derived below from the jog + screen layout
+# Height of the top (jog area). Flat is 4 mm taller: the dev board's USB-A stacks sit under
+# the screen, and without the angled bezel's rise they'd hit the screen's board.
+H = 34.0 if CONFIG == "angled" else 38.0
+CORNER_R = 10.0              # plan-view corner radius
+WALL = 2.5                   # side walls
+TOP_T = 4.0                  # top plate (stiff: the jog boss hangs off it)
+EDGE_R = 2.0                 # top-edge round
 
 # 4" LCD: the capacitive-touch version of the LCDwiki 4" SPI module (FT6336U, I2C), whose
 # drawing is MSP4031 (lcdwiki.com/res/MSP4030_MSP4031/4.0inch_SPI_Module_MSP4031_Size.pdf).
@@ -78,9 +80,7 @@ KNOB = (14.0, 10.0, 9.0)     # x, y, height above the top
 KNOB_Y = 56.0                # rendered at +1.25 %
 
 # Rear panel (y = D)
-RJ45 = (40.0, 13.0, 16.2, 13.8)   # x, z centre, w, h
-RCA_X, RCA_Z, RCA_HOLE = (78.0, 94.0), 15.0, 8.6
-USBC = (124.0, 10.0, 9.2, 3.6)
+RCA_X, RCA_Z, RCA_HOLE = (70.0, 86.0), 15.0, 8.6   # left of the dev board's ports
 USBA_FACE = (17.0, 13.6, 6.2)     # on the bezel: x, opening w, h (stick goes in from the top)
 
 # Screen bezel. Depth follows from the parts: jog well, a gap, the glass with a

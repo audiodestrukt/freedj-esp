@@ -14,8 +14,12 @@ POST_INSET = 7.0
 WELL_GAP = (M.WELL_D - M.JOG_D) / 2
 
 def posts():
+    """Base-plate screw posts. The back-right one moves forward, in front of the dev board,
+    whose port corner fills that corner of the deck."""
+    import devboard as B
     i = POST_INSET
-    return [(i, i), (M.W - i, i), (i, M.D - i), (M.W - i, M.D - i)]
+    return [(i, i, CORNER_POST_D), (M.W - i, i, CORNER_POST_D), (i, M.D - i, CORNER_POST_D),
+            (M.W - 5.9, B.YB - 5.0, 7.0)]   # slimmer: squeezed between the pitch pot and the board
 
 def _body(inset=0.0, drop=0.0):
     plan = Pos(M.W / 2, M.D / 2, -1) * extrude(
@@ -36,8 +40,8 @@ def part():
     jx, jy = M.JOG_C
     adds = [Pos(jx, jy, M.BOSS_BOTTOM) * Cylinder(M.BOSS_OD / 2, M.H - M.BOSS_BOTTOM - 0.5,
                                                   align=(Align.CENTER, Align.CENTER, Align.MIN))]
-    for x, y in posts():
-        adds.append(Pos(x, y, M.BASE_T) * Cylinder(CORNER_POST_D / 2, M.H_BACK,
+    for x, y, d in posts():
+        adds.append(Pos(x, y, M.BASE_T) * Cylinder(d / 2, M.H_BACK,
                                                      align=(Align.CENTER, Align.CENTER, Align.MIN)))
     # light pipes / switch guides under CUE and PLAY
     for c in (M.PLAY_C, M.CUE_C):
@@ -67,7 +71,7 @@ def part():
         y = (y0 + y1) / 2 + k * (y1 - y0 - 12) / 8
         ln = 6.0 if k in (-4, 0, 4) else 3.5
         cuts.append(Pos(M.SLIDER_X + 9.5 + ln / 2, y, M.H - 0.6) * Box(ln, 0.8, 2))
-    for x, y in posts():
+    for x, y, _ in posts():
         # blind from below: stops 2 mm under the top skin so nothing shows on the deck
         cuts.append(Pos(x, y, -1) * Cylinder(INSERT_BORE / 2, M.H - M.TOP_T - 2 + 1, align=(Align.CENTER, Align.CENTER, Align.MIN)))
     # bezel: a window over the visible area only (off-centre, as the active area is),
@@ -85,12 +89,21 @@ def part():
     cuts.append(F * Pos(ux - M.W / 2, M.USBA_V, 0) * Box(uw, uh, 20))
     cuts.append(F * Pos(ux - M.W / 2, M.USBA_V - 9, -0.6) * Cylinder(1.0, 2))   # stick activity LED
     # rear panel
-    x, z, w, h = M.RJ45
-    cuts.append(Pos(x, M.D, z) * Box(w, 10, h))
     for x in M.RCA_X:
         cuts.append(Pos(x, M.D, M.RCA_Z) * Rot(90, 0, 0) * Cylinder(M.RCA_HOLE / 2, 10))
-    x, z, w, h = M.USBC
-    cuts.append(Pos(x, M.D, z) * Box(w, 10, h))
+    # dev board ports: Ethernet + 2 x dual USB-A through the rear wall, 2 x USB-C through the
+    # right wall (opening sized for the plug's overmould so it seats fully)
+    import devboard as B
+    top = B.Z0 + B.T_
+    for w, wd, h in B.USBA:
+        x, _ = B.deck_xy(0, w)
+        cuts.append(Pos(x, M.D, top - 0.5) * Box(wd + 1.0, 10, h + 1.0, align=(Align.CENTER, Align.CENTER, Align.MIN)))
+    w, wd, h, _ = B.RJ45
+    x, _ = B.deck_xy(0, w)
+    cuts.append(Pos(x, M.D, top - 0.5) * Box(wd + 1.0, 10, h + 1.0, align=(Align.CENTER, Align.CENTER, Align.MIN)))
+    for u in B.USBC:
+        _, y = B.deck_xy(u, 0)
+        cuts.append(Pos(M.W, y, top + B.USBC_SIZE[2] / 2) * Box(10, 12.5, 7.0))
     # brand, engraved on the bezel left of the screen, below the USB-A slot
     try:
         bx = (M.SCREEN_X - M.GLASS[0] / 2) / 2           # centred in the strip left of the glass
@@ -118,10 +131,8 @@ MATES = {   # world frame (the shell is the datum); +z points out of the contact
     **{f"screen_screw{i}": L * Pos(0, 0, -M.LCD_PCB[2]) for i, L in enumerate(screen_holes())},   # under the board, +z up into the boss
     "usb_a":  F * Pos(M.USBA_FACE[0] - M.W / 2, M.USBA_V, 0),
     "usb_led": F * Pos(M.USBA_FACE[0] - M.W / 2, M.USBA_V - 9, 0),
-    "rj45":   Pos(M.RJ45[0], M.D, M.RJ45[1]) * Rot(-90, 0, 0),
     "rca_l":  Pos(M.RCA_X[0], M.D, M.RCA_Z) * Rot(-90, 0, 0),
     "rca_r":  Pos(M.RCA_X[1], M.D, M.RCA_Z) * Rot(-90, 0, 0),
-    "usb_c":  Pos(M.USBC[0], M.D, M.USBC[1]) * Rot(-90, 0, 0),
     "base":   Pos(0, 0, 0),
 }
 

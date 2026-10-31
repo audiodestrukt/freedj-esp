@@ -11,6 +11,18 @@ playing (see the README's *Audio health* section). Unless noted, it's
 the panel**, so they read high. From 2026-10-31 on, "screen fps" counts
 frames LVGL actually rendered and flushed.
 
+## 2026-10-31: dev board mounted in the enclosure (CAD only)
+
+- The Waveshare ESP32-P4-Module-DEV-KIT (Pi B+ footprint, from Waveshare's
+  drawing) sits back-right under the screen, on four 3 mm standoffs printed
+  on the base plate (M2.5 heat-set inserts). Ethernet and both USB-A pairs
+  come out the rear wall; power and UART USB-C come out the right side.
+- The separate RJ45 and USB-C jacks are gone; RCA moved left of the ports.
+  The back-right base post moved forward, between the pitch pot and the board.
+- The flat version is now 38 mm tall (was 34): the USB-A stacks would hit
+  the screen's board under a flat top. The angled version clears at 34.
+- No firmware change, so the budget is unchanged.
+
 ## 2026-10-31: renamed freedj-esp
 
 - The project (and repo) is now **freedj-esp**, after freedj-3000. The splash

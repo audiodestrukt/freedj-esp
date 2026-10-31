@@ -19,3 +19,5 @@
 - 0017-window-and-bosses-underside.jpg: 2026-10-31: from below: the window and 4 screen bosses coming down to the board
 - 0018-section-through-screen-boss.jpg: 2026-10-31: section through a boss: top, glass, board, M3 screw in the pilot
 - 0019-renamed-freedj-esp.jpg: 2026-10-31: renamed to freedj-esp: FREEDJ-ESP engraved on the bezel
+- 0020-devboard-rear-ports.jpg: 2026-10-31: Waveshare dev board mounted back-right: Ethernet + 2 x dual USB-A out the rear, USB-C out the right side; RCA moved left
+- 0021-devboard-inside.jpg: 2026-10-31: inside (shell hidden): dev board on base-plate standoffs under the screen
