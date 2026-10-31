@@ -25,3 +25,5 @@
 - 0023-corner-bosses-underside.jpg: 2026-10-31: base fixing: a short boss in each of the 4 corners; dev board moved left to clear the back-right one
 - 0024-printed-shaft-as5600-section.jpg: 2026-10-31: jog section (flat): shaft printed with the platter, e-clip under the lower 608, magnet flush in the shaft tip 1.1 mm over an AS5600 board lying on the base, right-angle header pointing back, tails in a base slot
 - 0025-encoder-on-bosses-section.jpg: 2026-10-31: e-clip dropped: shaft ends just under the lower 608, magnet flush in its tip 1.1 mm over the AS5600, board on 2.3 mm bosses; plug clears the bearing boss by 0.6 mm
+- 0026-encoder-bosses-base.jpg: 2026-10-31: base plate under the jog: four 2.3 mm bosses on the AS5600's 5/8" hole square, tail pockets under both pin columns (one notches a boss)
+- 0027-encoder-board-on-bosses.jpg: 2026-10-31: the AS5600 board (15/16" square, from Dan's ruler + listing photo) on the bosses, right-angle headers pointing out to both sides

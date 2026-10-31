@@ -11,6 +11,16 @@ playing (see the README's *Audio health* section). Unless noted, it's
 the panel**, so they read high. From 2026-10-31 on, "screen fps" counts
 frames LVGL actually rendered and flushed.
 
+## 2026-10-31: AS5600 on four bosses, real board size (CAD only)
+
+- Board from Dan's ruler and the listing photo: 15/16" (23.8 mm) square,
+  four corner holes 5/8" (15.9 mm) apart, chip in the middle. Two pin
+  columns either side of the chip: 3 pins on the left, 4 on the right.
+- Four 2.3 mm bosses (7 mm OD, small M3 inserts) replace the two guessed
+  ones. Shallow pockets under both pin columns take the solder tails; the
+  right one notches the top-right boss (0.55 mm wall round its insert).
+- Only the base plate changes. Clash check clean in both configs.
+
 ## 2026-10-31: encoder on bosses, no e-clip (CAD only)
 
 - The e-clip is gone. The printed shaft now ends just under the lower

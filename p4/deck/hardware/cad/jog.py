@@ -83,28 +83,38 @@ def bearing():
 def magnet():
     return Cylinder(M.MAGNET[0] / 2, M.MAGNET[1], align=C)
 
-ENC_HOLE_D = 3.2
-HDR_N, HDR_PITCH = 7, 2.54                # VCC OUT GND DIR SCL SDA GPO
-HDR_Y = M.ENC_PCB[1] / 2 - 1.5            # pin row, in from the back edge
-HDR_TAIL = 3.0                            # solder tails under the board
+ENC_HOLE_D = 3.5            # big corner holes (from the listing photo)
+ENC_CORNER_R = 2.0
+HDR_PITCH, HDR_TAIL = 2.54, 3.0
+# Two pin columns either side of the chip (from the listing photo, +-0.5 mm), each with a
+# right-angle header pointing outwards: (x of the column, y of its middle, pins, direction)
+HEADERS = [(-6.8, 0.0, 3, -1),     # VCC OUT GND, plug to the left
+           (6.6, 0.6, 4, +1)]      # DIR SCL SDA GPO, plug to the right
 
 def encoder_pcb():   # local z = 0 on the underside, board centred on the chip
     w, d, t = M.ENC_PCB
-    return Box(w, d, t, align=C) - [Pos(x, y, -1) * Cylinder(ENC_HOLE_D / 2, t + 2, align=C) for x, y in M.ENC_HOLES]
+    return extrude(RectangleRounded(w, d, ENC_CORNER_R), t) - [
+        Pos(x, y, -1) * Cylinder(ENC_HOLE_D / 2, t + 2, align=C) for x, y in M.ENC_HOLES]
 
 def encoder_chip():  # AS5600, SOIC-8; local z = 0 on the board's top face
     return Box(4.9, 3.9, M.ENC_CHIP_H, align=C)
 
 def encoder_header():
-    """Right-angle header on the chip side, pointing back, with a Dupont plug on it,
-    and its solder tails under the board. Local z = 0 on the board's underside."""
+    """Both right-angle headers on the chip side, pointing out to the sides, each with a
+    Dupont plug, and their solder tails under the board. Local z = 0 on the underside."""
     t = M.ENC_PCB[2]
-    L = HDR_N * HDR_PITCH
-    body = Pos(0, HDR_Y, t) * Box(L, 2.5, 2.5, align=C)
-    pins = Pos(0, HDR_Y + 1.25 + 3.0, t + 1.25) * Box(L - 1, 6.0, 0.64)
-    plug = Pos(0, HDR_Y + 1.25 + 1.0 + 7.0, t) * Box(L, 14.0, 2.5, align=C)
-    tails = Pos(0, HDR_Y, -HDR_TAIL) * Box(L - 1, 0.64, HDR_TAIL, align=C)
-    return body.fuse(pins, plug, tails)
+    out = []
+    for x, y, n, s in HEADERS:
+        L = n * HDR_PITCH
+        out.append(Pos(x, y, t) * Box(2.5, L, 2.5, align=C))
+        out.append(Pos(x + s * (1.25 + 3.0), y, t + 1.25) * Box(6.0, L - 1, 0.64))
+        out.append(Pos(x + s * (1.25 + 1.0 + 7.0), y, t) * Box(14.0, L, 2.5, align=C))
+        out.append(Pos(x, y, -HDR_TAIL) * Box(0.64, (n - 1) * HDR_PITCH + 0.64, HDR_TAIL, align=C))
+    return out[0].fuse(*out[1:])
+
+def tail_slots():
+    """Relief in the base plate under each column's solder tails: (x, y, length) from the axis."""
+    return [(x, y, (n - 1) * HDR_PITCH + 2.0) for x, y, n, _ in HEADERS]
 
 # Heights above the well floor (the shell's "jog" mate), so the stack follows the params
 STACK = {

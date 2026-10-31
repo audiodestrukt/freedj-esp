@@ -13,7 +13,7 @@ renders 0001–0004 show that version.)
 | Footprint | **160 × 185 mm** (angled; 186 mm flat). Angled: 34 mm tall at the front, 48 mm at the back of the bezel. Flat: 38 mm all over. The top shell fits a 256 mm bed in one piece. The depth is derived from the layout (jog well, an 8 mm gap, the glass with 4 and 5 mm margins), so moving the jog or changing the screen resizes the deck |
 | Screen | **Hosyond 4.0" 320×480 capacitive** (ST7796S, FT6336U touch), the panel on the bench. It's the LCDwiki/QDtech **MSP4031** module ([drawing](https://www.lcdwiki.com/res/MSP4030_MSP4031/4.0inch_SPI_Module_MSP4031_Size.pdf)): 108.00 × 60.88 mm board, 60.88 × 94.57 mm glass centred on it, 4.85 mm of glass and tape above the board, 14.8 mm deep with the header. The screen sits **behind the top**: a window shows only the visible area (active area + 0.5 mm, 2.88 mm off-centre away from the header end, as on the panel), straight for 1 mm then chamfered 45° so a finger reaches the edges of the touch area. A 0.5 mm foam gasket sits between the glass and the top. **Four bosses come down from the top to the board** on its four Ø3.2 mounting holes (102.00 × 54.88 mm apart): 6.8 mm OD, with 2.5 mm pilots 6 mm deep for M3 × 5 thread-forming screws (about 3.3 mm of plastic left under the face). The **window is centred on the deck** (and over the jog); the module sits 2.88 mm left of it to make up for its off-centre active area |
 | Jog | 100 mm printed platter, knurled rim, with its **shaft printed in one piece** (Ø7.95, a snug fit in the 608's 8 mm bore; tune it with `fit_gauge.stl` first). The shaft runs through **two 608 skateboard bearings** pressed into a boss under the top, and the platter's hub sits on the upper inner race. **Nothing holds it down yet**: lift it and it comes out (retention later). Shaft below the platter: **27.0 mm flat, 23.0 mm angled** (the flat shell is 4 mm taller). Print the platter upside down, shaft up: only the touch-plate recess needs support. Steel inertia ring (r 38–46 mm, 5 mm) in the platter's underside. Aluminium top plate, which doubles as the capacitive touch electrode |
-| Jog sensing | Ø6 × ~1.6 mm diametric magnet **glued flush into a pocket in the shaft tip** (the pocket centres it on the axis), **1.1 mm over an AS5600** on its 23 × 23 mm breakout (WWZMDiB). The board sits chip up, centred under the shaft, on **two 2.3 mm bosses** on the base plate with small M3 heat-set inserts. Its right-angle header points back; the Dupont plug clears the bearing boss by 0.6 mm, and the solder tails drop into a slot in the plate. The stack is set by the printed shell: lower bearing at z 10, shaft tip at 9.5 (0.5 mm lead-in), magnet face 9.5, chip top 8.4, board 5.3–6.9. A magnet 0.4 mm thicker or thinner than 1.6 moves the gap to 0.7 or 1.5 mm, inside the AS5600's 0.5–3 mm |
+| Jog sensing | Ø6 × ~1.6 mm diametric magnet **glued flush into a pocket in the shaft tip** (the pocket centres it on the axis), **1.1 mm over an AS5600** breakout (WWZMDiB): 15/16" (23.8 mm) square, four Ø3.5 corner holes 5/8" (15.9 mm) apart, chip in the middle. The board sits chip up, centred under the shaft, on **four 2.3 mm bosses** (7 mm OD) on the base plate with small M3 heat-set inserts. Its two pin columns sit either side of the chip (VCC/OUT/GND left, DIR/SCL/SDA/GPO right); with right-angle headers the plugs point out to the sides and clear the bearing boss by 0.6 mm. Shallow pockets under both columns take the solder tails; the right one notches the top-right boss, leaving 0.55 mm of wall round its insert. The stack is set by the printed shell: lower bearing at z 10, shaft tip at 9.5 (0.5 mm lead-in), magnet face 9.5, chip top 8.4, board 5.3–6.9. A magnet 0.4 mm thicker or thinner than 1.6 moves the gap to 0.7 or 1.5 mm, inside the AS5600's 0.5–3 mm |
 | CUE / PLAY | 19 mm caps in translucent light rings (amber, green), bottom left as on a CDJ, over key switches |
 | Pitch | 45 mm slide pot (Bourns PTA4543 class), knob at the right, tick scale, green tempo-zero LED |
 | Top | USB-A stick slot left of the screen (up the bezel, clear of the screen bosses) with an activity LED; "FREEDJ" engraved below it |
@@ -47,6 +47,8 @@ they come out as clean as the bed surface allows.
 ![Inside: dev board under the screen](cad/renders/freedj_esp/0021-devboard-inside.jpg)
 
 ![Section through the jog: printed shaft, magnet over the AS5600 on its bosses](cad/renders/freedj_esp/0025-encoder-on-bosses-section.jpg)
+
+![AS5600 on its four bosses](cad/renders/freedj_esp/0027-encoder-board-on-bosses.jpg)
 
 ## Screen options (for the parametric freedj-1000)
 
@@ -94,9 +96,8 @@ Two firmware catches with the ILI9488 over SPI:
 - **Jog top touch:** capacitive through the aluminium plate (first choice), or a
   floating platter on a microswitch. Capacitive needs a P4 touch-capable pin free.
   This is what lets the deck scratch while playing, not only when paused.
-- **AS5600 board, measured from a listing, not the board:** 23 × 23 mm, two holes
-  17 mm apart on the edge away from the header (`ENC_HOLES`), chip centred. Check with
-  a ruler before printing the base plate; the chip must sit on the shaft axis.
+- **AS5600 board:** size and hole spacing measured with a ruler, pin columns placed
+  from the listing photo (±0.5 mm). Check that the tails land in the pockets.
 - **Magnet:** Ø6 assumed, 1.6 mm thick (`MAGNET`). Check the diameter: the pocket is
   Ø6.16.
 - **Platter retention:** none yet. Options for later: a drop of retaining compound on
