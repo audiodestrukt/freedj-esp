@@ -742,7 +742,9 @@ static void waveTick(lv_timer_t*)
     taskENTER_CRITICAL(&s_mux);
     s = s_pub;
     taskEXIT_CRITICAL(&s_mux);
-    const bool want = s.loaded && s.playing && lv_tick_elaps(s_lastListUse) > kListLingerMs;
+    // Waveform whenever a track is loaded (playing or paused); the list
+    // comes back for a few seconds while browsing.
+    const bool want = s.loaded && lv_tick_elaps(s_lastListUse) > kListLingerMs;
     if (want != s_waveShown) {
         s_waveShown = want;
         lv_obj_set_hidden(s_wave, !want);

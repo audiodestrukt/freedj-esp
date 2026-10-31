@@ -49,16 +49,31 @@ static const char* TAG = "deck";
 
 constexpr uint32_t kRate       = 44100;
 constexpr int      kBlock      = 256;    // frames per write (~5.8 ms)
+// ── Feel ──────────────────────────────────────────────────────────────────────
+// How the deck responds to hands. Documented, with what to compare against,
+// in the README ("Feel parameters"). Tune here.
+//
 // Pitch fader ranges, as on the XDJ: ±6, ±10 (default), ±16 %, WIDE (±100 %).
 constexpr float    kRanges[] = {0.06f, 0.10f, 0.16f, 1.0f};
-constexpr int      kScrubFrames = 441;   // paused jog: 10 ms per tick
+// Scratch (jog while paused): track moved per jog tick. 441 frames = 10 ms.
+constexpr int      kScrubFrames = 441;
+// Scratch: the playhead chases the jog's target, closing the gap over about
+// this many output frames (1024 = 23 ms). Lower = tighter, rougher.
+constexpr double   kScratchChase = 4.0 * 256;
+// Scratch: top speed, as a multiple of normal (either direction).
+constexpr double   kScratchMaxSpeed = 8.0;
+// Nudge (jog while playing): speed change per tick, the most it can add up
+// to, and how fast it fades (per 5.8 ms block).
+constexpr float    kNudgePerTick = 0.004f, kNudgeMax = 0.3f, kNudgeDecay = 0.97f;
+// Beat sync: fraction of the phase error corrected per beat-ish, and the
+// most the tempo may bend to do it.
+constexpr float    kSyncGain = 0.3f, kSyncMaxBend = 0.03f;
+// ──────────────────────────────────────────────────────────────────────────────
+
 constexpr uint8_t  kLinkPlayer = 2;      // our Pro DJ Link player number
 // Audio queued between the audio task and the speaker: the I2S driver's
 // default 6 DMA buffers x 240 frames, plus about half a block in flight.
 constexpr int      kOutLatencyFrames = 6 * 240 + kBlock / 2;
-// Beat sync: fraction of the phase error corrected per second-ish, and the
-// most the tempo may bend to do it.
-constexpr float    kSyncGain = 0.3f, kSyncMaxBend = 0.03f;
 
 static QueueHandle_t s_events;      // deck::Event, USB task → audio task
 // Load (or eject) request, audio task / USB task → loader. Carries the
@@ -87,7 +102,8 @@ static rekordbox::Grid& grid() { return *s_gridLive; }
 static rekordbox::Grid& spareGrid() { return s_gridLive == &s_gridBuf[0] ? s_gridBuf[1] : s_gridBuf[0]; }
 static void swapGrid() { s_gridLive = &spareGrid(); ui::setGrid(s_gridLive); }
 static volatile int s_syncOffsetMs; // serial [ / ]: trim our phase against the master
-static volatile int s_fakeGridBpm;  // serial g: test grid for a track without rekordbox analysis
+static volatile int s_fakeGridBpm;
+static volatile int s_jogTicks;     // jog ticks since the last serial J (calibration)  // serial g: test grid for a track without rekordbox analysis
 
 static void onMidiPacket(const uint8_t p[4])
 {
@@ -171,6 +187,10 @@ struct Deck {
     double slipPos   = 0;
     bool   hotHeld   = false;           // a hot cue pad is held (momentary in slip)
     bool   reverse   = false;
+    // Paused jog = scratch: the jog moves a target, the playhead chases it
+    // and the audio plays at whatever speed (and direction) that takes.
+    bool   scratching = false;
+    double scratchTarget = 0;
     double pos       = 0;       // frames into track (fractional for varispeed)
     double cue       = 0;
     float  tempo     = 1.0f;
@@ -211,6 +231,7 @@ static void seek(Deck& d, double frame)
     d.pos = frame;
     s_stream.setPlayhead((size_t)frame);
     s_wsola.reset();
+    d.scratching = false;
 }
 
 // ── Performance: cues, loops, beat jump, quantize ───────────────────────────
@@ -311,6 +332,7 @@ static void apply(Deck& d, const deck::Event& e)
     switch (e.type) {
     case Type::PlayPause:
         if (e.pressed && d.loaded) {
+            d.scratching = false;
             d.playing = !d.playing; d.previewing = false;
             if (d.playing && d.sync) d.alignNext = true;   // start on the master's beat
         }
@@ -458,8 +480,14 @@ static void apply(Deck& d, const deck::Event& e)
         ESP_LOGI(TAG, "reverse %s", d.reverse ? "on" : "off");
         break;
     case Type::Jog:
-        if (d.playing) d.nudge += e.delta * 0.004f;
-        else if (d.loaded && !d.emergency) seek(d, d.pos + e.delta * kScrubFrames);
+        s_jogTicks += e.delta;                           // for jog calibration (serial J)
+        if (d.playing) d.nudge += e.delta * kNudgePerTick;
+        else if (d.loaded && !d.emergency) {
+            if (!d.scratching) { d.scratching = true; d.scratchTarget = d.pos; s_wsola.reset(); }
+            d.scratchTarget += e.delta * kScrubFrames;
+            if (d.scratchTarget < 0) d.scratchTarget = 0;
+            if (d.scratchTarget > s_stream.frames()) d.scratchTarget = s_stream.frames();
+        }
         break;
     case Type::Sync:
         if (e.pressed) {
@@ -498,6 +526,31 @@ static bool renderPitched(Deck& d, float speed, int16_t* out)
         else if (d.looping && d.reverse && d.pos < d.loopStart) d.pos += d.loopEnd - d.loopStart;
     }
     return true;
+}
+
+// Scratch (paused jog): each output frame moves the playhead a fraction of
+// the way to the target, so speed and direction follow the hand and glide to
+// a stop. Linear interpolation, like varispeed. Returns false once it has
+// arrived (nothing more to play).
+static bool renderScratch(Deck& d, int16_t* out)
+{
+    bool moving = false;
+    for (int i = 0; i < kBlock; i++) {
+        double step = (d.scratchTarget - d.pos) / kScratchChase;
+        if (step > kScratchMaxSpeed) step = kScratchMaxSpeed;
+        if (step < -kScratchMaxSpeed) step = -kScratchMaxSpeed;
+        if (fabs(d.scratchTarget - d.pos) < 0.5) step = 0;
+        if (step != 0) moving = true;
+        const size_t i0 = (size_t)d.pos;
+        int16_t two[4];
+        if (step == 0 || !s_stream.get(i0, two, 2)) { out[2 * i] = out[2 * i + 1] = 0; continue; }
+        const float fr = (float)(d.pos - i0);
+        out[2 * i]     = (int16_t)(two[0] + fr * (two[2] - two[0]));
+        out[2 * i + 1] = (int16_t)(two[1] + fr * (two[3] - two[1]));
+        d.pos += step;
+        if (d.pos < 0) d.pos = 0;
+    }
+    return moving;
 }
 
 // Keylock: feed WSOLA at the output rate (resampling the file to 44.1 kHz
@@ -890,6 +943,7 @@ static void audioTask(void*)
             s_wsola.reset();
             swapGrid();
             d.looping = d.emergency = d.loopInSet = false;
+            d.scratching = false;
             d.loopStart = d.loopEnd = 0;
             if (ok) loadCues(d);
             if (ok) ESP_LOGI(TAG, "beat grid: %s", grid().empty() ? "none (SYNC needs a rekordbox track)" : "yes");
@@ -918,8 +972,8 @@ static void audioTask(void*)
             swapGrid();
             s_fakeGridBpm = 0;
         }
-        if (d.nudge > 0.3f) d.nudge = 0.3f;
-        if (d.nudge < -0.3f) d.nudge = -0.3f;
+        if (d.nudge > kNudgeMax) d.nudge = kNudgeMax;
+        if (d.nudge < -kNudgeMax) d.nudge = -kNudgeMax;
         prolink::master(s_master);
         float speed = d.tempo + d.nudge;
         if (d.keylock) stepWsolaLag(speed);
@@ -960,7 +1014,7 @@ static void audioTask(void*)
                 }
             }
         }
-        d.nudge *= 0.97f;
+        d.nudge *= kNudgeDecay;
 
         // Slip: while slipping, the shadow playhead runs on at normal speed;
         // when it ends, playback resumes from it.
@@ -982,6 +1036,13 @@ static void audioTask(void*)
             for (int i = 0; i < kBlock * 2; i++) buf[i] = (int16_t)(buf[i] * g);
             if (!d.playing) ESP_LOGI(TAG, "end of track");
             if (fed && d.playing) s_clicks.feed(buf, kBlock); else s_clicks.reset();
+        } else if (d.loaded && d.scratching) {
+            // Paused, jog moving: play the scratch.
+            if (!renderScratch(d, buf)) { d.scratching = false; d.pos = d.scratchTarget; }
+            s_stream.setPlayhead((size_t)d.pos);
+            const float g = d.gain;
+            for (int i = 0; i < kBlock * 2; i++) buf[i] = (int16_t)(buf[i] * g);
+            s_clicks.reset();
         } else {
             memset(buf, 0, sizeof buf);
             s_clicks.reset();
@@ -1054,7 +1115,7 @@ static void audioTask(void*)
 //   o 4-beat loop   x reloop/exit   ( ) loop 1/2, x2   i u loop in/out
 //   , . beat jump -/+4   < > call previous/next memory cue   q quantize
 //   t tempo range   T tempo reset   m M memory cue add/delete   z slip   r reverse
-//   Y become tempo master
+//   Y become tempo master   J jog calibration (ticks since the last J)
 //   w cycle waveform test mode (normal / no flush / off)
 static void serialKeysTask(void*)
 {
@@ -1098,6 +1159,13 @@ static void serialKeysTask(void*)
         case 'z': e.type = deck::Type::Slip; break;
         case 'r': e.type = deck::Type::Reverse; break;
         case 'Y': prolink::requestMaster(); ESP_LOGI(TAG, "requesting tempo master"); continue;
+        case 'J': {   // jog calibration: press, turn the jog exactly once, press again
+            const int t = s_jogTicks;
+            s_jogTicks = 0;
+            ESP_LOGI(TAG, "jog: %d ticks since last J; at %d frames/tick that's %.2f s of track", t, kScrubFrames,
+                     t * kScrubFrames / (double)kRate);
+            continue;
+        }
         case 'g': s_fakeGridBpm = 120; ESP_LOGI(TAG, "test grid: 120 BPM from the start"); continue;
         case '[': s_syncOffsetMs -= 2; ESP_LOGI(TAG, "sync offset %+d ms", s_syncOffsetMs); continue;
         case ']': s_syncOffsetMs += 2; ESP_LOGI(TAG, "sync offset %+d ms", s_syncOffsetMs); continue;
