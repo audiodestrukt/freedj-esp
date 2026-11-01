@@ -24,7 +24,7 @@ def light_ring():
     r -= Pos(0, 0, zb - 1) * Cylinder(M.SKIRT_D / 2 - M.SKIRT_WALL, -M.TOP_T - zb + 1, align=C)
     import ctrlboard
     for a in ctrlboard.LED_ANGLES:
-        r -= Pos(0, 0, zb - 0.01) * Rot(0, 0, a) * Pos(ctrlboard.LED_R, 0, 0) * Box(2.0, 2.6, 1.0, align=C)
+        r -= Pos(0, 0, zb - 0.01) * Rot(0, 0, a) * Pos(ctrlboard.LED_R, 0, 0) * Box(2.0, 3.6, 1.0, align=C)   # clears 0805 pads
     return r
 
 def button_cap(icon, plain=False):

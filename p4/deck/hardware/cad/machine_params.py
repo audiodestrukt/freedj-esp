@@ -142,9 +142,9 @@ TEMPO_LED_X = 11.0           # tempo-zero LED, right of the slot: clear of the 2
 assert SLIDER_C - POT_HOLES / 2 + 1.9 < SLIDER_Y[0] - 1.0, "M2 countersink too close to the slot end"
 
 # Control board: one PCB under CUE / PLAY with the two tact switches, the light-ring LEDs
-# and the I2C chip; the pot and the AS5600 wire to it, one cable goes to the dev board.
-# 12 x 12 tact switches 7.3 mm tall (actuator top), right under the caps' undersides.
-TACT = (12.0, 12.0, 3.6, 7.3)   # body x, y, body height, actuator top above the board
+# and the I2C chip (CH32V003); the pot and the AS5600 wire to it, one cable to the dev board.
+# 6 x 6 SMD tact switches 7.5 mm tall (ZX-QC66-7.5TP, LCSC C7470157), right under the caps.
+TACT = (6.0, 6.0, 3.5, 7.5)     # body x, y, body height, actuator top above the board
 CAP_BOTTOM = 6.0                # the cap's nub reaches this far below the top surface
 CTRL_T = 1.6
 CTRL_Z = H - CAP_BOTTOM - TACT[3]                       # board top face

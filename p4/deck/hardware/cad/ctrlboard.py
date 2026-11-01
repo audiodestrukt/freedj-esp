@@ -3,10 +3,12 @@
 """ctrlboard.py: the control board under CUE / PLAY, as an outline for the PCB layout and
 a stand-in for clearance checks.
 
-Top side (up, toward the top plate): two 12 x 12 tact switches right under the caps, and
-four small LEDs under each light ring. Bottom side (down, toward the base): the I2C chip
-and three JST-XH connectors, top entry, so the plugs go in from below: the pitch pot
-(3 pins), the AS5600 jog encoder (4) and the dev board (5: 3V3, GND, SDA, SCL, INT).
+All SMD parts on the top side (up, toward the top plate), so JLCPCB assembles one side:
+two 6 x 6 tact switches right under the caps, four 0805 LEDs under each ring's skirt, a
+resistor per LED inside the skirt, and the CH32V003 I2C target with its passives in the
+strip right of the buttons. Bottom side: three JST-XH connectors, top entry, so the plugs
+go in from below: the pitch pot (3 pins) and the AS5600 (5) on the right edge, the dev
+board (5: 3V3, GND, SDA, SCL, INT) on the back edge. The PCB itself is ../ctrl-pcb.
 Three M2.5 thread-forming screws from below into bosses that come down from the top.
 
 World frame (deck): the board's top face is at z = CTRL_Z.
@@ -22,8 +24,9 @@ LED = (2.0, 1.25, 0.8)             # 0805, on the ring's centre circle
 LED_R = M.SKIRT_D / 2 - M.SKIRT_WALL / 2           # under the ring's skirt wall
 LED_ANGLES = (45, 135, 225, 315)
 XH_PITCH, XH_W, XH_H = 2.5, 5.75, 7.0
-# bottom side, along y, near the right edge: (name, pins, centre x, centre y)
-JST = [("j_pot", 3, 38.0, 20.0), ("j_enc", 4, 38.0, 32.0), ("j_host", 5, 38.0, 47.0)]
+# bottom side: (name, pins, centre x, centre y, along): pot and encoder on the right edge,
+# the dev board cable off the back edge
+JST = [("j_pot", 3, 40.0, 20.0, "y"), ("j_enc", 5, 40.0, 37.0, "y"), ("j_host", 5, 26.0, 58.5, "x")]
 IC = ("u1", 26.0, 28.0, (5.0, 5.0, 1.0))   # placeholder: the I2C chip, bottom side
 
 def outline():
@@ -52,8 +55,10 @@ def parts():
         for i, l in enumerate(leds(c)):
             out.append((f"{n}_led{i}", l, "white"))
     zb = M.CTRL_Z - M.CTRL_T
-    for n, pins, x, y in JST:
-        out.append((n, Pos(x, y, zb - XH_H) * Box(XH_W, pins * XH_PITCH + 2.4, XH_H, align=C), "white"))
+    for n, pins, x, y, along in JST:
+        L = pins * XH_PITCH + 2.4
+        bx, by = (XH_W, L) if along == "y" else (L, XH_W)
+        out.append((n, Pos(x, y, zb - XH_H) * Box(bx, by, XH_H, align=C), "white"))
     n, x, y, (a, b, h) = IC
     out.append((n, Pos(x, y, zb - h) * Box(a, b, h, align=C), "chip"))
     return out
@@ -69,8 +74,8 @@ if __name__ == "__main__":
     for n, c in (("PLAY", M.PLAY_C), ("CUE", M.CUE_C)):
         print(f"  {n} switch centre {c[0] - x0:.2f}, {c[1] - y0:.2f}; 4 LEDs (tangential) on r {LED_R:.2f} at 45/135/225/315 deg;"
               f" ring skirt sits on r {M.SKIRT_D / 2 - M.SKIRT_WALL:.1f}-{M.SKIRT_D / 2:.1f}: keep it clear")
-    for n, pins, x, y in JST:
-        print(f"  {n}: JST-XH {pins}-pin (bottom side), centre {x - x0:.2f}, {y - y0:.2f}, along y")
+    for n, pins, x, y, along in JST:
+        print(f"  {n}: JST-XH {pins}-pin (bottom side), centre {x - x0:.2f}, {y - y0:.2f}, along {along}")
     try:
         exporter = ExportDXF(); exporter.add_shape(Pos(-x0, -y0) * outline())
         for x, y in M.CTRL_HOLES:
