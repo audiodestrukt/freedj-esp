@@ -10,19 +10,36 @@ import machine_params as M
 C = (Align.CENTER, Align.CENTER, Align.MIN)
 CAP_RISE, RING_RISE = 2.8, 0.6
 
-def light_ring():   # translucent PETG/resin, lit by an LED underneath
-    h = RING_RISE + 8
-    return Pos(0, 0, RING_RISE - h) * (Cylinder(M.RING_D / 2, h, align=C)
-                                       - Pos(0, 0, -1) * Cylinder(M.BTN_D / 2 + 0.25, h + 2, align=C))
+def light_ring():
+    """Translucent tube + skirt (see machine_params). Print it upside down, ring face on the
+    bed. Notches in the skirt's foot sit over the board's LEDs."""
+    zb = M.CTRL_Z - M.H                              # board top face, top-surface frame
+    tube = Pos(0, 0, -M.TOP_T - 0.01) * Cylinder(M.RING_D / 2, M.TOP_T + RING_RISE + 0.01, align=C)
+    skirt = Pos(0, 0, zb) * Cylinder(M.SKIRT_D / 2, -M.TOP_T - zb, align=C)
+    r = tube.fuse(skirt)
+    r -= Pos(0, 0, -M.TOP_T - 1) * Cylinder(M.BTN_D / 2 + 0.25, M.TOP_T + RING_RISE + 2, align=C)
+    r -= Pos(0, 0, zb - 1) * Cylinder(M.SKIRT_D / 2 - M.SKIRT_WALL, -M.TOP_T - zb + 1, align=C)
+    import ctrlboard
+    for a in ctrlboard.LED_ANGLES:
+        r -= Pos(0, 0, zb - 0.01) * Rot(0, 0, a) * Pos(ctrlboard.LED_R, 0, 0) * Box(2.0, 2.6, 1.0, align=C)
+    return r
 
 def button_cap(icon):
-    h = CAP_RISE + M.CAP_BOTTOM      # underside rests on the tact switch's actuator
-    cap = Pos(0, 0, CAP_RISE - h) * Cylinder(M.BTN_D / 2, h, align=C)
+    """Cap, flange (chamfered 45 degrees on top) and the nub onto the switch. Print it upside
+    down, top face on the bed."""
+    top_of_flange = -M.TOP_T - M.CAP_GAP
+    fd, ft = M.CAP_FLANGE
+    body = Pos(0, 0, top_of_flange) * Cylinder(M.BTN_D / 2, CAP_RISE - top_of_flange, align=C)
     try:
-        cap = fillet(cap.edges().filter_by(lambda e: e.center().Z > CAP_RISE - 0.1), 1.5)
+        body = fillet(body.edges().filter_by(lambda e: e.center().Z > CAP_RISE - 0.1), 1.5)
     except Exception as e:
         print("  (cap round skipped:", e, ")")
-    return cap.cut(icon_solid(icon))
+    ch = (fd - M.BTN_D) / 2
+    flange = (Pos(0, 0, top_of_flange - ft) * Cylinder(fd / 2, ft - ch, align=C)).fuse(
+        Pos(0, 0, top_of_flange - ch) * Cone(fd / 2, M.BTN_D / 2, ch, align=C))
+    nub_top = top_of_flange - ft
+    nub = Pos(0, 0, -M.CAP_BOTTOM) * Cylinder(M.NUB_D / 2, nub_top + M.CAP_BOTTOM + 0.01, align=C)
+    return body.fuse(flange, nub).cut(icon_solid(icon))
 
 def icon_solid(icon):
     """The icon, as a 0.5 mm deep engraving (filled with paint in the render)."""
@@ -50,7 +67,7 @@ def knob_line():
     return Pos(0, -2.5, M.KNOB_LIFT + M.KNOB[2] - 0.4) * Box(M.KNOB[0] - 1.5, 0.9, 0.6, align=C)   # index line across the top
 
 def pot(lever_y=0.0):
-    """PTA4543 stand-in on the "pot" mate (slot centre, top surface): frame, lever at
+    """PTA6043 stand-in on the "pot" mate (slot centre, top surface): frame, lever at
     lever_y along the travel, three PC pins."""
     fx, fy, fh = M.POT_FRAME
     top = -M.TOP_T - M.POT_PAD
@@ -58,8 +75,9 @@ def pot(lever_y=0.0):
     frame -= [Pos(0, s * M.POT_HOLES / 2, top - 1.5) * Cylinder(1.0, 2, align=C) for s in (-1, 1)]
     la, ll, lh = M.LEVER
     lever = Pos(0, lever_y, top) * Box(la, ll, lh, align=C)
+    c = M.POT_PINS / 2
     pins = [Pos(px, py, top - fh - 3.5) * Box(0.5, 0.8, 3.5, align=C)
-            for px, py in ((-1.75, -23.9), (1.75, -23.9), (0, 23.9))]
+            for px, py in ((-1.75, -c), (1.75, -c), (0, c))]
     return frame.fuse(lever, *pins)
 
 def led():          # 3 mm indicator, flush

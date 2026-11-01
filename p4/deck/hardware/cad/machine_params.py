@@ -89,41 +89,56 @@ ENC_STANDOFF = ENC_Z - BASE_T                               # boss height above 
 assert ENC_STANDOFF >= 2.0, ENC_STANDOFF
 assert 0.5 <= AIR_GAP <= 3.0, AIR_GAP     # AS5600 working range
 
-# CUE / PLAY, bottom-left as on a CDJ
+# CUE / PLAY, bottom-left as on a CDJ. Each button is a cap and a light ring, put in from
+# below and held by the control board (no glue):
+#   ring  translucent tube in the top's hole (OD RING_D, ID BTN_D + 0.5), 0.6 proud, with a
+#         skirt (SKIRT_D, 1 mm wall) from the top's underside down to the board. The step
+#         between tube and skirt bears on the underside; the board clamps the skirt. The
+#         skirt carries the LEDs' light up to the visible ring (notches over the LEDs).
+#   cap   BTN_D, CAP_RISE proud, with a flange under the ring tube (CAP_FLANGE) that stops it
+#         coming out the top, and a nub under that onto the tact switch's actuator.
 BTN_D = 19.0                 # cap
-RING_D = 22.0                # light ring (translucent)
+RING_D = 22.0                # light ring tube (the top's hole is RING_D + 0.4)
+SKIRT_D = 23.6               # ring skirt OD: PLAY and CUE are 24 apart, so 0.4 between skirts
+SKIRT_WALL = 1.0
+CAP_FLANGE = (21.0, 1.2)     # dia, thickness (45 degree chamfer on top, so it prints upside down)
+CAP_GAP = 0.2                # flange below the ring tube at rest (the cap sits on the switch)
+NUB_D = 4.0
 PLAY_C = (16.0, 16.0)
 CUE_C = (16.0, 40.0)         # ~4 mm clear of the jog well
 
-# Pitch slider: Bourns PTA4543-2015DPB103 (45 mm travel, no centre detent, 15 mm metal
-# DP lever, 10k linear). Datasheet: 60 x 9 mm frame, two M2 tapped holes 56 apart in the
-# frame top, 3 PC pins down. It hangs under the top on two pads, held by two M2 x 8
-# countersunk screws from above (flush: a pan head would catch the knob at the travel
-# ends). Wired to the control board; its PC pins aren't used as board pins.
+# Pitch slider: Bourns PTA6043-2015DPB103 (60 mm travel, no centre detent, 15 mm metal
+# DP lever, 10k linear). Datasheet: 75 x 9 mm frame, two M2 tapped holes 71 apart in the
+# frame top, 3 PC pins down (62.8 apart end to end). It hangs under the top on two pads,
+# held by two M2 x 8 countersunk screws from above (flush: a pan head would catch the knob
+# at the travel ends). Wired to the control board; its PC pins aren't used as board pins.
 SLIDER_X = 146.0
 SLIDER_C = JOG_C[1]          # slot centred on the jog
-POT_TRAVEL = 45.0
-POT_FRAME = (9.0, 60.0, 6.5) # x (across), y (along the travel), z (frame top -> body bottom)
-POT_HOLES = 56.0             # M2 tapped, on the centre line
+POT_TRAVEL = 60.0
+POT_FRAME = (9.0, 75.0, 6.5) # x (across), y (along the travel), z (frame top -> body bottom)
+POT_HOLES = 71.0             # M2 tapped, on the centre line
+POT_PINS = 62.8              # pin 1/2 end to pin 3 end
 LEVER = (1.0, 4.0, 15.0)     # DP lever: across, along the travel, above the frame top
 POT_PAD = 3.0                # pads under the top: frame top at H - TOP_T - POT_PAD
 SLOT_W = 2.6
-SLOT_L = POT_TRAVEL + LEVER[1] + 0.6                    # 49.6
+SLOT_L = POT_TRAVEL + LEVER[1] + 0.6                    # 64.6
 SLIDER_Y = (SLIDER_C - SLOT_L / 2, SLIDER_C + SLOT_L / 2)
 KNOB = (14.0, 10.0, 10.0)    # x, y, height
 KNOB_LIFT = 1.0              # knob underside above the top
 KNOB_SOCKET = (1.4, 4.3, 7.2)   # lever socket: across, along, depth (the lever goes in 7.0)
 KNOB_Y = SLIDER_C - 4.0      # rendered at +1.25 % (pitch range is firmware's business)
+TICKS_X = 6.0                # tick scale starts this far right of the slot; long 3.5, short 2
+TEMPO_LED_X = 11.0           # tempo-zero LED, right of the slot: clear of the 2 mm edge round
 assert SLIDER_C - POT_HOLES / 2 + 1.9 < SLIDER_Y[0] - 1.0, "M2 countersink too close to the slot end"
 
 # Control board: one PCB under CUE / PLAY with the two tact switches, the light-ring LEDs
 # and the I2C chip; the pot and the AS5600 wire to it, one cable goes to the dev board.
 # 12 x 12 tact switches 7.3 mm tall (actuator top), right under the caps' undersides.
 TACT = (12.0, 12.0, 3.6, 7.3)   # body x, y, body height, actuator top above the board
-CAP_BOTTOM = 6.0                # button caps reach this far below the top surface
+CAP_BOTTOM = 6.0                # the cap's nub reaches this far below the top surface
 CTRL_T = 1.6
 CTRL_Z = H - CAP_BOTTOM - TACT[3]                       # board top face
-CTRL_XY = (5.5, 5.5, 46.0, 62.0)                       # x0, y0, x1, y1
+CTRL_XY = (4.0, 4.0, 46.0, 62.0)                       # x0, y0, x1, y1 (the skirts sit fully on it)
 CTRL_CORNER_R = 6.0
 CTRL_HOLES = [(41.5, 10.0), (41.5, 57.5), (10.0, 57.5)]
 CTRL_BOSS_D = 6.0

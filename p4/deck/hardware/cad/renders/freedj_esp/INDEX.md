@@ -29,3 +29,5 @@
 - 0027-encoder-board-on-bosses.jpg: 2026-10-31: the AS5600 board (15/16" square, from Dan's ruler + listing photo) on the bosses, right-angle headers pointing out to both sides
 - 0028-pitch-pot-slot-countersinks.jpg: 2026-11-01: PTA4543 pitch pot: slot cut to 49.6 mm, flush M2 countersinks 56 mm apart at its ends, ticks over the 45 mm travel, knob 1 mm above the top on the metal lever
 - 0029-control-board-section.jpg: 2026-11-01: section at the jog axis looking left: the control board under CUE / PLAY, ring LEDs on top, three JST-XH connectors underneath
+- 0030-button-stack-section.jpg: 2026-11-01: section through PLAY and CUE: cap flange (chamfered) under the ring tube, nub on the 12 x 12 tact switch, ring skirts down to the control board, which holds both in
+- 0031-60mm-pitch-fader.jpg: 2026-11-01: PTA6043 (60 mm) fader: 64.6 mm slot, flush M2 screws 71 mm apart, ticks and the tempo LED moved in off the edge round

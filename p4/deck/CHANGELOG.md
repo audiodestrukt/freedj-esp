@@ -11,6 +11,30 @@ playing (see the README's *Audio health* section). Unless noted, it's
 the panel**, so they read high. From 2026-10-31 on, "screen fps" counts
 frames LVGL actually rendered and flushed.
 
+## 2026-11-01: Buttons held in by the control board; 60 mm pitch fader (CAD only)
+
+- **Buttons:** cap and light ring both go in from below, and the control
+  board holds them in. The ring gains a Ø23.6 skirt (1 mm wall) from the
+  top's underside down to the board; the board clamps it, and it carries
+  the LED light up to the ring (notches over the LEDs). The cap gains a
+  Ø21 flange under the ring tube, 0.2 mm below it at rest, chamfered 45°
+  on top so it prints upside down, and a Ø4 nub onto the tact switch. The
+  shell's guide sleeves are gone: a plain Ø22.4 hole. The skirts are
+  0.4 mm apart (buttons 24 mm apart).
+- **Control board:** 42 x 58 mm (was 40.5 x 56.5), grown 1.5 mm at the
+  front and left so the skirts sit fully on it. The LEDs move to r 11.3,
+  tangential, under the skirt wall.
+- **Pitch fader: PTA6043-2015DPB103** (60 mm) instead of the PTA4543.
+  75 mm frame, M2 holes 71 apart, slot 64.6 mm (still 2 mm to each
+  screw). In the angled version the frame's end is 1.5 mm into the dev
+  board's footprint in plan, 9 mm above its tallest part there.
+- The tick scale (long ticks 3.5, short 2) and the tempo-zero LED move
+  in from the deck's right edge; they ran onto the 2 mm edge round.
+- Clash check over every new part in both configs: clean (only the
+  knob's inlaid line, as intended). All printed parts watertight, one body.
+- Print: shell, `play_cap`, `cue_cap`, `light_ring` x 2, `slider_knob`.
+- Renders 0030 (button section), 0031 (60 mm fader).
+
 ## 2026-11-01: PLAY cap exported under its own name; light ring exported
 
 - `controls.py` wrote the PLAY cap as `button_cap.stl`, which read like a

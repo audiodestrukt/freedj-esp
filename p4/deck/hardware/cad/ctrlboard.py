@@ -17,7 +17,8 @@ import machine_params as M
 C = (Align.CENTER, Align.CENTER, Align.MIN)
 HOLE_D = 2.7                       # M2.5 clearance
 LED = (2.0, 1.25, 0.8)             # 0805, on the ring's centre circle
-RING_R = (M.BTN_D / 2 + 0.25 + M.RING_D / 2) / 2   # light ring centre radius
+LED_R = M.SKIRT_D / 2 - M.SKIRT_WALL / 2           # under the ring's skirt wall
+LED_ANGLES = (45, 135, 225, 315)
 XH_PITCH, XH_W, XH_H = 2.5, 5.75, 7.0
 # bottom side, along y, near the right edge: (name, pins, centre x, centre y)
 JST = [("j_pot", 3, 38.0, 20.0), ("j_enc", 4, 38.0, 32.0), ("j_host", 5, 38.0, 47.0)]
@@ -32,8 +33,8 @@ def board():
     return b - [Pos(x, y, M.CTRL_Z - M.CTRL_T - 1) * Cylinder(HOLE_D / 2, M.CTRL_T + 2, align=C) for x, y in M.CTRL_HOLES]
 
 def leds(c):
-    return [Pos(c[0] + RING_R * math.cos(a), c[1] + RING_R * math.sin(a), M.CTRL_Z) * Rot(0, 0, math.degrees(a) + 90)
-            * Box(*LED, align=C) for a in (math.radians(45 + 90 * k) for k in range(4))]
+    return [Pos(*c, M.CTRL_Z) * Rot(0, 0, a) * Pos(LED_R, 0, 0) * Rot(0, 0, 90) * Box(*LED, align=C)
+            for a in LED_ANGLES]
 
 def tact(c):
     bx, by, bh, top = M.TACT
@@ -64,7 +65,8 @@ if __name__ == "__main__":
     for x, y in M.CTRL_HOLES:
         print(f"  hole M2.5 ({HOLE_D} mm) at {x - x0:.2f}, {y - y0:.2f}")
     for n, c in (("PLAY", M.PLAY_C), ("CUE", M.CUE_C)):
-        print(f"  {n} switch centre {c[0] - x0:.2f}, {c[1] - y0:.2f}; 4 LEDs on r {RING_R:.2f} at 45/135/225/315 deg")
+        print(f"  {n} switch centre {c[0] - x0:.2f}, {c[1] - y0:.2f}; 4 LEDs (tangential) on r {LED_R:.2f} at 45/135/225/315 deg;"
+              f" ring skirt sits on r {M.SKIRT_D / 2 - M.SKIRT_WALL:.1f}-{M.SKIRT_D / 2:.1f}: keep it clear")
     for n, pins, x, y in JST:
         print(f"  {n}: JST-XH {pins}-pin (bottom side), centre {x - x0:.2f}, {y - y0:.2f}, along y")
     try:
