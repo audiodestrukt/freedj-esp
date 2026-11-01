@@ -14,6 +14,7 @@ is 7.5 mm (LCSC). Its body is replaced with a 6 x 6 x 3.5 body + Ø3.5 actuator 
     FREEDJ_CONFIG=flat python3 ctrl_fit.py   [--buttons lit|plain]
 writes build/ctrl_board_pop{SUFFIX}.stl   board in the deck frame (drops onto the shell STLs)
        build/ctrl_board_pop_local.stl     board alone: centre (0,0), top face z = 0
+       build/ctrl_board_print.stl         printable stand-in: one solid, no connectors, flat on the bed
        build/ctrl_fit{SUFFIX}.glb         deck + populated board, real part colours
        build/ctrl_fit{SUFFIX}_cut.glb     section through the button centres (x = 16)
 and prints every part's clearance clash (convex hulls, so it errs toward reporting one).
@@ -66,6 +67,31 @@ def board_meshes(local=False):
     return out
 
 
+def print_board(path="build/ctrl_board_print.stl"):
+    """A printable stand-in: the real 1.6 mm plate with its screw holes, every top-side part
+    as its convex hull (switches at their true 7.5 mm), no connectors. One watertight body,
+    bottom face on z = 0, so it prints flat with no supports."""
+    from build123d import export_stl, Pos
+    import ctrlboard
+    plate = Pos(-CX, -CY, -M.CTRL_Z + M.CTRL_T) * ctrlboard.board()      # top face at z = CTRL_T
+    export_stl(plate, "build/_plate.stl", tolerance=0.02)
+    body = trimesh.load("build/_plate.stl")
+    tops = []
+    for name, m in board_meshes(local=True):
+        if name.startswith("J_") or m.bounds[1][2] <= 0.05:
+            continue                                   # connectors; pads and silk (flat, at z 0)
+        h = m.convex_hull
+        if not h.is_volume:
+            continue
+        h.apply_translation((0, 0, M.CTRL_T))          # board-local top face (z 0) -> plate top
+        tops.append(h)
+    out = trimesh.boolean.union([body] + tops, engine="manifold")
+    out.export(path)
+    os.remove("build/_plate.stl")
+    print(f"printable board: {np.round(out.extents, 1)} mm, {len(tops)} part bodies, "
+          f"watertight {out.is_watertight}, bodies {len(out.split(only_watertight=False))} -> {path}")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--buttons", default=os.environ.get("FREEDJ_BUTTONS", "lit"))
@@ -79,6 +105,7 @@ def main():
     parts = board_meshes()
     trimesh.util.concatenate([m for _, m in parts]).export(f"build/ctrl_board_pop{M.SUFFIX}.stl")
     trimesh.util.concatenate([m for _, m in board_meshes(local=True)]).export("build/ctrl_board_pop_local.stl")
+    print_board()
     allb = trimesh.util.concatenate([m for _, m in parts])
     print(f"populated board: {np.round(allb.extents, 1)} mm, z {allb.bounds[0][2]:.1f}..{allb.bounds[1][2]:.1f}"
           f" -> build/ctrl_board_pop{M.SUFFIX}.stl, build/ctrl_board_pop_local.stl")

@@ -28,6 +28,10 @@ frames LVGL actually rendered and flushed.
   that it does report clashes: raising the board 1 mm hits the bosses,
   skirts and caps.
 - Renders 0034 (populated board) and 0035 (section in the deck).
+- `build/ctrl_board_print.stl`: a printable stand-in for test fits. The real
+  1.6 mm plate with its screw holes, every top-side part as its convex hull
+  (switches at 7.5 mm), no connectors. One watertight body, 42 x 58 x 9.1 mm,
+  flat on the bed.
 
 ## 2026-11-01: Control board PCB (CH32V003 I2C target), routed and DRC-clean
 

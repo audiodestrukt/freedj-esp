@@ -142,7 +142,7 @@ that depends on it.
 | `jog.py` | Platter with its printed shaft, shaft fit gauge, touch plate, centre cap, inertia ring, bearings, magnet, AS5600 board and header |
 | `controls.py` | Button caps and light rings (printable), slider knob, PTA6043 pot stand-in, LEDs |
 | `ctrlboard.py` | Control board: outline (DXF), holes, switch/LED/connector positions, stand-ins |
-| `ctrl_fit.py` | The **populated** control board (tscircuit GLB, real part models) placed in the deck: test-fit STLs (`build/ctrl_board_pop{,_flat}.stl` in the deck frame, `build/ctrl_board_pop_local.stl` alone), a clash check against the shell, rings, caps and base, and render scenes |
+| `ctrl_fit.py` | The **populated** control board (tscircuit GLB, real part models) placed in the deck: test-fit STLs (`build/ctrl_board_pop{,_flat}.stl` in the deck frame, `build/ctrl_board_pop_local.stl` alone; `build/ctrl_board_print.stl` is a printable stand-in, one solid without the connectors, printed flat), a clash check against the shell, rings, caps and base, and render scenes |
 | `stock.py` | Bought parts as stand-ins: LCD (touch glass, TFT, board, header), screws, connectors |
 | `devboard.py` | The Waveshare dev board stand-in (board, ports, header, module) and its placement in the deck |
 | `machine.py` | The assembly, exported as GLB (plus a cutaway through the jog) |
