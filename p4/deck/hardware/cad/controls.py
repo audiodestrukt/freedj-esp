@@ -1,7 +1,7 @@
 """controls.py: CUE/PLAY buttons with light rings, the pitch-slider knob and pot,
 indicator LEDs. Local frame: z = 0 on the deck's top surface, +z up; MATES["seat"]
 sits on the shell's "play" / "cue" / "slider" mates.
-python3 controls.py -> build/button_cap.stl, build/slider_knob.stl
+python3 controls.py -> build/play_cap.stl, cue_cap.stl, light_ring.stl (print 2, translucent), slider_knob.stl
 """
 import os
 from build123d import *
@@ -70,7 +70,8 @@ MATES = {"seat": Pos(0, 0, 0)}
 if __name__ == "__main__":
     import trimesh
     os.makedirs("build", exist_ok=True)
-    for name, s in (("button_cap", button_cap("play")), ("cue_cap", button_cap("cue")), ("slider_knob", slider_knob())):
+    for name, s in (("play_cap", button_cap("play")), ("cue_cap", button_cap("cue")),
+                    ("light_ring", light_ring()), ("slider_knob", slider_knob())):
         export_stl(s, f"build/{name}.stl", tolerance=0.02, angular_tolerance=0.1)
         m = trimesh.load(f"build/{name}.stl")
         print(name, (m.bounds[1] - m.bounds[0]).round(1),

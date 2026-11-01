@@ -11,6 +11,13 @@ playing (see the README's *Audio health* section). Unless noted, it's
 the panel**, so they read high. From 2026-10-31 on, "screen fps" counts
 frames LVGL actually rendered and flushed.
 
+## 2026-11-01: PLAY cap exported under its own name; light ring exported
+
+- `controls.py` wrote the PLAY cap as `button_cap.stl`, which read like a
+  generic part next to `cue_cap.stl`. It's now `play_cap.stl`.
+- The light ring had no STL. It's now `light_ring.stl`: print two, in
+  translucent PETG or resin.
+
 ## 2026-11-01: PTA4543 pitch pot mount and the control board (CAD only)
 
 - Pitch pot chosen: **Bourns PTA4543-2015DPB103** (45 mm, no centre detent,
