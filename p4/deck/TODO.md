@@ -53,6 +53,8 @@ In order. Costs: **cheap** = logic only, no per-sample work; **moderate**; **hea
    - [ ] **3D-printed enclosure**, first design in [hardware/](hardware/README.md): a small CDJ
      around the 4" MSP4021, jog on two 608s + AS5600, CUE/PLAY, 45 mm pitch, angled and
      flat-top versions. Next: caliper the screen and the dev board's port heights, print and test the jog module alone, choose jog-touch sensing.
+   - [ ] **Release 1 with no custom boards**: panel-mount buttons + pot straight to P4 GPIO,
+     control board kept as the later build. Plan in [BUILDS.md](BUILDS.md).
    - [ ] **Touch back with the AS5600 on I2C.** The encoder took pins 3/5 and the screen's
      touch is unplugged for now (DJ2Go covers it). Either double up both on pins 3/5
      (0x36 and 0x38 share fine), or give the encoder its own bus; for good once the
