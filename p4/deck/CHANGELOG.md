@@ -11,6 +11,19 @@ playing (see the README's *Audio health* section). Unless noted, it's
 the panel**, so they read high. From 2026-10-31 on, "screen fps" counts
 frames LVGL actually rendered and flushed.
 
+## 2026-11-01: Plain buttons, without light rings (CAD only)
+
+- New `play_cap_plain.stl` / `cue_cap_plain.stl`. A Ø22 cap fills the
+  top's Ø22.4 hole, and its Ø23.6 flange (chamfered 45° on top, 0.2 mm
+  under the top at rest) catches the underside. It has the same Ø4 nub
+  onto the same tact switch, and uses the same shell and control board,
+  so the LEDs are optional. A translucent plain cap picks up the LEDs'
+  light through its flange.
+- `FREEDJ_BUTTONS=plain` (default `lit`) puts them in the assembly and
+  the clash check. Both styles are clean in both configs; all printed
+  parts are watertight, one body.
+- Render 0032 (plain buttons, section).
+
 ## 2026-11-01: Buttons held in by the control board; 60 mm pitch fader (CAD only)
 
 - **Buttons:** cap and light ring both go in from below, and the control

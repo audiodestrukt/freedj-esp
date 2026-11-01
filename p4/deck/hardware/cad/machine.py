@@ -69,8 +69,10 @@ def scene_parts():
     # buttons
     for which in ("play", "cue"):
         at = S[which]; P = lambda s: place(s, controls.MATES["seat"], at)
-        add(f"{which}_ring", P(controls.light_ring()), f"ring_{which}")
-        add(f"{which}_cap", P(controls.button_cap(which)), "btn")
+        plain = M.BUTTONS == "plain"
+        if not plain:
+            add(f"{which}_ring", P(controls.light_ring()), f"ring_{which}")
+        add(f"{which}_cap", P(controls.button_cap(which, plain)), "btn")
         fill = controls.icon_solid(which) & Pos(0, 0, controls.CAP_RISE - 0.5) * Box(20, 20, 0.45, align=(Align.CENTER, Align.CENTER, Align.MIN))
         add(f"{which}_icon", P(fill), f"icon_{which}")
     at = S["slider"]; P = lambda s: place(s, controls.MATES["seat"], at)

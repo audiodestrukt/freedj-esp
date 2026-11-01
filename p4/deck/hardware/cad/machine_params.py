@@ -106,6 +106,12 @@ SKIRT_WALL = 1.0
 CAP_FLANGE = (21.0, 1.2)     # dia, thickness (45 degree chamfer on top, so it prints upside down)
 CAP_GAP = 0.2                # flange below the ring tube at rest (the cap sits on the switch)
 NUB_D = 4.0
+# Plain buttons (no light ring, LEDs optional): the cap fills the top's hole itself, and
+# its flange catches the top's underside. Same shell, board and switch as the lit ones.
+PLAIN_D = RING_D             # in the RING_D + 0.4 hole
+PLAIN_FLANGE = (SKIRT_D, 1.2)   # as wide as fits: the buttons are 24 apart
+BUTTONS = os.environ.get("FREEDJ_BUTTONS", "lit")   # assembly/clash check: "lit" or "plain"
+assert BUTTONS in ("lit", "plain"), BUTTONS
 PLAY_C = (16.0, 16.0)
 CUE_C = (16.0, 40.0)         # ~4 mm clear of the jog well
 

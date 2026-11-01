@@ -4,6 +4,7 @@
 indicator LEDs. Local frame: z = 0 on the deck's top surface, +z up; MATES["seat"]
 sits on the shell's "play" / "cue" / "slider" mates.
 python3 controls.py -> build/play_cap.stl, cue_cap.stl, light_ring.stl (print 2, translucent), slider_knob.stl
+  and play_cap_plain.stl, cue_cap_plain.stl: the same buttons without light rings
 """
 import os
 from build123d import *
@@ -26,19 +27,21 @@ def light_ring():
         r -= Pos(0, 0, zb - 0.01) * Rot(0, 0, a) * Pos(ctrlboard.LED_R, 0, 0) * Box(2.0, 2.6, 1.0, align=C)
     return r
 
-def button_cap(icon):
+def button_cap(icon, plain=False):
     """Cap, flange (chamfered 45 degrees on top) and the nub onto the switch. Print it upside
-    down, top face on the bed."""
+    down, top face on the bed. Lit: a BTN_D cap inside the light ring, its flange under the
+    ring. Plain: no ring; a PLAIN_D cap in the top's hole, its flange under the top."""
     top_of_flange = -M.TOP_T - M.CAP_GAP
-    fd, ft = M.CAP_FLANGE
-    body = Pos(0, 0, top_of_flange) * Cylinder(M.BTN_D / 2, CAP_RISE - top_of_flange, align=C)
+    bd = M.PLAIN_D if plain else M.BTN_D
+    fd, ft = M.PLAIN_FLANGE if plain else M.CAP_FLANGE
+    body = Pos(0, 0, top_of_flange) * Cylinder(bd / 2, CAP_RISE - top_of_flange, align=C)
     try:
         body = fillet(body.edges().filter_by(lambda e: e.center().Z > CAP_RISE - 0.1), 1.5)
     except Exception as e:
         print("  (cap round skipped:", e, ")")
-    ch = (fd - M.BTN_D) / 2
+    ch = (fd - bd) / 2
     flange = (Pos(0, 0, top_of_flange - ft) * Cylinder(fd / 2, ft - ch, align=C)).fuse(
-        Pos(0, 0, top_of_flange - ch) * Cone(fd / 2, M.BTN_D / 2, ch, align=C))
+        Pos(0, 0, top_of_flange - ch) * Cone(fd / 2, bd / 2, ch, align=C))
     nub_top = top_of_flange - ft
     nub = Pos(0, 0, -M.CAP_BOTTOM) * Cylinder(M.NUB_D / 2, nub_top + M.CAP_BOTTOM + 0.01, align=C)
     return body.fuse(flange, nub).cut(icon_solid(icon))
@@ -91,7 +94,9 @@ if __name__ == "__main__":
     import trimesh
     os.makedirs("build", exist_ok=True)
     for name, s in (("play_cap", button_cap("play")), ("cue_cap", button_cap("cue")),
-                    ("light_ring", light_ring()), ("slider_knob", slider_knob())):
+                    ("light_ring", light_ring()),
+                    ("play_cap_plain", button_cap("play", plain=True)), ("cue_cap_plain", button_cap("cue", plain=True)),
+                    ("slider_knob", slider_knob())):
         export_stl(s, f"build/{name}.stl", tolerance=0.02, angular_tolerance=0.1)
         m = trimesh.load(f"build/{name}.stl")
         print(name, (m.bounds[1] - m.bounds[0]).round(1),

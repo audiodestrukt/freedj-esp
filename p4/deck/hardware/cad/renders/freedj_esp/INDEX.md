@@ -31,3 +31,4 @@
 - 0029-control-board-section.jpg: 2026-11-01: section at the jog axis looking left: the control board under CUE / PLAY, ring LEDs on top, three JST-XH connectors underneath
 - 0030-button-stack-section.jpg: 2026-11-01: section through PLAY and CUE: cap flange (chamfered) under the ring tube, nub on the 12 x 12 tact switch, ring skirts down to the control board, which holds both in
 - 0031-60mm-pitch-fader.jpg: 2026-11-01: PTA6043 (60 mm) fader: 64.6 mm slot, flush M2 screws 71 mm apart, ticks and the tempo LED moved in off the edge round
+- 0032-plain-buttons-section.jpg: 2026-11-01: plain buttons (no light rings): 22 mm caps fill the holes, 23.6 mm flanges under the top, nubs on the tact switches
