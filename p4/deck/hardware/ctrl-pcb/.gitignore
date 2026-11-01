@@ -1,0 +1,10 @@
+node_modules/
+dist/
+build/
+scripts
+route-evals/
+npm.log
+*.kicad_prl
+*-backups/
+.claude/
+.tscircuit/

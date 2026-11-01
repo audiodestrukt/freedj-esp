@@ -11,6 +11,32 @@ playing (see the README's *Audio health* section). Unless noted, it's
 the panel**, so they read high. From 2026-10-31 on, "screen fps" counts
 frames LVGL actually rendered and flushed.
 
+## 2026-11-01: Control board PCB (CH32V003 I2C target), routed and DRC-clean
+
+- New `hardware/ctrl-pcb/`, a tscircuit design, 42 x 58 mm, 2 layers. A
+  **CH32V003F4P6** (C5187096: 26k in stock, ~$0.29) is the I2C target for
+  the fader ADC, button debouncing and 8 individually driven ring LEDs.
+  The ATtiny1616/1626 had only 47-108 in stock. The AS5600 shares the bus
+  through J_ENC.
+- All SMD on top (one-side assembly): 2 x ZX-QC66-7.5TP 6 x 6 x 7.5 tacts
+  (wired on diagonal pads), 4 x 0805 LEDs per ring on r 11.3 (green
+  C2297 / 100R, amber-yellow C2296 / 470R), a resistor per LED inside the
+  skirt, the MCU and passives right of the buttons. Bottom: JST-XH for
+  the host (back edge), AS5600 and fader (right edge), and SWIO pads.
+- The anchors come from the CAD (`gen_geom.py` -> `lib/geom.json`), so the
+  board can't drift from the case. `build.sh` does placement, Freerouting +
+  capacity router, island removal, the TraceMaker finish, the gates and
+  `fab/`.
+- Result: KiCad DRC clean (0 shorts, 0 open), one GND pour island, JLCPCB
+  DFM OK, no floating pads, no parts under the ring skirts or the bosses.
+  BOM: 27 parts in 11 lines, LCSC numbers from the design. 3 connectors to
+  hand-solder.
+- CAD follows the real parts: TACT 12 x 12 x 7.3 -> 6 x 6 x 7.5 (board
+  0.2 mm lower), connector positions and J_ENC to 5 pins, skirt notches
+  3.6 mm wide to clear the 0805 pads. Clash check clean in both configs
+  with both button styles.
+- Firmware for the CH32V003 isn't written yet.
+
 ## 2026-11-01: CDJ-style tempo knob (CAD only)
 
 - The slider knob was a plain rounded block. It's now a CDJ-style tempo
