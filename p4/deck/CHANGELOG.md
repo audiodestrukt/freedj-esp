@@ -11,6 +11,33 @@ playing (see the README's *Audio health* section). Unless noted, it's
 the panel**, so they read high. From 2026-10-31 on, "screen fps" counts
 frames LVGL actually rendered and flushed.
 
+## 2026-11-01: AS5600 jog encoder works (I2C)
+
+- New `main/as5600.cpp`: the AS5600 drives the jog. It sends the same
+  `Jog` events as the DJ2Go's jog, at 180 ticks per turn (1.8 s of track,
+  about a record at 33 1/3), so scratch and nudge work unchanged and the
+  DJ2Go still works alongside it.
+- **I2C** at 0x36 on the codec/touch bus (SDA pin 3, SCL pin 5), polled at
+  500 Hz from a core-0 task (never the audio task). Magnet status is checked
+  every 100 ms; samples without a magnet are skipped and the position
+  re-seeds, so it can't jump. Whole-tick hysteresis.
+- **Analog fallback** on pin 7 (GPIO 23) if nothing answers at boot: 2 ADC
+  reads per sample, smoothed (13 ms), range learned from what's seen.
+- Bench numbers: at rest ±1 count on I2C against ±40 on the ADC; 0 drift
+  ticks at rest; one read 177 us (bus wait, core 0); analog was 282 us per
+  sample. Turning the platter tracked both ways through the wrap.
+- What went wrong on the way:
+  - The ADC task first hogged core 0. Eight reads took more than 1 ms, so
+    `vTaskDelayUntil` never blocked and the idle task's watchdog fired. It
+    now always yields.
+  - The magnet on the printed shaft was too far away: AGC 128, magnitude
+    ~148, "too weak". It was solid at ~1 mm (AGC 0, ~2,080).
+  - The analog OUT never moved even with the magnet seen, most likely the
+    wire on GPO (internal pull-up, reads 3.3 V) or OUT not soldered.
+- Serial keys: `e` encoder readings (mode, raw, ticks, lost samples), `E`
+  magnet status over I2C (detected / weak / strong, AGC, magnitude, angle,
+  output config).
+
 ## 2026-11-01: Case fixes from the first print (CAD only)
 
 - Optional Pioneer-style platter, `cad/pioneer_platter.py`. It's freedj-3000's

@@ -31,7 +31,11 @@ constexpr gpio_num_t LCD_DC   = GPIO_NUM_5;   // pin 16 (LCD_RS)
 constexpr gpio_num_t LCD_RST  = GPIO_NUM_4;   // pin 18
 constexpr gpio_num_t LCD_BL   = GPIO_NUM_3;   // pin 19 (LED)
 constexpr gpio_num_t TP_RST   = GPIO_NUM_2;   // pin 21
-constexpr gpio_num_t TP_INT   = GPIO_NUM_23;  // pin 7
+constexpr gpio_num_t TP_INT   = GPIO_NUM_23;  // pin 7: not used; the jog encoder has it now
+// AS5600 jog encoder: VCC pin 1, GND pin 6, DIR to GND (3V3 reverses), SDA pin 3,
+// SCL pin 5 (shared with touch; address 0x36). Its analog OUT on pin 7 is the
+// fallback when it doesn't answer on I2C (take the screen's CTP_INT jumper off).
+constexpr gpio_num_t JOG_ADC  = GPIO_NUM_23;  // pin 7
 
 // Ethernet: IP101GRI PHY over RMII. The data pins, MDC 31, MDIO 52 and the
 // 50 MHz reference clock in on GPIO 50 are ESP-IDF's P4 defaults.

@@ -115,10 +115,13 @@ Two firmware catches with the ILI9488 over SPI:
   Ø6.05, a light press fit.
 - **Platter retention:** none yet. Options for later: a drop of retaining compound on
   the lower inner race, or a clip, which needs the lower bearing moved up in the shell.
-- **AS5600 output:** I2C (fixed address 0x36, free on the bus: codec 0x18, touch
-  0x38), or its analog/PWM OUT pin. It has no A/B quadrature, so not the pulse counter.
-  The I2C angle read needs polling at about 1 kHz for scratching; OUT into the ADC is
-  the cheaper alternative.
+- **AS5600 output:** read over **I2C** (0x36, on the codec/touch bus for now: SDA pin 3,
+  SCL pin 5, doubled up on the touch wires), polled at 500 Hz from core 0. Firmware
+  `main/as5600.cpp`; analog OUT on pin 7 is the fallback when nothing answers at boot.
+  I2C won on the bench: ±1 count at rest against the ADC's ±40, and it reports when it
+  loses the magnet. **Air gap:** the chip said "too weak" (AGC 128, magnitude ~148) with
+  the magnet on the printed shaft and was solid at ~1 mm (AGC 0, magnitude ~2,080), so
+  measure the real magnet and gap before trusting `AIR_GAP`.
 - **Firmware:** a native input driver (pulse counter, ADC, GPIO, touch) that feeds
   the same `DeckEvent`s the DJ2Go does today.
 

@@ -46,6 +46,7 @@
 #include "usb_midi.h"
 #include "usb_stick.h"
 #include "usb_audio.h"
+#include "as5600.h"
 #include "wsola.h"
 
 static const char* TAG = "deck";
@@ -1123,7 +1124,7 @@ static void audioTask(void*)
 //   o 4-beat loop   x reloop/exit   ( ) loop 1/2, x2   i u loop in/out
 //   , . beat jump -/+4   < > call previous/next memory cue   q quantize
 //   t tempo range   T tempo reset   m M memory cue add/delete   z slip   r reverse
-//   Y become tempo master   J jog calibration (ticks since the last J)
+//   Y become tempo master   J jog calibration (ticks since the last J)   e jog encoder readings   E its magnet status
 //   w cycle waveform test mode (normal / no flush / off)
 static void serialKeysTask(void*)
 {
@@ -1167,6 +1168,12 @@ static void serialKeysTask(void*)
         case 'z': e.type = deck::Type::Slip; break;
         case 'r': e.type = deck::Type::Reverse; break;
         case 'Y': prolink::requestMaster(); ESP_LOGI(TAG, "requesting tempo master"); continue;
+        case 'e': {   // jog encoder: raw reading, learned range, ticks sent
+            const as5600::Stats s = as5600::stats();
+            ESP_LOGI(TAG, "jog encoder %s (%s): raw %d, range %d..%d, %d ticks, read %d us, %d lost", s.active ? "on" : "OFF", s.i2c ? "I2C" : "analog", s.raw, s.lo, s.hi, s.ticks, s.readUs, s.lost);
+            continue;
+        }
+        case 'E': as5600::probe(audio_out::i2cBus()); continue;   // jog encoder status over I2C (pins 3/5)
         case 'J': {   // jog calibration: press, turn the jog exactly once, press again
             const int t = s_jogTicks;
             s_jogTicks = 0;
@@ -1222,6 +1229,7 @@ extern "C" void app_main(void)
     xTaskCreatePinnedToCore(audioTask, "audio", 8192, nullptr, 10, nullptr, 1);
     xSemaphoreTake(s_audioUp, portMAX_DELAY);  // the screen's touch shares the codec's I2C bus
     ui::begin(s_stream, onUiEvent, onUiSelect, onUiSeek, [] { prolink::requestMaster(); });
+    as5600::begin(onUiEvent, audio_out::i2cBus());   // jog encoder: I2C on pins 3/5, else analog on pin 7 (core 0)
     xTaskCreatePinnedToCore(reporterTask, "report", 6144, nullptr, 1, nullptr, 0);
     xTaskCreatePinnedToCore(serialKeysTask, "keys", 3072, nullptr, 2, nullptr, 0);
     ESP_LOGI(TAG, "memory free: internal %u KB (largest %u KB), PSRAM %u KB",
