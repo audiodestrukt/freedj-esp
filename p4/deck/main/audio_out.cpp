@@ -1,5 +1,6 @@
 #include "audio_out.h"
 #include "board.h"
+#include "usb_audio.h"
 #include "driver/i2c_master.h"
 #include "driver/i2s_std.h"
 #include "esp_codec_dev.h"
@@ -99,6 +100,20 @@ bool begin(uint32_t rate, int volume)
 
 void write(const int16_t* lr, size_t frames)
 {
+    // USB audio, when plugged in, gets the frames and the speaker gets
+    // silence. Not a codec mute: that's I2C, and the touch chip on the same
+    // bus is read from the other core (a collision aborted the deck). I2S
+    // keeps running either way: its DMA paces the audio loop.
+    if (usb_audio::active()) {
+        usb_audio::write(lr, frames);
+        static const int16_t zeros[2 * 256] = {};
+        for (size_t done = 0; done < frames;) {
+            const size_t n = frames - done < 256 ? frames - done : 256;
+            esp_codec_dev_write(s_codec, (void*)zeros, n * 2 * sizeof(int16_t));
+            done += n;
+        }
+        return;
+    }
     esp_codec_dev_write(s_codec, (void*)lr, frames * 2 * sizeof(int16_t));
 }
 

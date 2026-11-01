@@ -43,7 +43,7 @@
 #include "ui.h"
 #include "usb_midi.h"
 #include "usb_stick.h"
-#include "usb_audio_probe.h"
+#include "usb_audio.h"
 #include "wsola.h"
 
 static const char* TAG = "deck";
@@ -882,6 +882,9 @@ static void reporterTask(void*)
                  kBlock * 1000.0 / kRate, r.minSlackUs / 1000.0, (unsigned)r.clicks, r.clickWorst);
         static char top[256];
         topTasks(top, sizeof top, wall);
+        if (usb_audio::active())
+            ESP_LOGI(TAG, "  usb audio: underruns %u  drift corrections %u",
+                     (unsigned)usb_audio::underruns(), (unsigned)usb_audio::corrections());
         ESP_LOGI(TAG, "  cpu: core0 %.0f %%  core1 %.0f %%  (%s)", load0, load1, ui::waveStats());
         ESP_LOGI(TAG, "  mem: internal %u KB free (lowest %u KB, largest block %u KB), PSRAM %u KB free",
                  (unsigned)(heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024),
@@ -1205,7 +1208,7 @@ extern "C" void app_main(void)
     ui::splashStatus("USB");
     usb_midi::begin(onMidiPacket);
     usb_stick::begin(onStickMounted, onStickRemoved);
-    usb_audio_probe::begin();
+    usb_audio::begin(kRate);
     usb_midi::powerOn();
     // Network from core 0, so the EMAC interrupt stays off the audio core.
     ui::splashStatus("network");

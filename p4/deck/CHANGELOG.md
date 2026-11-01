@@ -11,6 +11,25 @@ playing (see the README's *Audio health* section). Unless noted, it's
 the panel**, so they read high. From 2026-10-31 on, "screen fps" counts
 frames LVGL actually rendered and flushed.
 
+## 2026-11-01: Music plays out of the UCA202
+
+- `usb_audio_probe` becomes `usb_audio`, a real output. When a UAC1 device
+  with a 16-bit stereo isochronous output at 44.1 kHz enumerates, the deck
+  streams to it in stereo. The speaker gets silence, and comes back when
+  the device is unplugged.
+- `audio_out::write()` feeds a 4096-frame ring. The USB side sends one
+  packet per 1 ms frame, 44 or 45 frames, 4 packets per transfer, 3
+  transfers in flight. It holds the ring near 1024 frames (~23 ms). Past
+  ±512 frames it drops or repeats one frame per packet to follow drift
+  between the I2S and USB clocks. The I2S DMA still paces the audio loop.
+- Mute is done by sending silence to I2S, not by muting the codec. The
+  first try muted the codec over I2C from the audio task (core 1), which
+  collided with LVGL's touch read on the same bus. The touch read failed
+  and the deck aborted at boot, over and over.
+- The 2 s report adds `usb audio: underruns N  drift corrections N`.
+- Budget (idle, no track loaded): uac_client 1 % of core 0, audio 9-10 %
+  of core 1. Added latency on USB: ~23 ms ring + ~12 ms in flight.
+
 ## 2026-11-01: UCA202 enumerates; the probe tone plays with no errors
 
 - The UCA202 (TI PCM2902, 08BB:2902) failed to enumerate: "Configuration
