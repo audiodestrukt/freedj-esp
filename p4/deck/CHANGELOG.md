@@ -11,6 +11,17 @@ playing (see the README's *Audio health* section). Unless noted, it's
 the panel**, so they read high. From 2026-10-31 on, "screen fps" counts
 frames LVGL actually rendered and flushed.
 
+## 2026-11-01: CDJ-style tempo knob (CAD only)
+
+- The slider knob was a plain rounded block. It's now a CDJ-style tempo
+  knob: 14 mm across the slot, tapering from an 11 mm base (1.2 mm straight
+  foot) to a 12 x 5.5 mm flat top, 10 mm tall, with concave finger scoops
+  (R 14, 1.3 mm deep) front and back, a 0.6 mm round on the top edges, and
+  the index line across the top centre. Same lever socket, so the fit is
+  unchanged.
+- Clash check clean in both configs; watertight, one body.
+- Reprint `slider_knob.stl`. Render 0033.
+
 ## 2026-11-01: Plain buttons, without light rings (CAD only)
 
 - New `play_cap_plain.stl` / `cue_cap_plain.stl`. A Ø22 cap fills the

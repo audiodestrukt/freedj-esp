@@ -56,20 +56,32 @@ def icon_solid(icon):
     return Pos(0, 0, z) * extrude(Text("CUE", 4.2, font_style=FontStyle.BOLD), 2)
 
 def slider_knob():
-    """Sits KNOB_LIFT above the top on the pot's metal lever (a push fit in the socket)."""
+    """CDJ-style tempo knob, a push fit on the pot's metal lever, KNOB_LIFT above the top.
+    Tapered body, wider across the slot than along it; concave finger scoops front and
+    back; flat top with an index line across it (knob_line). Prints upright, socket down."""
     kx, ky, kh = M.KNOB
-    k = Box(kx, ky, kh, align=C)
+    tx, ty = M.KNOB_TOP
+    foot = 1.2                                       # straight skirt at the base
+    base = Pos(0, 0, 0) * extrude(RectangleRounded(kx, ky, 1.6), foot)
+    body = loft([Plane.XY.offset(foot) * RectangleRounded(kx, ky, 1.6),
+                 Plane.XY.offset(kh) * RectangleRounded(tx, ty, 1.0)])
+    k = base.fuse(body)
+    R, depth = M.KNOB_SCOOP
+    zc = (foot + kh) / 2 + 1.0                       # scoop centre, a little above mid-height
+    yface = lambda z: ky / 2 - (ky - ty) / 2 * (z - foot) / (kh - foot)
+    for s in (-1, 1):
+        k -= Pos(0, s * (yface(zc) - depth + R), zc) * Rot(0, 90, 0) * Cylinder(R, kx + 2)
     try:
-        k = fillet(k.edges().filter_by(Axis.Z), 2.0)
+        k = fillet(k.edges().filter_by(lambda e: e.center().Z > kh - 0.05), 0.6)
     except Exception as e:
-        print("  (knob round skipped:", e, ")")
-    k = k.cut(Pos(0, ky / 2 - 1, kh + 12 - 1.6) * Rot(0, 90, 0) * Cylinder(12, kx + 2))   # finger dish, back edge
+        print("  (knob top round skipped:", e, ")")
     sa, sl, sd = M.KNOB_SOCKET
     k = k.cut(Pos(0, 0, -1) * Box(sa, sl, sd + 1, align=C))
     return Pos(0, 0, M.KNOB_LIFT) * k
 
 def knob_line():
-    return Pos(0, -2.5, M.KNOB_LIFT + M.KNOB[2] - 0.4) * Box(M.KNOB[0] - 1.5, 0.9, 0.6, align=C)   # index line across the top
+    """White index line across the flat top (an inlay in the render; paint it on the print)."""
+    return Pos(0, 0, M.KNOB_LIFT + M.KNOB[2] - 0.4) * Box(M.KNOB_TOP[0] - 2.5, 0.9, 0.6, align=C)
 
 def pot(lever_y=0.0):
     """PTA6043 stand-in on the "pot" mate (slot centre, top surface): frame, lever at
