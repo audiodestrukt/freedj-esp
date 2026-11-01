@@ -75,6 +75,22 @@ published by xwax (GPL-3.0). No xwax code is included; see `src/timecode.h`.
 
 ## Trademarks
 
-Pioneer DJ, CDJ, rekordbox, Serato, Numark, Behringer and other product names
-are trademarks of their owners. freedj-esp isn't affiliated with or endorsed by
-any of them; the names are used only to describe compatibility.
+### The freedj name
+
+"freedj", "freedj-esp", the FREEDJ engraving and the audiodestrukt name are
+Dan Newcome's trademarks. The licences above cover the source and the designs.
+**They don't grant any right to these names or logos.**
+
+- You can build, modify and share the firmware and hardware under those licences.
+- You can say truthfully that your work is "based on freedj".
+- If you distribute a modified version, or sell decks or kits, give it a name of your
+  own, so nobody takes it for the original.
+
+### Other people's names
+
+Pioneer DJ, AlphaTheta, CDJ, XDJ, DJM, rekordbox, Pro DJ Link, Serato, Numark,
+Behringer and other product names are trademarks of their owners.
+
+- freedj isn't affiliated with, endorsed by or sponsored by any of them.
+- The names are used only to describe compatibility. "Pioneer-style" describes the
+  look of a part and isn't a claim of origin.

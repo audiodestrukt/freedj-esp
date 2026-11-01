@@ -314,4 +314,7 @@ Copyright (c) 2026 Dan Newcome.
 - **Software** (both firmwares, the simulator, tests and tools): [GPL-3.0-or-later](LICENSE).
 - **Hardware** (`p4/deck/hardware`: enclosure CAD, generated STLs, renders): [CERN-OHL-S-2.0](p4/deck/hardware/LICENSE).
 
+- **Names:** "freedj" and audiodestrukt are Dan Newcome's trademarks and aren't covered by those licences. If you ship a modified version, give it a name of your own.
+- **No affiliation:** not affiliated with or endorsed by Pioneer DJ / AlphaTheta, Serato, Numark or any other brand named here. Those names are used only to describe compatibility.
+
 See [COPYRIGHT.md](COPYRIGHT.md) for which licence covers what, the third-party code, and trademarks.
