@@ -89,9 +89,18 @@ Total: about 11 conductors. A wiring table goes in hardware/README.md once the p
 
 ## Order of work
 
-1. **Choose the buttons.**
-   - Need: 3.3 V or 5 V LED (not 12 V), and momentary.
-   - Get the hole diameter and the depth behind the panel.
+1. **Choose the buttons.** Keep them about the size of the printed ones: a 19 mm cap in a
+   22 mm ring, on centres 24 mm apart, with 27 mm under the top plate (angled; flat 31).
+   - **First choice: 16 mm metal flat-head, ring LED, momentary.**
+     - The head is about 18–19 mm, close to the printed cap.
+     - The nut is about 20 mm, which clears at 24 mm centres.
+     - Short-body versions are about 20 mm deep.
+   - **19 mm:** the head is about 22 mm, matching the ring. But the nuts are about 24–26 mm,
+     so they touch at 24 mm centres; turn the flats toward each other or move PLAY. The
+     common bodies are 30 mm or more, too deep for the angled case.
+   - **Either size:** a 3–6 V LED (not 12 V), and momentary, not latching.
+   - Measure the real one: the hole, the head diameter, the nut across the flats, and the
+     depth including the terminals.
 2. **Get the P4 header map and choose the pins:** 1 ADC pin, 4 GPIO.
 3. **Firmware:**
    - `panel_gpio` (buttons, then pot, then LEDs);
@@ -107,7 +116,7 @@ Total: about 11 conductors. A wiring table goes in hardware/README.md once the p
 
 ## Open questions
 
-- Which buttons? Size and LED voltage decide the hole and how deep the button sits.
+- Which buttons exactly: 16 mm flat-head short body is the plan (see step 1). The real part's depth and nut size decide the final holes.
 - If the CUE and PLAY LEDs are buttons with built-in LEDs, the light-ring look goes away
   in release 1. Is that OK, or should the rings stay as wired ring LEDs (8 pins, or 2
   pins and 2 transistors)?
