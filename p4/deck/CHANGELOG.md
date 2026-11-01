@@ -11,6 +11,20 @@ playing (see the README's *Audio health* section). Unless noted, it's
 the panel**, so they read high. From 2026-10-31 on, "screen fps" counts
 frames LVGL actually rendered and flushed.
 
+## 2026-10-31: USB audio probe (Behringer UCA202, not yet tested)
+
+- New `usb_audio_probe`: its own USB host client. When a device with a USB
+  audio streaming interface (UAC1) enumerates, it logs the audio
+  interfaces, terminals, formats, rates and endpoints. It then plays a 2 s
+  440 Hz tone at -12 dBFS through the first 16-bit stereo isochronous
+  output that takes 48 kHz: 192-byte packets, 8 per transfer, 3 transfers
+  in flight. It logs packet and transfer errors at the end.
+- Purpose: confirm isochronous transfers work through the full-speed hub
+  before building an `audio_out` backend on them. Nothing else uses it.
+  The DJ2Go (MIDI only) is skipped.
+- Budget: not measured. It's idle until an audio device is plugged in.
+  App 0x162900 bytes (83 % of the partition free).
+
 ## 2026-10-31: AS5600 on four bosses, real board size (CAD only)
 
 - Board from Dan's ruler and the listing photo: 15/16" (23.8 mm) square,

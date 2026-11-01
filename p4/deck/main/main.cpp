@@ -43,6 +43,7 @@
 #include "ui.h"
 #include "usb_midi.h"
 #include "usb_stick.h"
+#include "usb_audio_probe.h"
 #include "wsola.h"
 
 static const char* TAG = "deck";
@@ -1204,6 +1205,7 @@ extern "C" void app_main(void)
     ui::splashStatus("USB");
     usb_midi::begin(onMidiPacket);
     usb_stick::begin(onStickMounted, onStickRemoved);
+    usb_audio_probe::begin();
     usb_midi::powerOn();
     // Network from core 0, so the EMAC interrupt stays off the audio core.
     ui::splashStatus("network");
