@@ -152,3 +152,12 @@ LC_ALL=C LANG=C blender -b -P deck_render.py -- build/freedj_esp_cut.glb build/c
 ```
 
 Renders worth keeping go in `cad/renders/freedj_esp/` with a line in its `INDEX.md`.
+
+## License
+
+Copyright (c) 2026 Dan Newcome. The hardware in this directory (CAD sources,
+the STL/DXF/GLB files they generate, renders and these docs) is licensed under
+the [CERN-OHL-S-2.0](LICENSE). If you make and ship a deck from it, publish
+your changed design under the same licence, and show the source location
+(<https://github.com/audiodestrukt/freedj-esp>) on the case or in its docs.
+The firmware is GPL-3.0-or-later; see [COPYRIGHT.md](../../../COPYRIGHT.md).

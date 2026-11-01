@@ -306,3 +306,12 @@ Common run targets (all under `make -C native`):
 - Verhelst & Roelands, "An Overlap-Add Technique Based on Waveform
   Similarity (WSOLA) For High Quality Time-Scale Modification of Speech",
   ICASSP 1993.
+
+## License
+
+Copyright (c) 2026 Dan Newcome.
+
+- **Software** (both firmwares, the simulator, tests and tools): [GPL-3.0-or-later](LICENSE).
+- **Hardware** (`p4/deck/hardware`: enclosure CAD, generated STLs, renders): [CERN-OHL-S-2.0](p4/deck/hardware/LICENSE).
+
+See [COPYRIGHT.md](COPYRIGHT.md) for which licence covers what, the third-party code, and trademarks.
