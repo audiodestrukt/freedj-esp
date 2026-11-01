@@ -30,6 +30,21 @@ frames LVGL actually rendered and flushed.
     platter and ring have 0 clashes with every other part, angled and flat.
   - Print it like the knurled one: upside down, shaft up, supports only in
     the centre recess.
+- Pioneer platter reshaped to match Dan's reference mesh
+  (meshy_1788016598940.glb, a disc with a 6 mm band, a dimpled shoulder and a
+  domed top):
+  - The top is flat (the reference's dome flattened). Its centre is still the
+    touch plate's seat (80.4 mm, 1.2 mm deep), with a flat land out to r 45.
+  - The base band is thinner: 2.5 mm, with one fine line (the reference's is
+    about 3.3 at this scale, with two).
+  - Shoulder: a 6 mm round off the band, then 45 degrees up to the top. It has
+    24 oval dimples (12 x 8 mm, 1.1 deep). The 45 degrees is what lets it
+    print upside down with no support; the reference's shoulder flattens out
+    at the top, which wouldn't.
+  - The inertia ring now sits flush with the skirt's foot (z 0-5). The hollow
+    is 2.6 mm from the deepest dimple.
+  - 37.7 cm3. One body, watertight, angled and flat. 0 clashes in both
+    shells with `FREEDJ_PLATTER=pioneer`.
 - Rear USB-A slots 0.5 mm wider (0.75 mm clearance per side, was 0.5): the
   ports' metal shells flare at the mouth and had to be filed to fit. Height
   unchanged. The web between the two slots is 3.4 mm, and 3.1 mm to the
