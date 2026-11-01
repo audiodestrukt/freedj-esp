@@ -11,7 +11,7 @@ board in [hardware/ctrl-pcb](hardware/ctrl-pcb/README.md) stays as the later, ti
 | Part | Release 1: off the shelf | Later |
 |---|---|---|
 | Host | Waveshare ESP32-P4 dev kit | same (Pi Zero / Teensy hosts are a separate project) |
-| CUE / PLAY | panel-mount pushbuttons with built-in LEDs, wired to P4 GPIO | control board: tact switches + ring LEDs |
+| CUE / PLAY | plain panel-mount pushbuttons (no LEDs), wired to P4 GPIO | control board: tact switches + ring LEDs |
 | Pitch | 45 mm slide pot, wiper on a P4 ADC pin | same pot, read by the control board's CH32V003 |
 | Jog | AS5600 breakout on I2C (works today) | same, through the control board's J_ENC |
 | Touch | screen touch (0x38) on the same I2C bus as the AS5600 (0x36) | same |
@@ -39,8 +39,8 @@ events. The DJ2Go over USB MIDI and the AS5600 do this already.
     - End calibration (lo/hi), learned like the analog jog's, so pots that don't reach the rails still give the full range.
     - The P4 ADC wanders about ±40 counts. Filtered, that's roughly 10 clean bits, about
       0.02 % steps on ±10 %, which is finer than a CDJ's 0.05 %.
-  - **LEDs:** LEDC PWM, one channel per button LED. This sets the brightness, matches the
-    two colours, and gives the CDJ's blinking CUE and PLAY.
+  - **LEDs:** none in release 1; the screen shows the play and cue state. If they're wanted later:
+    LEDC PWM, one channel per button LED, with two pins defined in `board.h` and left unwired until then.
 - **Selecting the backend at runtime,** the same way the AS5600 driver picks I2C or analog:
   1. At boot, probe I2C 0x42 for the control board.
   2. If it answers, use it. Otherwise start `panel_gpio`.
@@ -52,7 +52,7 @@ events. The DJ2Go over USB MIDI and the AS5600 do this already.
     and which are free.
   - Get it from Waveshare's pinout image or schematic, or run a scan on the board itself:
     drive each candidate pin and read it back.
-  - Rough need: 2 button inputs + 1 ADC + 2 LED outputs = **5 pins**. There are 28
+  - Rough need: 2 button inputs + 1 ADC = **3 pins** (2 more if LEDs come later). There are 28
     programmable GPIOs on the headers, about 12 of them in use.
 
 ## CAD: a `FREEDJ_CONTROLS` switch
@@ -81,29 +81,28 @@ events. The DJ2Go over USB MIDI and the AS5600 do this already.
 There's no harness board, just jumpers from the front-left controls to the dev board's headers.
 
 - **Buttons:** 2 signal wires plus a shared GND.
-- **LEDs:** 2 signal wires (the resistor goes on the button lead, or the button has one built in) plus a shared GND.
 - **Pot:** 3V3, wiper, GND.
 - **AS5600:** 4 wires (3V3, GND, SDA, SCL), with DIR tied to GND at the breakout.
 
-Total: about 11 conductors. A wiring table goes in hardware/README.md once the pins are chosen.
+Total: about 9 conductors. A wiring table goes in hardware/README.md once the pins are chosen.
 
 ## Order of work
 
 1. **Choose the buttons.** Keep them about the size of the printed ones: a 19 mm cap in a
    22 mm ring, on centres 24 mm apart, with 27 mm under the top plate (angled; flat 31).
-   - **First choice: 16 mm metal flat-head, ring LED, momentary.**
+   - **First choice: 16 mm metal flat-head, momentary, no LED.** No LED makes it cheaper, shorter and two terminals.
      - The head is about 18–19 mm, close to the printed cap.
      - The nut is about 20 mm, which clears at 24 mm centres.
      - Short-body versions are about 20 mm deep.
    - **19 mm:** the head is about 22 mm, matching the ring. But the nuts are about 24–26 mm,
      so they touch at 24 mm centres; turn the flats toward each other or move PLAY. The
      common bodies are 30 mm or more, too deep for the angled case.
-   - **Either size:** a 3–6 V LED (not 12 V), and momentary, not latching.
+   - **Either size:** momentary, not latching. If you want an LED version later, a 3–6 V one, not 12 V.
    - Measure the real one: the hole, the head diameter, the nut across the flats, and the
      depth including the terminals.
-2. **Get the P4 header map and choose the pins:** 1 ADC pin, 4 GPIO.
+2. **Get the P4 header map and choose the pins:** 1 ADC pin, 2 GPIO.
 3. **Firmware:**
-   - `panel_gpio` (buttons, then pot, then LEDs);
+   - `panel_gpio`: buttons, then the pot;
    - the 0x42 probe with fallback;
    - a serial `p` key for the panel's stats, like `e` for the jog.
 4. **Get touch back:** screen touch and the AS5600 on one bus (TODO.md).
@@ -117,8 +116,6 @@ Total: about 11 conductors. A wiring table goes in hardware/README.md once the p
 ## Open questions
 
 - Which buttons exactly: 16 mm flat-head short body is the plan (see step 1). The real part's depth and nut size decide the final holes.
-- If the CUE and PLAY LEDs are buttons with built-in LEDs, the light-ring look goes away
-  in release 1. Is that OK, or should the rings stay as wired ring LEDs (8 pins, or 2
-  pins and 2 transistors)?
+- LEDs: none in release 1, to keep the wiring down. They come back with the control board, or as LED buttons on 2 more pins.
 - Does the control board stay on the roadmap as a "deluxe" build, or does release 1's
   wiring become the only build until there's a full custom main board?
