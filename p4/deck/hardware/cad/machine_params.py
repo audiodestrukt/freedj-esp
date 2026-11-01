@@ -110,6 +110,8 @@ NUB_D = 4.0
 # its flange catches the top's underside. Same shell, board and switch as the lit ones.
 PLAIN_D = RING_D             # in the RING_D + 0.4 hole
 PLAIN_FLANGE = (SKIRT_D, 1.2)   # as wide as fits: the buttons are 24 apart
+PLATTER = os.environ.get("FREEDJ_PLATTER", "knurled")  # assembly: "knurled" (jog.py) or "pioneer" (pioneer_platter.py)
+assert PLATTER in ("knurled", "pioneer"), PLATTER
 BUTTONS = os.environ.get("FREEDJ_BUTTONS", "lit")   # assembly/clash check: "lit" or "plain"
 assert BUTTONS in ("lit", "plain"), BUTTONS
 PLAY_C = (16.0, 16.0)

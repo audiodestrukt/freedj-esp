@@ -59,13 +59,18 @@ def scene_parts():
     # jog stack: each part seated on the axis at its STACK height
     axis = Pos(*M.JOG_C, 0)
     seat = lambda key: axis * Pos(0, 0, jog.STACK[key])
-    for key, fn, look in (("platter", jog.platter, "platter"), ("touch_plate", jog.touch_plate, "touch"),
+    platter_fn, ring_z = jog.platter, 0.0
+    if M.PLATTER == "pioneer":
+        import pioneer_platter
+        platter_fn, ring_z = pioneer_platter.platter, pioneer_platter.RING_Z
+    for key, fn, look in (("platter", platter_fn, "platter"), ("touch_plate", jog.touch_plate, "touch"),
                           ("center_cap", jog.center_cap, "cap"), ("cap_marker", jog.cap_marker, "marker"),
                           ("inertia_ring", jog.inertia_ring, "steel"), ("bearing_top", jog.bearing, "bearing"),
                           ("bearing_bot", jog.bearing, "bearing"),
                           ("magnet", jog.magnet, "magnet"), ("encoder_header", jog.encoder_header, "chip"),
                           ("encoder_pcb", jog.encoder_pcb, "pcb"), ("encoder_chip", jog.encoder_chip, "chip")):
-        add(key, place(fn(), jog.MATES["seat"], seat(key)), look)
+        lift = Pos(0, 0, ring_z if key == "inertia_ring" else 0)   # pioneer: ring up inside the skirt
+        add(key, place(fn(), jog.MATES["seat"], lift * seat(key)), look)
     # buttons
     for which in ("play", "cue"):
         at = S[which]; P = lambda s: place(s, controls.MATES["seat"], at)

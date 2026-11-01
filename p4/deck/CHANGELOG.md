@@ -13,6 +13,23 @@ frames LVGL actually rendered and flushed.
 
 ## 2026-11-01: Case fixes from the first print (CAD only)
 
+- Optional Pioneer-style platter, `cad/pioneer_platter.py`. It's freedj-3000's
+  `jog_wheel.py` profile (dished top, hollow grooved skirt, hub), resized to
+  this deck:
+  - 100 mm across, 10 mm tall, so it sits in the 104 mm well where the
+    knurled platter does.
+  - The dished centre is the touch plate's seat (80.4 mm, 1.2 mm deep).
+  - The skirt wall is 3.8 mm, so its inside locates the steel inertia ring
+    (0.2 mm clearance). The ring sits up against the top plate.
+  - Three 0.8 mm grip grooves (freedj-3000 has four of 1.2 mm).
+  - It keeps jog.py's printed shaft and inner-race spacer, so the bearings,
+    magnet and AS5600 don't change.
+  - 35 cm³ against the knurled platter's 61. One body, watertight, in both
+    configs.
+  - `FREEDJ_PLATTER=pioneer` puts it in `machine.py`'s assembly. With it, the
+    platter and ring have 0 clashes with every other part, angled and flat.
+  - Print it like the knurled one: upside down, shaft up, supports only in
+    the centre recess.
 - Rear USB-A slots 0.5 mm wider (0.75 mm clearance per side, was 0.5): the
   ports' metal shells flare at the mouth and had to be filed to fit. Height
   unchanged. The web between the two slots is 3.4 mm, and 3.1 mm to the
