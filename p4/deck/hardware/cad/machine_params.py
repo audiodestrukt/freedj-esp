@@ -71,6 +71,7 @@ M3_INSERT_BORE = 4.0
 # Tune SHAFT_D with fit_gauge.stl (jog.py) on your printer before printing the platter.
 SHAFT_D = 8.0                 # full 8: 7.95 printed loose in the 608s (2026-11-01)
 SHAFT_LEAD = 0.5             # 45 degree lead-in on the tip, for pushing it through the bearings
+MAGNET_FIT = 0.05             # pocket over the magnet's diameter: a light press fit (0.16 let it fall out before the glue set)
 MAGNET = (6.0, 1.6)          # diametric; thickness ~ the encoder's 1.6 mm FR4 (not measured yet)
 # Nothing holds the platter down yet (it sits on the upper bearing); retention comes later.
 

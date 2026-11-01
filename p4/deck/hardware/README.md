@@ -112,7 +112,7 @@ Two firmware catches with the ILI9488 over SPI:
 - **AS5600 board:** size and hole spacing measured with a ruler, pin columns placed
   from the listing photo (±0.5 mm). Check that the tails land in the pockets.
 - **Magnet:** Ø6 assumed, 1.6 mm thick (`MAGNET`). Check the diameter: the pocket is
-  Ø6.16.
+  Ø6.05, a light press fit.
 - **Platter retention:** none yet. Options for later: a drop of retaining compound on
   the lower inner race, or a clip, which needs the lower bearing moved up in the shell.
 - **AS5600 output:** I2C (fixed address 0x36, free on the bus: codec 0x18, touch

@@ -50,7 +50,7 @@ def shaft():
     z0 = -SHAFT_L
     s = Pos(0, 0, z0 + LEAD) * Cylinder(r, SHAFT_L - LEAD + 1, align=C)
     s = s.fuse(Pos(0, 0, z0) * Cone(r - LEAD, r, LEAD, align=C))
-    pocket = Pos(0, 0, z0 - 0.01) * Cylinder(M.MAGNET[0] / 2 + 0.08, M.MAGNET[1] + 0.01, align=C)
+    pocket = Pos(0, 0, z0 - 0.01) * Cylinder((M.MAGNET[0] + M.MAGNET_FIT) / 2, M.MAGNET[1] + 0.01, align=C)
     return s.cut(pocket)
 
 def fit_gauge():

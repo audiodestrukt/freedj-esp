@@ -48,6 +48,9 @@ frames LVGL actually rendered and flushed.
     is 2.6 mm from the deepest dimple.
   - 37.7 cm3. One body, watertight, angled and flat. 0 clashes in both
     shells with `FREEDJ_PLATTER=pioneer`.
+- Magnet pocket in the shaft tip is now Ø6.05 (was Ø6.16), a light press fit
+  (`MAGNET_FIT`). At Ø6.16 the magnet fell out before the E6000 set.
+  Reprint: platter.
 - Rear USB-A slots 0.5 mm wider (0.75 mm clearance per side, was 0.5): the
   ports' metal shells flare at the mouth and had to be filed to fit. Height
   unchanged. The web between the two slots is 3.4 mm, and 3.1 mm to the
