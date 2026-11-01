@@ -115,7 +115,8 @@ def part():
     top = B.Z0 + B.T_
     for w, wd, h in B.USBA:
         x, _ = B.deck_xy(0, w)
-        cuts.append(Pos(x, M.D, top - 0.5) * Box(wd + 1.0, 10, h + 1.0, align=(Align.CENTER, Align.CENTER, Align.MIN)))
+        # 0.75 per side across: the shells flare at the mouth (0.5 had to be filed out)
+        cuts.append(Pos(x, M.D, top - 0.5) * Box(wd + 1.5, 10, h + 1.0, align=(Align.CENTER, Align.CENTER, Align.MIN)))
     w, wd, h, _ = B.RJ45
     x, _ = B.deck_xy(0, w)
     cuts.append(Pos(x, M.D, top - 0.5) * Box(wd + 1.0, 10, h + 1.0, align=(Align.CENTER, Align.CENTER, Align.MIN)))

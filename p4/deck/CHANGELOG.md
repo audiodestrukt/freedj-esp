@@ -11,6 +11,13 @@ playing (see the README's *Audio health* section). Unless noted, it's
 the panel**, so they read high. From 2026-10-31 on, "screen fps" counts
 frames LVGL actually rendered and flushed.
 
+## 2026-11-01: Case fixes from the first print (CAD only)
+
+- Rear USB-A slots 0.5 mm wider (0.75 mm clearance per side, was 0.5): the
+  ports' metal shells flare at the mouth and had to be filed to fit. Height
+  unchanged. The web between the two slots is 3.4 mm, and 3.1 mm to the
+  Ethernet opening. Reprint: shell.
+
 ## 2026-11-01: Populated control board test fit (CAD only)
 
 - New `cad/ctrl_fit.py`. It takes the populated board from tscircuit's GLB
