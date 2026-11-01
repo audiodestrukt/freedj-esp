@@ -11,6 +11,21 @@ playing (see the README's *Audio health* section). Unless noted, it's
 the panel**, so they read high. From 2026-10-31 on, "screen fps" counts
 frames LVGL actually rendered and flushed.
 
+## 2026-11-01: UCA202 enumerates; the probe tone plays with no errors
+
+- The UCA202 (TI PCM2902, 08BB:2902) failed to enumerate: "Configuration
+  descriptor larger than control transfer max length". The hub then
+  switched off its port, so the UCA202's power LED stayed dark. It lists
+  about 40 formats, which puts its config descriptor over 1 KB.
+  `CONFIG_USB_HOST_CONTROL_TRANSFER_MAX_SIZE` goes from 256 to 4096; 1024
+  still failed. Each device gets a 4 KB control buffer, in PSRAM.
+- Probe result through the hub: playback on interface 1 alt 1 (2 ch,
+  16-bit, 32/44.1/48 kHz, isochronous OUT 0x02, adaptive, 192 bytes).
+  Capture on interface 2 (IN 0x84, async). A 2 s tone at 48 kHz:
+  1,000 packets, **0 packet errors, 0 transfer errors**.
+- SET_CUR sample rate on the endpoint stalls. The tone still played, so
+  the PCM2902 apparently follows the packet rate.
+
 ## 2026-10-31: USB audio probe (Behringer UCA202, not yet tested)
 
 - New `usb_audio_probe`: its own USB host client. When a device with a USB
