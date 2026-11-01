@@ -27,3 +27,5 @@
 - 0025-encoder-on-bosses-section.jpg: 2026-10-31: e-clip dropped: shaft ends just under the lower 608, magnet flush in its tip 1.1 mm over the AS5600, board on 2.3 mm bosses; plug clears the bearing boss by 0.6 mm
 - 0026-encoder-bosses-base.jpg: 2026-10-31: base plate under the jog: four 2.3 mm bosses on the AS5600's 5/8" hole square, tail pockets under both pin columns (one notches a boss)
 - 0027-encoder-board-on-bosses.jpg: 2026-10-31: the AS5600 board (15/16" square, from Dan's ruler + listing photo) on the bosses, right-angle headers pointing out to both sides
+- 0028-pitch-pot-slot-countersinks.jpg: 2026-11-01: PTA4543 pitch pot: slot cut to 49.6 mm, flush M2 countersinks 56 mm apart at its ends, ticks over the 45 mm travel, knob 1 mm above the top on the metal lever
+- 0029-control-board-section.jpg: 2026-11-01: section at the jog axis looking left: the control board under CUE / PLAY, ring LEDs on top, three JST-XH connectors underneath

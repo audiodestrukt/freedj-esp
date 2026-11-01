@@ -9,7 +9,6 @@ import machine_params as M
 
 C = (Align.CENTER, Align.CENTER, Align.MIN)
 CAP_RISE, RING_RISE = 2.8, 0.6
-SWITCH = (12.0, 12.0, 7.0)
 
 def light_ring():   # translucent PETG/resin, lit by an LED underneath
     h = RING_RISE + 8
@@ -17,7 +16,7 @@ def light_ring():   # translucent PETG/resin, lit by an LED underneath
                                        - Pos(0, 0, -1) * Cylinder(M.BTN_D / 2 + 0.25, h + 2, align=C))
 
 def button_cap(icon):
-    h = CAP_RISE + 6
+    h = CAP_RISE + M.CAP_BOTTOM      # underside rests on the tact switch's actuator
     cap = Pos(0, 0, CAP_RISE - h) * Cylinder(M.BTN_D / 2, h, align=C)
     try:
         cap = fillet(cap.edges().filter_by(lambda e: e.center().Z > CAP_RISE - 0.1), 1.5)
@@ -34,10 +33,8 @@ def icon_solid(icon):
         return tri.fuse(*bars)
     return Pos(0, 0, z) * extrude(Text("CUE", 4.2, font_style=FontStyle.BOLD), 2)
 
-def switch():       # Cherry-MX-footprint key switch stand-in, below the top
-    return Pos(0, 0, -M.TOP_T - 8 - SWITCH[2]) * Box(*SWITCH, align=C)
-
 def slider_knob():
+    """Sits KNOB_LIFT above the top on the pot's metal lever (a push fit in the socket)."""
     kx, ky, kh = M.KNOB
     k = Box(kx, ky, kh, align=C)
     try:
@@ -45,14 +42,25 @@ def slider_knob():
     except Exception as e:
         print("  (knob round skipped:", e, ")")
     k = k.cut(Pos(0, ky / 2 - 1, kh + 12 - 1.6) * Rot(0, 90, 0) * Cylinder(12, kx + 2))   # finger dish, back edge
-    stem = Pos(0, 0, -6) * Box(1.6, 3, 7, align=C)
-    return k.fuse(stem)
+    sa, sl, sd = M.KNOB_SOCKET
+    k = k.cut(Pos(0, 0, -1) * Box(sa, sl, sd + 1, align=C))
+    return Pos(0, 0, M.KNOB_LIFT) * k
 
 def knob_line():
-    return Pos(0, -2.5, M.KNOB[2] - 0.4) * Box(M.KNOB[0] - 1.5, 0.9, 0.6, align=C)   # index line across the top
+    return Pos(0, -2.5, M.KNOB_LIFT + M.KNOB[2] - 0.4) * Box(M.KNOB[0] - 1.5, 0.9, 0.6, align=C)   # index line across the top
 
-def pot():          # 45 mm slide pot body under the top
-    return Pos(0, 0, -M.TOP_T - 8) * Box(9, 60, 7, align=C)
+def pot(lever_y=0.0):
+    """PTA4543 stand-in on the "pot" mate (slot centre, top surface): frame, lever at
+    lever_y along the travel, three PC pins."""
+    fx, fy, fh = M.POT_FRAME
+    top = -M.TOP_T - M.POT_PAD
+    frame = Pos(0, 0, top - fh) * Box(fx, fy, fh, align=C)
+    frame -= [Pos(0, s * M.POT_HOLES / 2, top - 1.5) * Cylinder(1.0, 2, align=C) for s in (-1, 1)]
+    la, ll, lh = M.LEVER
+    lever = Pos(0, lever_y, top) * Box(la, ll, lh, align=C)
+    pins = [Pos(px, py, top - fh - 3.5) * Box(0.5, 0.8, 3.5, align=C)
+            for px, py in ((-1.75, -23.9), (1.75, -23.9), (0, 23.9))]
+    return frame.fuse(lever, *pins)
 
 def led():          # 3 mm indicator, flush
     return Pos(0, 0, -0.6) * Cylinder(1.0, 0.7, align=C)

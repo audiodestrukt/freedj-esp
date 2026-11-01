@@ -95,12 +95,39 @@ RING_D = 22.0                # light ring (translucent)
 PLAY_C = (16.0, 16.0)
 CUE_C = (16.0, 40.0)         # ~4 mm clear of the jog well
 
-# Pitch slider (45 mm travel pot, Bourns PTA4543 class)
+# Pitch slider: Bourns PTA4543-2015DPB103 (45 mm travel, no centre detent, 15 mm metal
+# DP lever, 10k linear). Datasheet: 60 x 9 mm frame, two M2 tapped holes 56 apart in the
+# frame top, 3 PC pins down. It hangs under the top on two pads, held by two M2 x 8
+# countersunk screws from above (flush: a pan head would catch the knob at the travel
+# ends). Wired to the control board; its PC pins aren't used as board pins.
 SLIDER_X = 146.0
-SLIDER_Y = (23.0, 97.0)      # slot ends, centred on the jog
+SLIDER_C = JOG_C[1]          # slot centred on the jog
+POT_TRAVEL = 45.0
+POT_FRAME = (9.0, 60.0, 6.5) # x (across), y (along the travel), z (frame top -> body bottom)
+POT_HOLES = 56.0             # M2 tapped, on the centre line
+LEVER = (1.0, 4.0, 15.0)     # DP lever: across, along the travel, above the frame top
+POT_PAD = 3.0                # pads under the top: frame top at H - TOP_T - POT_PAD
 SLOT_W = 2.6
-KNOB = (14.0, 10.0, 9.0)     # x, y, height above the top
-KNOB_Y = 56.0                # rendered at +1.25 %
+SLOT_L = POT_TRAVEL + LEVER[1] + 0.6                    # 49.6
+SLIDER_Y = (SLIDER_C - SLOT_L / 2, SLIDER_C + SLOT_L / 2)
+KNOB = (14.0, 10.0, 10.0)    # x, y, height
+KNOB_LIFT = 1.0              # knob underside above the top
+KNOB_SOCKET = (1.4, 4.3, 7.2)   # lever socket: across, along, depth (the lever goes in 7.0)
+KNOB_Y = SLIDER_C - 4.0      # rendered at +1.25 % (pitch range is firmware's business)
+assert SLIDER_C - POT_HOLES / 2 + 1.9 < SLIDER_Y[0] - 1.0, "M2 countersink too close to the slot end"
+
+# Control board: one PCB under CUE / PLAY with the two tact switches, the light-ring LEDs
+# and the I2C chip; the pot and the AS5600 wire to it, one cable goes to the dev board.
+# 12 x 12 tact switches 7.3 mm tall (actuator top), right under the caps' undersides.
+TACT = (12.0, 12.0, 3.6, 7.3)   # body x, y, body height, actuator top above the board
+CAP_BOTTOM = 6.0                # button caps reach this far below the top surface
+CTRL_T = 1.6
+CTRL_Z = H - CAP_BOTTOM - TACT[3]                       # board top face
+CTRL_XY = (5.5, 5.5, 46.0, 62.0)                       # x0, y0, x1, y1
+CTRL_CORNER_R = 6.0
+CTRL_HOLES = [(41.5, 10.0), (41.5, 57.5), (10.0, 57.5)]
+CTRL_BOSS_D = 6.0
+CTRL_PILOT = (2.2, 5.0)      # M2.5 thread-forming screws up from below: pilot dia, depth
 
 # Rear panel (y = D)
 RCA_X, RCA_Z, RCA_HOLE = (64.0, 80.0), 15.0, 8.6   # left of the dev board's ports

@@ -1,6 +1,7 @@
 """shell.py: freedj-esp top shell. One print, upside down on the bed (fits a 256 mm bed).
 
-Carries the jog bearing boss, CUE/PLAY holes, pitch slot, the tilted LCD bezel with the
+Carries the jog bearing boss, CUE/PLAY holes, the control board's bosses, the pitch slot
+with the pot's pads and countersunk M2 holes, the tilted LCD bezel with the
 USB-A stick slot beside it, and the rear-panel cutouts. Open underneath; base.py closes it.
 python3 shell.py -> build/shell.stl   (FREEDJ_CONFIG=flat -> build/shell_flat.stl)
 """
@@ -48,6 +49,14 @@ def part():
     # light pipes / switch guides under CUE and PLAY
     for c in (M.PLAY_C, M.CUE_C):
         adds.append(Pos(*c, M.H - 12) * Cylinder(M.RING_D / 2 + 2, 11, align=(Align.CENTER, Align.CENTER, Align.MIN)))
+    # control board bosses: down from the top's underside to the board's top face
+    for x, y in M.CTRL_HOLES:
+        adds.append(Pos(x, y, M.CTRL_Z) * Cylinder(M.CTRL_BOSS_D / 2, M.H - M.TOP_T - M.CTRL_Z + 0.5,
+                                                   align=(Align.CENTER, Align.CENTER, Align.MIN)))
+    # pitch pot pads: the frame's top face sits on these, POT_PAD under the top
+    for s_ in (-1, 1):
+        adds.append(Pos(M.SLIDER_X, M.SLIDER_C + s_ * M.POT_HOLES / 2, M.H - M.TOP_T - M.POT_PAD)
+                    * Box(M.POT_FRAME[0] - 1, 6.0, M.POT_PAD + 0.5, align=(Align.CENTER, Align.CENTER, Align.MIN)))
     # screen bosses on the module's 4 mounting holes: they come down from the top past the
     # glass and gasket and stop on the board, which then holds the glass up against the gasket
     F = face_loc()
@@ -69,11 +78,18 @@ def part():
         cuts.append(Pos(*c, M.H - 15) * Cylinder(M.RING_D / 2 + 0.2, 20, align=(Align.CENTER, Align.CENTER, Align.MIN)))
     y0, y1 = M.SLIDER_Y
     cuts.append(Pos(M.SLIDER_X, (y0 + y1) / 2, M.H - 10) * Box(M.SLOT_W, y1 - y0, 20, align=(Align.CENTER, Align.CENTER, Align.MIN)))
-    for k in range(-4, 5):   # tempo scale ticks, engraved 0.6 deep
-        y = (y0 + y1) / 2 + k * (y1 - y0 - 12) / 8
+    for s_ in (-1, 1):   # pot screws: M2 clearance, 90 degree countersink for a flush head
+        y = M.SLIDER_C + s_ * M.POT_HOLES / 2
+        cuts.append(Pos(M.SLIDER_X, y, M.H - M.TOP_T - M.POT_PAD - 1) * Cylinder(1.2, M.TOP_T + M.POT_PAD + 2, align=(Align.CENTER, Align.CENTER, Align.MIN)))
+        cuts.append(Pos(M.SLIDER_X, y, M.H - 1.0) * Cone(1.0, 2.0, 1.01, align=(Align.CENTER, Align.CENTER, Align.MIN)))
+    for x, y in M.CTRL_HOLES:   # control board: pilots up from the board face
+        pd, pdepth = M.CTRL_PILOT
+        cuts.append(Pos(x, y, M.CTRL_Z - 1) * Cylinder(pd / 2, pdepth + 1, align=(Align.CENTER, Align.CENTER, Align.MIN)))
+    for k in range(-4, 5):   # tempo scale ticks over the lever's travel, engraved 0.6 deep
+        y = M.SLIDER_C + k * M.POT_TRAVEL / 8
         ln = 6.0 if k in (-4, 0, 4) else 3.5
         cuts.append(Pos(M.SLIDER_X + 9.5 + ln / 2, y, M.H - 0.6) * Box(ln, 0.8, 2))
-    cuts.append(Pos(M.SLIDER_X + 12.5, sum(M.SLIDER_Y) / 2, M.H - 0.6) * Cylinder(1.0, 2))   # tempo-zero LED
+    cuts.append(Pos(M.SLIDER_X + 12.5, M.SLIDER_C, M.H - 0.6) * Cylinder(1.0, 2))   # tempo-zero LED
     for x, y in posts():
         cuts.append(Pos(x, y, -1) * Cylinder(INSERT_BORE / 2, M.BASE_T + INSERT_DEPTH + 1, align=(Align.CENTER, Align.CENTER, Align.MIN)))
     # bezel: a window over the visible area only (off-centre, as the active area is),
@@ -129,7 +145,8 @@ MATES = {   # world frame (the shell is the datum); +z points out of the contact
     "play":   Pos(*M.PLAY_C, M.H),
     "cue":    Pos(*M.CUE_C, M.H),
     "slider": Pos(M.SLIDER_X, M.KNOB_Y, M.H),
-    "slider_led": Pos(M.SLIDER_X + 12.5, sum(M.SLIDER_Y) / 2, M.H),
+    "pot":    Pos(M.SLIDER_X, M.SLIDER_C, M.H),   # slot centre on the top surface
+    "slider_led": Pos(M.SLIDER_X + 12.5, M.SLIDER_C, M.H),
     "screen": F * Pos(M.SCREEN_X - M.W / 2, M.SCREEN_V, M.GLASS_Z),    # glass top, behind the top plate
     **{f"screen_screw{i}": L * Pos(0, 0, -M.LCD_PCB[2]) for i, L in enumerate(screen_holes())},   # under the board, +z up into the boss
     "usb_a":  F * Pos(M.USBA_FACE[0] - M.W / 2, M.USBA_V, 0),

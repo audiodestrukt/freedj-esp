@@ -12,7 +12,7 @@ from PIL import Image
 from build123d import *
 import machine_params as M
 from machine_params import place
-import shell, base, jog, controls, stock, devboard
+import shell, base, jog, controls, stock, devboard, ctrlboard
 
 # name: (rgba, metallic, roughness, emissive rgb or None)
 LOOK = {
@@ -71,11 +71,14 @@ def scene_parts():
         add(f"{which}_cap", P(controls.button_cap(which)), "btn")
         fill = controls.icon_solid(which) & Pos(0, 0, controls.CAP_RISE - 0.5) * Box(20, 20, 0.45, align=(Align.CENTER, Align.CENTER, Align.MIN))
         add(f"{which}_icon", P(fill), f"icon_{which}")
-        add(f"{which}_switch", P(controls.switch()), "chip")
     at = S["slider"]; P = lambda s: place(s, controls.MATES["seat"], at)
     add("slider_knob", P(controls.slider_knob()), "knob")
     add("slider_line", P(controls.knob_line()), "white")
-    add("slider_pot", place(controls.pot(), controls.MATES["seat"], Pos(M.SLIDER_X, sum(M.SLIDER_Y) / 2, M.H)), "chip")
+    add("slider_pot", place(controls.pot(M.KNOB_Y - M.SLIDER_C), controls.MATES["seat"], S["pot"]), "steel")
+    # control board under CUE / PLAY
+    add("ctrl_board", ctrlboard.board(), "pcb")
+    for n, s_, lk in ctrlboard.parts():
+        add(n, s_, lk)
     add("tempo_led", place(controls.led(), controls.MATES["seat"], S["slider_led"]), "led_green")
     add("usb_led", place(controls.led(), controls.MATES["seat"], S["usb_led"]), "led_blue")
     # screen + connectors

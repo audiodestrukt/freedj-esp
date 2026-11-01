@@ -11,6 +11,29 @@ playing (see the README's *Audio health* section). Unless noted, it's
 the panel**, so they read high. From 2026-10-31 on, "screen fps" counts
 frames LVGL actually rendered and flushed.
 
+## 2026-11-01: PTA4543 pitch pot mount and the control board (CAD only)
+
+- Pitch pot chosen: **Bourns PTA4543-2015DPB103** (45 mm, no centre detent,
+  15 mm metal lever, 10k linear). Its frame hangs on two 3 mm pads under the
+  top, held by two M2 x 8 countersunk screws into its tapped holes (56 mm
+  apart). The slot shrinks from 74 to 49.6 mm (travel + lever + 0.6),
+  leaving 2 mm of plastic to each screw hole. The knob gets a 1.4 x 4.3 x
+  7.2 mm lever socket, is 10 mm tall (was 9) and rides 1 mm above the top.
+  The ticks now span the real 45 mm travel.
+- New `ctrlboard.py`: one 40.5 x 56.5 mm board under CUE / PLAY, with three
+  M2.5 screw bosses down from the top. Its top face is z 20.7 (angled) /
+  24.7 (flat), where a 12 x 12 x 7.3 mm tact switch meets the cap's
+  underside. Top side: switches and 4 x 0805 LEDs per light ring. Bottom
+  side: the I2C chip and JST-XH for the pot (3), AS5600 (4) and dev board
+  (5). It writes `build/ctrl_board_outline.dxf` and prints every position
+  relative to the board corner.
+- The Cherry-MX switch stand-ins are gone; the caps now rest on the tact
+  switches.
+- Clash check over every new part in both configs: clean (only the knob's
+  inlaid index line overlaps, as intended). Shells watertight, one body.
+- **Reprint needed:** the shell (both configs) and the slider knob.
+- Renders 0028 (slot, countersinks) and 0029 (board section).
+
 ## 2026-11-01: Music plays out of the UCA202
 
 - `usb_audio_probe` becomes `usb_audio`, a real output. When a UAC1 device
