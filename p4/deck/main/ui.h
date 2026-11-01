@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2026 Dan Newcome
+// SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 // Deck screen: track list, loaded track, time, tempo, and touch buttons.
 // The audio task publishes a State snapshot; the LVGL task redraws from it.

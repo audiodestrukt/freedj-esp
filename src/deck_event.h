@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2026 Dan Newcome
+// SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 // Deck control events: the one vocabulary every input source speaks
 // (DJ2Go MIDI, the A1S buttons/encoder, serial keys, a future I2C panel).

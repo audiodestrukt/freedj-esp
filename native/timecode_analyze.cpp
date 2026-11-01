@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2026 Dan Newcome
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Host-side analyzer for the timecode decoder. Two modes:
 //
 //   timecode_analyze <file.wav> [hop_ms]

@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 Dan Newcome
+# SPDX-License-Identifier: CERN-OHL-S-2.0
 """devboard.py: the Waveshare ESP32-P4-Module-DEV-KIT as a stand-in, plus where it sits.
 
 Raspberry Pi B+ footprint, from Waveshare's outline drawing: 85 x 56 mm, four M2.5 holes

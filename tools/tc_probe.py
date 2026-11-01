@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2026 Dan Newcome
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Drive the ESP32 firmware over serial to run timecode/pitch probes.
 
 Usage:

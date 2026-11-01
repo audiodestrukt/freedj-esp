@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2026 Dan Newcome
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Wokwi headless-simulator entry point. Swapped in for src/main.cpp by the
 // esp32-sim build env (see platformio.ini). Exercises the browser, controls,
 // and OLED against a stubbed file list — no codec, no SD, no DSP. State

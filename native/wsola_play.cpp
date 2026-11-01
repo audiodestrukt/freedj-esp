@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2026 Dan Newcome
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Host-side harness for exercising the Wsola DSP against a WAV file.
 //
 //   wsola_play <input.wav> [speed]

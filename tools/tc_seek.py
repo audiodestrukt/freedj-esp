@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2026 Dan Newcome
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Phase 4 test: seekToMs primitive.
 
 Plays house.wav, waits ~3 s (player at ~3 s in), presses S which

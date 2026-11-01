@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2026 Dan Newcome
+// SPDX-License-Identifier: GPL-3.0-or-later
 #include "ui.h"
 #include <U8g2lib.h>
 #include <Wire.h>

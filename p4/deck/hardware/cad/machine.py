@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 Dan Newcome
+# SPDX-License-Identifier: CERN-OHL-S-2.0
 """machine.py: the whole freedj-esp, every part placed by its mates, exported as a GLB
 for rendering (metres, Y-up) plus a cutaway through the jog axis.
 

@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2026 Dan Newcome
+// SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 // MSP4021 stand-in screen: ST7796S 480x320 (landscape) over SPI, FT6336U touch,
 // driven by LVGL through esp_lvgl_port (its task runs on core 0).

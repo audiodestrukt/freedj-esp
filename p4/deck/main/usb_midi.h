@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2026 Dan Newcome
+// SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 // USB MIDI host: claims the first MIDI streaming interface that enumerates
 // and hands each 4-byte USB-MIDI event packet to `onPacket` (USB task context).

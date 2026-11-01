@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2026 Dan Newcome
+// SPDX-License-Identifier: GPL-3.0-or-later
 #include "usb_stick.h"
 
 #include "freertos/FreeRTOS.h"

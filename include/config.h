@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2026 Dan Newcome
+// SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 
 // Central pin + constant definitions. Adjust to match your exact A1S

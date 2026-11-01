@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2026 Dan Newcome
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Flag-sweep regression test: with local-loop on CD format, at least
 one of the 8 decoder flag combinations must achieve `locked=1`.
 

@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2026 Dan Newcome
+// SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 // USB audio output (UAC1, e.g. Behringer UCA202). When an audio-class device
 // with a 16-bit stereo isochronous output at the deck's rate enumerates, the

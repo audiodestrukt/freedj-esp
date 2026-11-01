@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2026 Dan Newcome
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Hold the P4 deck's serial port open, log everything, and type keys at it.
 
     tools/p4_serial.py deck.log &          # log (doesn't reset the board)

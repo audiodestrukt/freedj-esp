@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2026 Dan Newcome
+// SPDX-License-Identifier: GPL-3.0-or-later
 // P4 deck: browse a rekordbox USB stick and the SD card with the DJ2Go or the
 // touch screen, stream a WAV/MP3 through a PSRAM window, and play it
 // CDJ-style on the board speaker. The screen (ui.cpp) shows the list, time,

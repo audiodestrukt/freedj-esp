@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 Dan Newcome
+# SPDX-License-Identifier: CERN-OHL-S-2.0
 """machine_flat.py: the flat-top freedj-esp. Same parts and params as machine.py, with
 the screen lying flat in the top instead of on a 12 degree bezel, so the shell prints
 top-down on the bed with no supports.

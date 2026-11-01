@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 Dan Newcome
+# SPDX-License-Identifier: CERN-OHL-S-2.0
 """deck_render.py: photoreal render of build/freedj_esp*.glb in headless Blender.
 
 LC_ALL=C LANG=C blender -b -P deck_render.py -- IN.glb OUT.png [--az 35] [--el 32]

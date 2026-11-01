@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2026 Dan Newcome
+// SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 // ES8311 → NS4150B speaker output. The ES8311 has one DAC, so the speaker is
 // mono: callers write interleaved stereo and the codec plays the left slot.

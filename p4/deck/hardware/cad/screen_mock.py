@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 Dan Newcome
+# SPDX-License-Identifier: CERN-OHL-S-2.0
 """screen_mock.py: a 480x320 picture of the freedj-esp play screen, for the render only.
 
 Laid out from the constants in main/ui.cpp (name, time, overview y=94, phase meter

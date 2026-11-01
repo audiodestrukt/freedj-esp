@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2026 Dan Newcome
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Phase 6 test: position-driven seek, PROP speed scaling, needle-up pause.
 
 All three behaviors in one scenario, driven by local-loop so no

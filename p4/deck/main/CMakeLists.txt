@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 Dan Newcome
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Deck event types and the DJ2Go decoder are shared with the A1S firmware (../../../src).
 idf_component_register(
     SRCS "main.cpp" "usb_midi.cpp" "audio_out.cpp" "sd.cpp" "library.cpp" "stream.cpp" "display.cpp" "ui.cpp" "mp3_impl.c"

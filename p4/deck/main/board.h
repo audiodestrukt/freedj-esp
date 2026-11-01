@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2026 Dan Newcome
+// SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 // Waveshare ESP32-P4-Module-DEV-KIT pin map (from the espp BSP,
 // components/esp32-p4-module-dev-kit/include/esp32-p4-module-dev-kit.hpp).

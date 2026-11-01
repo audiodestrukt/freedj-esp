@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 Dan Newcome
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Shared helpers for the tc_*.py test/probe scripts.
 
 Centralizes what used to be duplicated in every script: opening the

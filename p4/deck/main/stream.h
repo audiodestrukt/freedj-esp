@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2026 Dan Newcome
+// SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 // Streams a WAV or MP3 from SD through a PSRAM window around the playhead.
 // A background task (service()) keeps ~25 s behind and the rest of the

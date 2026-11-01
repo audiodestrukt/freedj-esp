@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2026 Dan Newcome
+// SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 // microSD on the board's 4-bit SDMMC slot, mounted as FAT at sd::kMount.
 namespace sd {

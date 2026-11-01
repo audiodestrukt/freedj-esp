@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2026 Dan Newcome
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Generate a simple 4/4 test loop for vinyl_demo.
 
 Beats 1+3: kick (low pitched-sine with fast decay).

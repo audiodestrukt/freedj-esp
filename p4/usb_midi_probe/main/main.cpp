@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2026 Dan Newcome
+// SPDX-License-Identifier: GPL-3.0-or-later
 // USB MIDI probe for the ESP32-P4: logs every device that enumerates, claims
 // the first MIDI streaming interface it finds, and prints each USB-MIDI event
 // packet decoded to deck events by the shared DJ2Go decoder (src/dj2go.cpp).

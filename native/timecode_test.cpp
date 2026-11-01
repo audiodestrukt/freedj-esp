@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2026 Dan Newcome
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Host-side smoke test for the timecode Decoder. Generates synthetic stereo
 // sine carriers at various frequencies and L/R phase relationships, feeds
 // them into the decoder, and prints the steady-state speed estimate.

@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2026 Dan Newcome
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Run the tc_* self-asserting test scripts and summarize results.
 
 Each test owns its own serial session (resets the board on entry via

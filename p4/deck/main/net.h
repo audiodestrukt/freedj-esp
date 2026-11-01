@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2026 Dan Newcome
+// SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 // On-board Ethernet (ESP32-P4 EMAC + IP101 PHY over RMII). DHCP when there's
 // a router; lwIP falls back to a 169.254.x.x link-local address when there

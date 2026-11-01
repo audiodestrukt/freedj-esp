@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 Dan Newcome
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Bootloader hook: switch the screen's backlight off right after power-on.
 idf_component_register(SRCS "backlight_off.c" REQUIRES hal esp_rom)
 # Keep the hook in the link (nothing in the bootloader references it).

@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2026 Dan Newcome
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Phase 1 test: local-loop diagnostic mode.
 
 With the board fresh (no turntable attached), arm tc, switch to CD

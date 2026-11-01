@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2026 Dan Newcome
+// SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 // Track list: rekordbox-analysed tracks on the USB stick first (they have
 // beat grids), then the playable files on the SD card.

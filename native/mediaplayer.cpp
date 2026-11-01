@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2026 Dan Newcome
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Host-side DJ-player harness. Re-implements the on-device I/O layer against
 // SDL2 so the media player can be exercised without hardware: window for the
 // OLED, keyboard for encoder/buttons, system audio for playback.

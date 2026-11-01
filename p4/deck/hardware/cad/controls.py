@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 Dan Newcome
+# SPDX-License-Identifier: CERN-OHL-S-2.0
 """controls.py: CUE/PLAY buttons with light rings, the pitch-slider knob and pot,
 indicator LEDs. Local frame: z = 0 on the deck's top surface, +z up; MATES["seat"]
 sits on the shell's "play" / "cue" / "slider" mates.

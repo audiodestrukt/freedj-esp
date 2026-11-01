@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2026 Dan Newcome
+// SPDX-License-Identifier: GPL-3.0-or-later
 #include "audio_out.h"
 #include "board.h"
 #include "usb_audio.h"

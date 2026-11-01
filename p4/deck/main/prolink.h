@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2026 Dan Newcome
+// SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 // Pioneer Pro DJ Link: we announce as a player, send our status, and listen
 // to every other player's beats and status to find the tempo master.

@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 Dan Newcome
+# SPDX-License-Identifier: CERN-OHL-S-2.0
 """stock.py: bought parts as simple stand-ins (LCD, cover glass, connectors).
 Local frame: z = 0 on the mounting face, +z out of the panel; the body goes to -z.
 """

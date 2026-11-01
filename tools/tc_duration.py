@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2026 Dan Newcome
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Phase 3 test: track duration parsed from WAV and MP3 headers.
 
 Plays house.wav, confirms the parser identifies SR/channels/bits and

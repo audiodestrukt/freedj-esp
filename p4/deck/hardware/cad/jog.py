@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 Dan Newcome
+# SPDX-License-Identifier: CERN-OHL-S-2.0
 """jog.py: the jog module. Printed platter with its shaft printed in one piece, through two
 608 bearings (pressed into the shell's boss); nothing holds it down yet, it sits on the
 upper bearing. Steel inertia ring in the underside, aluminium touch plate on top, diametric

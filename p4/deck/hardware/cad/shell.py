@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 Dan Newcome
+# SPDX-License-Identifier: CERN-OHL-S-2.0
 """shell.py: freedj-esp top shell. One print, upside down on the bed (fits a 256 mm bed).
 
 Carries the jog bearing boss, CUE/PLAY holes, the control board's bosses, the pitch slot

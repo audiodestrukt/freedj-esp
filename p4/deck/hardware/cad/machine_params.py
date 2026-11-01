@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 Dan Newcome
+# SPDX-License-Identifier: CERN-OHL-S-2.0
 """machine_params.py: every shared freedj-esp enclosure dimension (mm), plus place().
 
 Frame: x across the deck (0 = left edge), y front-to-back (0 = the edge nearest you),

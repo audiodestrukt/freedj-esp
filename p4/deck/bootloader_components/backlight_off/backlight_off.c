@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2026 Dan Newcome
+// SPDX-License-Identifier: GPL-3.0-or-later
 // The MSP4021's backlight is on whenever its LED pin isn't driven low, and
 // until the app initialises the panel its memory is blank, so it glows white
 // for the first seconds after power-on. Drive the pin low as soon as the

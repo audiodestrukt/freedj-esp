@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 Dan Newcome
+# SPDX-License-Identifier: CERN-OHL-S-2.0
 """base.py: freedj-esp base plate. Drops inside the shell walls and screws into the four
 corner posts (M3 countersunk into heat-set inserts). Vent slots under the electronics.
 Small M3 heat-set inserts (M3 x 3) hold the dev board (on standoffs) and the AS5600

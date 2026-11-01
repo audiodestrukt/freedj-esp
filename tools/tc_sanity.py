@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2026 Dan Newcome
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Quick boot sanity check: open port, arm tc, log for 6s."""
 import sys, time, threading
 try:

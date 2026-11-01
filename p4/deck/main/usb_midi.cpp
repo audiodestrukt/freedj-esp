@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2026 Dan Newcome
+// SPDX-License-Identifier: GPL-3.0-or-later
 // USB MIDI host (see usb_midi.h). Logs every device that enumerates, claims
 // the first MIDI streaming interface, and forwards its event packets.
 

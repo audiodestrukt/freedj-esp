@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2026 Dan Newcome
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Host test for the DJ2Go MIDI decoder (src/dj2go.cpp).
 // Messages are the ones the P4 USB probe logged from the real controller,
 // plus the documented map in freedj-3000 docs/reference/dj2go-midi-map.md.

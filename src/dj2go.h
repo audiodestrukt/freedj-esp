@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2026 Dan Newcome
+// SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 // Numark DJ2Go MIDI → deck events.
 // Mapping from freedj-3000 docs/reference/dj2go-midi-map.md (Mixxx's

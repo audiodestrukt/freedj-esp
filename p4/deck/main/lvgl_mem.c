@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2026 Dan Newcome
+// SPDX-License-Identifier: GPL-3.0-or-later
 // LVGL's allocator (CONFIG_LV_USE_CUSTOM_MALLOC). Plain malloc puts every
 // small allocation in internal RAM, and a list of a few hundred tracks (a
 // button and a label per row) used it all up. But LVGL also allocates small

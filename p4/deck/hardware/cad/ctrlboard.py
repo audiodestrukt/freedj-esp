@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 Dan Newcome
+# SPDX-License-Identifier: CERN-OHL-S-2.0
 """ctrlboard.py: the control board under CUE / PLAY, as an outline for the PCB layout and
 a stand-in for clearance checks.
 

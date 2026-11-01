@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2026 Dan Newcome
+// SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 // A USB stick (mass storage) in one of the USB-A ports, mounted as FAT at
 // usb_stick::kMount. Shares the USB host with the DJ2Go (usb_midi), so call

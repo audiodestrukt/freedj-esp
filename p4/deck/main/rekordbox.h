@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2026 Dan Newcome
+// SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 // rekordbox analysis on a USB stick exported by rekordbox. Each analysed track
 // has PIONEER/USBANLZ/Pxxx/xxxxxxxx/ANLZ0000.DAT holding its beat grid (PQTZ)

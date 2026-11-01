@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2026 Dan Newcome
+// SPDX-License-Identifier: GPL-3.0-or-later
 // End-to-end demo of the timecode-control loop, host-side.
 //
 //   vinyl_demo <timecode.wav> <music.wav> <tc_speed>
