@@ -11,6 +11,24 @@ playing (see the README's *Audio health* section). Unless noted, it's
 the panel**, so they read high. From 2026-10-31 on, "screen fps" counts
 frames LVGL actually rendered and flushed.
 
+## 2026-11-01: Populated control board test fit (CAD only)
+
+- New `cad/ctrl_fit.py`. It takes the populated board from tscircuit's GLB
+  export, which has the real JLCPCB/EasyEDA part models. tscircuit's STEP
+  export can't merge those models. It registers the board on its own origin
+  (deck CTRL_XY centre, top face at CTRL_Z), not a bounding box.
+- The switch model is wrong: ZX-QC66-7.5TP is drawn 5.0 mm tall, but the
+  part is 7.5 mm (LCSC). Its body is replaced with 6 x 6 x 3.5 plus a
+  Ø3.5 actuator to 7.5 mm.
+- Outputs: `build/ctrl_board_pop{,_flat}.stl` (deck frame, drops onto the
+  shell STLs), `build/ctrl_board_pop_local.stl` (board alone, centre 0,0,
+  top face z 0), and render scenes.
+- Clash check, every part's convex hull against the shell, rings, caps and
+  base: **0 clashes** in both configs with lit and plain buttons. Checked
+  that it does report clashes: raising the board 1 mm hits the bosses,
+  skirts and caps.
+- Renders 0034 (populated board) and 0035 (section in the deck).
+
 ## 2026-11-01: Control board PCB (CH32V003 I2C target), routed and DRC-clean
 
 - New `hardware/ctrl-pcb/`, a tscircuit design, 42 x 58 mm, 2 layers. A

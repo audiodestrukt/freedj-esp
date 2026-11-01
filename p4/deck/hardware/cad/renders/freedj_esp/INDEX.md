@@ -33,3 +33,5 @@
 - 0031-60mm-pitch-fader.jpg: 2026-11-01: PTA6043 (60 mm) fader: 64.6 mm slot, flush M2 screws 71 mm apart, ticks and the tempo LED moved in off the edge round
 - 0032-plain-buttons-section.jpg: 2026-11-01: plain buttons (no light rings): 22 mm caps fill the holes, 23.6 mm flanges under the top, nubs on the tact switches
 - 0033-cdj-style-knob.jpg: 2026-11-01: CDJ-style tempo knob: tapered body, concave finger scoops front and back, flat top with a white index line
+- 0034-populated-ctrl-board.jpg: 2026-11-01: the populated control board from tscircuit's GLB (real JLCPCB/EasyEDA part models), switches corrected to their 7.5 mm height
+- 0035-populated-board-in-deck-section.jpg: 2026-11-01: section through PLAY and CUE (flat shell): cap nubs on the real switches, ring skirts on the board over the LEDs, boss on the board; ctrl_fit.py found no clashes in either config with lit or plain buttons

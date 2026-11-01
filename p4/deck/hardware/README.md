@@ -59,6 +59,10 @@ they come out as clean as the bed surface allows.
 
 ![CDJ-style tempo knob](cad/renders/freedj_esp/0033-cdj-style-knob.jpg)
 
+![The populated control board](cad/renders/freedj_esp/0034-populated-ctrl-board.jpg)
+
+![Populated board in the deck, section through the buttons](cad/renders/freedj_esp/0035-populated-board-in-deck-section.jpg)
+
 ## Screen options (for the parametric freedj-1000)
 
 The 4" is what the CAD uses today. The 3.5" numbers come from LCDwiki's
@@ -138,6 +142,7 @@ that depends on it.
 | `jog.py` | Platter with its printed shaft, shaft fit gauge, touch plate, centre cap, inertia ring, bearings, magnet, AS5600 board and header |
 | `controls.py` | Button caps and light rings (printable), slider knob, PTA6043 pot stand-in, LEDs |
 | `ctrlboard.py` | Control board: outline (DXF), holes, switch/LED/connector positions, stand-ins |
+| `ctrl_fit.py` | The **populated** control board (tscircuit GLB, real part models) placed in the deck: test-fit STLs (`build/ctrl_board_pop{,_flat}.stl` in the deck frame, `build/ctrl_board_pop_local.stl` alone), a clash check against the shell, rings, caps and base, and render scenes |
 | `stock.py` | Bought parts as stand-ins: LCD (touch glass, TFT, board, header), screws, connectors |
 | `devboard.py` | The Waveshare dev board stand-in (board, ports, header, module) and its placement in the deck |
 | `machine.py` | The assembly, exported as GLB (plus a cutaway through the jog) |
