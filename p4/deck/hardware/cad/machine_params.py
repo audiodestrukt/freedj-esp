@@ -67,9 +67,9 @@ BASE_T = 3.0
 # Small M3 heat-set inserts (M3 x 3, ~4.2 OD), used in the base plate
 M3_INSERT_BORE = 4.0
 
-# Shaft: printed in one piece with the platter, a snug fit through the 608s' 8 mm bores.
+# Shaft: printed in one piece with the platter, a press fit through the 608s' 8 mm bores.
 # Tune SHAFT_D with fit_gauge.stl (jog.py) on your printer before printing the platter.
-SHAFT_D = 7.95
+SHAFT_D = 8.0                 # full 8: 7.95 printed loose in the 608s (2026-11-01)
 SHAFT_LEAD = 0.5             # 45 degree lead-in on the tip, for pushing it through the bearings
 MAGNET = (6.0, 1.6)          # diametric; thickness ~ the encoder's 1.6 mm FR4 (not measured yet)
 # Nothing holds the platter down yet (it sits on the upper bearing); retention comes later.

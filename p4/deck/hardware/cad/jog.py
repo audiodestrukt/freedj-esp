@@ -54,9 +54,9 @@ def shaft():
     return s.cut(pocket)
 
 def fit_gauge():
-    """Four 12 mm pins at SHAFT_D -0.1 .. +0.05, printed upright like the shaft. Push a 608
+    """Four 12 mm pins at SHAFT_D -0.05 .. +0.10, printed upright like the shaft. Push a 608
     onto each: the shaft wants the one that slides on by hand without wobble."""
-    steps = (-0.10, -0.05, 0.0, 0.05)
+    steps = (-0.05, 0.0, 0.05, 0.10)
     plate = Pos(0, 0, 0) * Box(4 * 13, 16, 2, align=(Align.MIN, Align.CENTER, Align.MIN))
     parts = []
     for i, d in enumerate(steps):

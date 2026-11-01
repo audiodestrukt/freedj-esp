@@ -30,6 +30,9 @@ frames LVGL actually rendered and flushed.
     platter and ring have 0 clashes with every other part, angled and flat.
   - Print it like the knurled one: upside down, shaft up, supports only in
     the centre recess.
+- Jog shaft is a full 8.0 mm (was 7.95), for both platters: 7.95 printed
+  loose in the 608 bearings. `fit_gauge.stl` now has pins of 7.95, 8.00, 8.05
+  and 8.10 (was 7.90 to 8.05). Reprint: platter (whichever one you use).
 - Pioneer platter reshaped to match Dan's reference mesh
   (meshy_1788016598940.glb, a disc with a 6 mm band, a dimpled shoulder and a
   domed top):
