@@ -1124,7 +1124,7 @@ static void audioTask(void*)
 //   o 4-beat loop   x reloop/exit   ( ) loop 1/2, x2   i u loop in/out
 //   , . beat jump -/+4   < > call previous/next memory cue   q quantize
 //   t tempo range   T tempo reset   m M memory cue add/delete   z slip   r reverse
-//   Y become tempo master   J jog calibration (ticks since the last J)   e jog encoder readings   E its magnet status
+//   Y become tempo master   J jog calibration (ticks since the last J)   e jog encoder readings   E its magnet status   R 4 s of its raw samples
 //   w cycle waveform test mode (normal / no flush / off)
 static void serialKeysTask(void*)
 {
@@ -1174,6 +1174,17 @@ static void serialKeysTask(void*)
             continue;
         }
         case 'E': as5600::probe(audio_out::i2cBus()); continue;   // jog encoder status over I2C (pins 3/5)
+        case 'R': {   // jog encoder: 4 s of raw samples at 500 Hz, printed as RAW lines
+            const int16_t* v;
+            const int n = as5600::capture(2000, &v);
+            for (int i = 0; i < n; i += 25) {
+                printf("RAW");
+                for (int j = i; j < i + 25 && j < n; j++) printf(" %d", v[j]);
+                printf("\n");
+            }
+            printf("RAW END %d\n", n);
+            continue;
+        }
         case 'J': {   // jog calibration: press, turn the jog exactly once, press again
             const int t = s_jogTicks;
             s_jogTicks = 0;

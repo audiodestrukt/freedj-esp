@@ -11,6 +11,19 @@ playing (see the README's *Audio health* section). Unless noted, it's
 the panel**, so they read high. From 2026-10-31 on, "screen fps" counts
 frames LVGL actually rendered and flushed.
 
+## 2026-11-02: Jog encoder raw capture (serial R)
+
+- Serial `R` records 4 s of the AS5600's raw angle at 500 Hz (2000 samples,
+  -1 = lost) and prints them as `RAW` lines, for checking the signal.
+  The 10 KB buffer is in PSRAM and is only allocated on the first `R`.
+- **Measured after reassembly:**
+  - The magnet first read too weak (magnitude 341 and then 144, AGC 128). Once it was
+    reseated it read 2088.
+  - At rest: ±1 count (std 0.8).
+  - Spinning at up to 1.1 rev/s: no samples lost, no jumps, jitter 2.6 counts
+    (0.12 ticks) against a 40 ms average, well inside the 1-tick hysteresis.
+- No change to the audio budget (the capture is idle unless `R` is sent).
+
 ## 2026-11-01: AS5600 jog encoder works (I2C)
 
 - New `main/as5600.cpp`: the AS5600 drives the jog. It sends the same

@@ -23,6 +23,11 @@ struct Stats {
 };
 Stats stats();
 
+// Records the next n raw samples (500 Hz; -1 = lost) and returns how many, with
+// *out pointing at them. Blocks until done. For checking the sensor's signal.
+constexpr int kCaptureMax = 5000;
+int capture(int n, const int16_t** out);
+
 // One-off diagnostic over I2C (address 0x36) on the given bus: logs the magnet
 // status (detected / too weak / too strong), AGC, magnitude, raw angle and the
 // output config. Needs the board's SDA/SCL on header pins 3/5. Not called from

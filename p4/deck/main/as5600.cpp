@@ -12,6 +12,7 @@
 #include "board.h"
 #include "esp_adc/adc_oneshot.h"
 #include "esp_log.h"
+#include "esp_heap_caps.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -38,6 +39,8 @@ volatile int s_raw, s_lo = 4095, s_hi = 0, s_ticks;
 volatile bool s_active;
 volatile int s_readUs;    // time for one reading
 volatile int s_lost;      // samples skipped: no magnet / I2C error
+int16_t* s_cap;           // capture(): raw samples, -1 = lost
+volatile int s_capN, s_capI;
 
 int readAvg()
 {
@@ -78,6 +81,7 @@ void task(void*)
         const int64_t t0 = esp_timer_get_time();
         const int raw = sample();
         s_readUs = (int)(esp_timer_get_time() - t0);
+        if (s_capI < s_capN) s_cap[s_capI++] = (int16_t)raw;
         if (raw < 0) { s_lost++; reseed = true; continue; }
         if (reseed) { prev = raw; reseed = false; }   // magnet back: no jump from where it was
         s_raw = raw;
@@ -169,6 +173,20 @@ void probe(i2c_master_bus_handle_t bus)
                  conf[0], conf[1], outs == 0 ? "analog 0-100%" : outs == 1 ? "analog 10-90%" : "PWM", zmco & 3);
     }
     i2c_master_bus_rm_device(dev);
+}
+
+int capture(int n, const int16_t** out)
+{
+    if (!s_active) return 0;
+    if (!s_cap) s_cap = (int16_t*)heap_caps_malloc(kCaptureMax * sizeof(int16_t), MALLOC_CAP_SPIRAM);
+    if (!s_cap) return 0;
+    if (n > kCaptureMax) n = kCaptureMax;
+    s_capI = 0;
+    s_capN = n;
+    while (s_capI < n) vTaskDelay(pdMS_TO_TICKS(20));
+    s_capN = 0;
+    *out = s_cap;
+    return n;
 }
 
 Stats stats() { return {s_raw, s_lo, s_hi, s_ticks, s_readUs, s_lost, s_active, s_dev != nullptr}; }
