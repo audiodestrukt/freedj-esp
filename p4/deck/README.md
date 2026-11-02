@@ -78,6 +78,7 @@ After changing `sdkconfig.defaults`, delete `sdkconfig` so the defaults are appl
 - **Tempo slider:** pitch, with the + side faster.
 - **Jog:** the top (touched) and the rim both send a speed. It's turned into jog ticks, so they nudge while playing and scratch while paused.
 - **Hot cues A–H, CALL ◀ ▶, MEMORY, DELETE, LOOP IN/OUT, RELOOP, beat loops 1/2–16, beat jump ±1–32, QUANTIZE, SLIP, SYNC, TEMPO RANGE, MASTER TEMPO** (keylock) and **DIRECTION REV** all go to the same deck functions as the serial keys.
+- **Sound goes to the XDJ.** It's also a USB sound card, so the deck's USB-audio output takes it, as it would any USB sound card, and the P4's own output goes quiet. The XDJ plays the deck through its own outputs, like a laptop running DJ software. Cable the XDJ's outputs to the mixer.
 - **Not mapped yet:** SEARCH ◀◀ ▶▶, TRACK SEARCH, TIME MODE, JOG MODE, MASTER, the needle strip, and hot cue CALL/DELETE.
 
 **Touch:**
