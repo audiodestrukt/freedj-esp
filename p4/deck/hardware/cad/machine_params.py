@@ -72,7 +72,7 @@ M3_INSERT_BORE = 4.0
 SHAFT_D = 8.0                 # full 8: 7.95 printed loose in the 608s (2026-11-01)
 SHAFT_LEAD = 0.5             # 45 degree lead-in on the tip, for pushing it through the bearings
 MAGNET_FIT = 0.05             # pocket over the magnet's diameter: a light press fit (0.16 let it fall out before the glue set)
-MAGNET = (6.0, 1.6)          # diametric; thickness ~ the encoder's 1.6 mm FR4 (not measured yet)
+MAGNET = (3.0, 1.0)          # diametric, the one that came with the breakout (Dan, 2026-11-02; was a guessed 6 x 1.6)
 # Nothing holds the platter down yet (it sits on the upper bearing); retention comes later.
 
 # Encoder: AS5600 breakout (WWZMDiB), 15/16" square (ruler), 4 corner holes 5/8" apart, chip

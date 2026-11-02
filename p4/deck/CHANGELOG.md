@@ -11,6 +11,20 @@ playing (see the README's *Audio health* section). Unless noted, it's
 the panel**, so they read high. From 2026-10-31 on, "screen fps" counts
 frames LVGL actually rendered and flushed.
 
+## 2026-11-02: Real magnet size, gap test prints (CAD only)
+
+- `MAGNET` is now **Ø3 × 1 mm**, measured; it was a guessed 6 × 1.6. The shaft's pocket is
+  now Ø3.05 × 1 deep, so the magnet sits flush and centred. The old pocket left it 0.6 mm
+  recessed and up to 1.5 mm off the axis.
+- Stacking magnets to bridge the gap made it worse:
+  - At rest the angle wandered 2048–2803, in 94-count steps.
+  - About ±6 jog ticks of noise, which crackled while paused.
+  - Stacked diametric discs snap together with opposite poles, so their in-plane fields cancel.
+- New `jog_test_1_1/0_8/0_5.stl` from `jog.py`: a 1" disc on the real 8.0 mm shaft, with
+  the tip lengthened so the magnet sits 1.1, 0.8 or 0.5 mm from the chip. The gap is
+  engraved on top. Print all three and choose by AGC and the `R` spread.
+- `jog.shaft(extra)` takes the extra length; the platters are unchanged apart from the pocket.
+
 ## 2026-11-02: Jog encoder raw capture (serial R)
 
 - Serial `R` records 4 s of the AS5600's raw angle at 500 Hz (2000 samples,

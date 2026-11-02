@@ -43,15 +43,28 @@ def platter():
 SHAFT_L = FLOOR + M.PLATTER_GAP - M.SHAFT_BOTTOM   # below the platter's underside
 LEAD = M.SHAFT_LEAD
 
-def shaft():
+def shaft(extra=0.0):
     """In the platter's frame (z = 0 at its underside): down through both bearings,
-    ending just under the lower one, with a pocket in the tip for the magnet."""
+    ending just under the lower one (extra mm further, toward the chip), with a pocket in
+    the tip that holds the magnet flush."""
     r = M.SHAFT_D / 2
-    z0 = -SHAFT_L
-    s = Pos(0, 0, z0 + LEAD) * Cylinder(r, SHAFT_L - LEAD + 1, align=C)
+    z0 = -SHAFT_L - extra
+    s = Pos(0, 0, z0 + LEAD) * Cylinder(r, -z0 - LEAD + 1, align=C)
     s = s.fuse(Pos(0, 0, z0) * Cone(r - LEAD, r, LEAD, align=C))
     pocket = Pos(0, 0, z0 - 0.01) * Cylinder((M.MAGNET[0] + M.MAGNET_FIT) / 2, M.MAGNET[1] + 0.01, align=C)
     return s.cut(pocket)
+
+TEST_D, TEST_H = 25.4, 4.0
+TEST_GAPS = (1.1, 0.8, 0.5)     # magnet face to chip top, if the board sits where the CAD has it
+
+def test_shaft(gap):
+    """A quick jog test print: a 1" disc on the real shaft (8 mm, same length through the
+    608s, same inner-race spacer), its tip lengthened so the magnet sits `gap` from the chip.
+    The gap is engraved on top. Print it like the platter, top down and shaft up."""
+    disc = Cylinder(TEST_D / 2, TEST_H, align=C)
+    hub = Pos(0, 0, -M.PLATTER_GAP) * Cylinder(6.0, M.PLATTER_GAP + 1, align=C)
+    label = Pos(0, 0, TEST_H - 0.6) * extrude(Text(f"{gap:.1f}", 7.0), 1)
+    return disc.fuse(hub, shaft(M.AIR_GAP - gap)).cut(label)
 
 def fit_gauge():
     """Four 12 mm pins at SHAFT_D -0.05 .. +0.10, printed upright like the shaft. Push a 608
@@ -140,7 +153,8 @@ if __name__ == "__main__":
           f"tip at z {M.SHAFT_BOTTOM:.2f}, board on {M.ENC_STANDOFF:.2f} mm bosses, "
           f"magnet {M.MAGNET[1]} mm, air gap {M.AIR_GAP:.2f} mm")
     import trimesh
-    for name, solid in ((f"platter{M.SUFFIX}", platter()), ("fit_gauge", fit_gauge())):
+    tests = [(f"jog_test_{g:.1f}{M.SUFFIX}".replace(".", "_", 1), test_shaft(g)) for g in TEST_GAPS]
+    for name, solid in [(f"platter{M.SUFFIX}", platter()), ("fit_gauge", fit_gauge())] + tests:
         f = f"build/{name}.stl"
         export_stl(solid, f, tolerance=0.02, angular_tolerance=0.1)
         m = trimesh.load(f)
