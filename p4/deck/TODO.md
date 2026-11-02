@@ -46,6 +46,9 @@ In order. Costs: **cheap** = logic only, no per-sample work; **moderate**; **hea
 4. **Screen**
    - [x] rekordbox colour waveforms (PWV5), scrolling and overview.
    - [ ] Waveform zoom (cheap). TAG LIST, INFO, MENU screens.
+   - [ ] MENU option: **speaker/line out on or off.** Today it always plays, and a USB
+     sound card (e.g. an XDJ in control mode) gets a copy (`audio_out::write`). Mute by
+     writing zeros to I2S, not by a codec mute over I2C (that collided with touch reads).
    - [x] Bigger app partition: 8 MB (`partitions.csv`), 83 % free.
    - [ ] The XDJ layout (BROWSE, TAG LIST, INFO, MENU, PERFORM) on the DSI
      screen.
