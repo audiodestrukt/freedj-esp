@@ -59,7 +59,7 @@ In order. Costs: **cheap** = logic only, no per-sample work; **moderate**; **hea
      touch is unplugged for now (DJ2Go covers it). Either double up both on pins 3/5
      (0x36 and 0x38 share fine), or give the encoder its own bus; for good once the
      control board carries it. Also: print the `jog_test_*` gap pieces (magnet is
-     Ø3 × 1, now in `MAGNET`), choose a gap by AGC and the `R` spread, set `AIR_GAP`.
+     Ø4 × 1, now in `MAGNET`), choose a gap by AGC and the `R` spread, set `AIR_GAP`.
    - [ ] PCM5102A stereo line out.
    - [ ] I2C control panel: jog, 14-bit pitch, pads.
    - [ ] DSI screen.
