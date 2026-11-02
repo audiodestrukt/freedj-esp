@@ -54,7 +54,7 @@ def shaft(extra=0.0):
     pocket = Pos(0, 0, z0 - 0.01) * Cylinder((M.MAGNET[0] + M.MAGNET_FIT) / 2, M.MAGNET[1] + 0.01, align=C)
     return s.cut(pocket)
 
-TEST_D, TEST_H = 25.4, 4.0
+TEST_D, TEST_H = 25.4, 2.0
 TEST_GAPS = (1.1, 0.8, 0.5)     # magnet face to chip top, if the board sits where the CAD has it
 
 def test_shaft(gap):
@@ -63,7 +63,7 @@ def test_shaft(gap):
     The gap is engraved on top. Print it like the platter, top down and shaft up."""
     disc = Cylinder(TEST_D / 2, TEST_H, align=C)
     hub = Pos(0, 0, -M.PLATTER_GAP) * Cylinder(6.0, M.PLATTER_GAP + 1, align=C)
-    label = Pos(0, 0, TEST_H - 0.6) * extrude(Text(f"{gap:.1f}", 7.0), 1)
+    label = Pos(0, 0, TEST_H - 0.4) * extrude(Text(f"{gap:.1f}", 7.0), 1)
     return disc.fuse(hub, shaft(M.AIR_GAP - gap)).cut(label)
 
 def fit_gauge():
