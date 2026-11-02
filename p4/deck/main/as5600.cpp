@@ -25,6 +25,10 @@ const char* TAG = "as5600";
 // Ticks per revolution. At kScrubFrames (10 ms of track per tick) 180 ticks
 // is 1.8 s of track per turn, about a record at 33 1/3 rpm.
 constexpr float kTicksPerRev = 180.0f;
+// Sign of the jog: clockwise (spinning right, seen from above) must advance the track.
+// The breakout's DIR is tied to GND; with the chip under the shaft that reads backwards,
+// so flip it here rather than rewire DIR.
+constexpr float kDirection = -1.0f;
 constexpr int   kOversample  = 2;      // ADC reads averaged per sample (~140 us each on the P4)
 constexpr int   kPeriodMs    = 2;      // 500 Hz: ~6 % of core 0
 // Noise handling, tuned offline on captured `R` data (2026-11-02: the sensor
@@ -124,7 +128,7 @@ void task(void*)
         // Crossing the 0/1 turn point jumps the whole range: unwrap it.
         if (d > span / 2) d -= span;
         else if (d < -span / 2) d += span;
-        pos += d * kTicksPerRev / span;
+        pos += kDirection * d * kTicksPerRev / span;
         slow += aS * (pos - slow);
         const float speed = (slow - hist[hi]) * (1000.0f / (kSpeedWin * kPeriodMs));
         hist[hi] = slow;
