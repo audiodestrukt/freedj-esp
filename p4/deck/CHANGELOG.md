@@ -18,8 +18,8 @@ frames LVGL actually rendered and flushed.
   - Back-to-back reads 0.3 ms apart jump 65–130 counts. That's the chip's own output, not
     the bus: 100 kHz I2C is just as noisy.
   - Paused, those ticks scrubbed the audio (crackle), and the waveform jittered.
-  - Likely electrical, at VCC/GND or the breakout's 3.3 V/5 V setting. The first I2C
-    bring-up read ±1.
+  - Cause, found afterwards: the breakout's **DIR pin had come off GND**, and the deck's
+    **small speaker sat right next to the sensor**. The first I2C bring-up read ±1.
 - **The fix:** the jog filter is rebuilt, tuned offline on `R` captures:
   - Smoothing is 1 Hz at rest, rising 0.15 Hz per tick/s.
   - Speed comes from a 5 Hz low-pass over 100 ms.
@@ -29,7 +29,8 @@ frames LVGL actually rendered and flushed.
   a spin stays within 1–2 ticks, with up to ~5 ticks of lag at the start of a move.
 - Read time 177 → ~350 us per sample (two reads), ~2 % more of core 0.
 - `E` (probe) also prints 16 back-to-back raw reads.
-- Jog direction flipped (`kDirection`): spinning right now advances the track, like a CDJ.
+- Jog direction flipped (`kDirection`): spinning right now advances the track, like a CDJ. That was set
+  while DIR was floating, so check it again once DIR is grounded.
 
 ## 2026-11-02: Real magnet size, gap test prints (CAD only)
 

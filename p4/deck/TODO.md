@@ -59,8 +59,12 @@ In order. Costs: **cheap** = logic only, no per-sample work; **moderate**; **hea
      slower than the clean signal did. Once the jog is in its final form (shaft, magnet
      mount, gap, wiring):
      - run `R` at rest and aim for ±1–2 counts;
-     - suspects: the encoder's VCC/GND jumpers and routing, the breakout's 3.3 V setting,
-       and the 0.5 test piece having no gap;
+     - likely causes, found 2026-11-02: **DIR had come off GND** (floating), and the
+       **little speaker sat right next to the sensor** (its magnet, plus its coil field
+       whenever audio plays). Keep DIR tied hard to GND, and keep the speaker well away
+       from the AS5600 in the final layout;
+     - once DIR is grounded again, check the direction: `kDirection` was flipped to -1
+       while DIR was floating, so it may need to go back to +1;
      - when it's clean, loosen the filter (deadband 1, higher cutoff) or go back to the
        plain whole-tick path from f6dd05b. Tune offline with `tools/jog_filter_sim.py` on `R` captures.
    - [ ] **Release 1 with no custom boards**: panel-mount buttons + pot straight to P4 GPIO,
