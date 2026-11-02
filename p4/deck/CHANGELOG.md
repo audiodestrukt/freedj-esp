@@ -20,11 +20,12 @@ frames LVGL actually rendered and flushed.
   - At rest the angle wandered 2048–2803, in 94-count steps.
   - About ±6 jog ticks of noise, which crackled while paused.
   - Stacked diametric discs snap together with opposite poles, so their in-plane fields cancel.
-- New `jog_test_1_1/0_8/0_5.stl` from `jog.py`: a 1" disc on the real 8.0 mm shaft, with
+- New `jog_test_1_1/0_8/0_5.stl` from `jog.py`: a 1" disc on the real shaft, with
   the tip lengthened so the magnet sits 1.1, 0.8 or 0.5 mm from the chip. The gap is
   engraved on top. Print all three and choose by AGC and the `R` spread.
 - Pocket Ø3.25 (`MAGNET_FIT` 0.25): Ø3.05 printed too tight. New `magnet_gauge.stl`, holes
   Ø3.1–3.4 labelled 10–40 (hundredths over 3 mm), to tune it.
+- Shaft Ø8.1 (8.0 was still loose in the 608s); `fit_gauge.stl` now 8.05–8.20.
 - `jog.shaft(extra)` takes the extra length; the platters are unchanged apart from the pocket.
 
 ## 2026-11-02: Jog encoder raw capture (serial R)

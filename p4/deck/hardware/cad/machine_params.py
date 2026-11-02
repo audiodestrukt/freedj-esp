@@ -69,7 +69,7 @@ M3_INSERT_BORE = 4.0
 
 # Shaft: printed in one piece with the platter, a press fit through the 608s' 8 mm bores.
 # Tune SHAFT_D with fit_gauge.stl (jog.py) on your printer before printing the platter.
-SHAFT_D = 8.0                 # full 8: 7.95 printed loose in the 608s (2026-11-01)
+SHAFT_D = 8.1                 # 8.0 still loose in the 608s (2026-11-02); 7.95 before that
 SHAFT_LEAD = 0.5             # 45 degree lead-in on the tip, for pushing it through the bearings
 MAGNET_FIT = 0.25             # pocket over the magnet's diameter: 0.05 printed too tight on the Ø3; tune with magnet_gauge.stl
 MAGNET = (3.0, 1.0)          # diametric, the one that came with the breakout (Dan, 2026-11-02; was a guessed 6 x 1.6)
