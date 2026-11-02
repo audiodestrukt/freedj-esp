@@ -25,6 +25,10 @@ frames LVGL actually rendered and flushed.
   engraved on top. Print all three and choose by AGC and the `R` spread.
 - Pocket Ø3.25 (`MAGNET_FIT` 0.25): Ø3.05 printed too tight. New `magnet_gauge.stl`, holes
   Ø3.1–3.4 labelled 10–40 (hundredths over 3 mm), to tune it.
+- **Print the files that match the shell.** The flat case's shaft is 27.0 mm (1-1/16", which
+  matches the measured bore) and the angled case's is 23.0. `FREEDJ_CONFIG=flat python3 jog.py`
+  writes `jog_test_*_flat.stl` and `platter_flat.stl`. An angled shaft in the flat shell
+  stops 4 mm short of the chip.
 - Shaft Ø8.1 (8.0 was still loose in the 608s); `fit_gauge.stl` now 8.05–8.20.
 - `jog.shaft(extra)` takes the extra length; the platters are unchanged apart from the pocket.
 
