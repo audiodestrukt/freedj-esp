@@ -53,7 +53,7 @@ JOG_D = 100.0                # platter
 WELL_D = 104.0               # recess around it
 WELL_DEPTH = 2.0
 PLATTER_H = 10.0
-PLATTER_GAP = 0.5            # platter underside above the well floor
+PLATTER_GAP = 1.5            # platter underside above the well floor (0.5 scraped at the rim when pressed)
 TOUCH_D = 80.0               # aluminium top plate = capacitive touch electrode
 CAP_D = 24.0                 # centre cap
 INERTIA = (38.0, 46.0, 5.0)  # steel ring in the platter underside: r_in, r_out, h

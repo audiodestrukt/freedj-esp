@@ -34,7 +34,7 @@ frames LVGL actually rendered and flushed.
 ## 2026-11-02: Real magnet size, gap test prints (CAD only)
 
 - `MAGNET` is now **Ø4 × 2 mm**, measured; it was a guessed 6 × 1.6. The shaft's pocket is
-  now 1 deep, so the magnet sits flush and centred. The old pocket left it 0.6 mm
+  now 2.1 deep, so the magnet sits flush and centred. The old pocket left it 0.6 mm
   recessed and up to 1.5 mm off the axis.
 - Stacking magnets to bridge the gap made it worse:
   - At rest the angle wandered 2048–2803, in 94-count steps.
@@ -49,6 +49,9 @@ frames LVGL actually rendered and flushed.
   matches the measured bore) and the angled case's is 23.0. `FREEDJ_CONFIG=flat python3 jog.py`
   writes `jog_test_*_flat.stl` and `platter_flat.stl`. An angled shaft in the flat shell
   stops 4 mm short of the chip.
+- **Platter 1 mm higher:** the hub spacer is now 1.5 mm (`PLATTER_GAP`, was 0.5), because pressing
+  the platter scraped its rim on the well. The shaft grows to match, to 28.0 mm flat and 24.0 mm
+  angled, so the tip and the magnet gap stay where they were.
 - Shaft Ø8.1 (8.0 was still loose in the 608s); `fit_gauge.stl` now 8.05–8.20.
 - `jog.shaft(extra)` takes the extra length; the platters are unchanged apart from the pocket.
 
