@@ -115,7 +115,31 @@ In order. Costs: **cheap** = logic only, no per-sample work; **moderate**; **hea
 - [ ] **Re-plugging the stick during an emergency loop** could pick the track back up where it is. Today the loop runs until another track is loaded.
 - [ ] **Boot +12–14 s** reading 218 ANLZ files at full speed: cache the track list on the stick.
 - [ ] **Slow loads with the stick at full speed** (needed for the hub): MP3 load 4.9 s, because building the index reads the whole file. Build the index in the background once the track is ready to play.
-- [ ] **Deck B and the crossfader.** The DJ2Go already sends deck B events, so this needs a second `TrackStream` and `Deck`, plus mixing.
+- [ ] **Two decks, one control surface, an A/B toggle** (plan 2026-11-02). One jog, one set of
+  buttons and one pitch fader drive whichever deck the switch selects. The DJ2Go already sends
+  deck B events.
+  - **Switch:** on-on toggle to one GPIO with a pull-up (a 4th `panel_gpio` pin, BUILDS.md). The
+    lever shows the deck, so no LED. Serial `Tab` does the same thing for testing.
+  - **Routing:** jog, buttons, XDJ/DJ2Go go to the selected deck. The **pitch fader needs soft
+    takeover**: after a switch it does nothing until it passes that deck's pitch (same for XDJ tempo).
+  - **Audio out, recommended:** separate outputs into an external mixer, CDJ-style. A on the codec
+    line out, B on a second I2S DAC (PCM5102A) or a USB sound card. No crossfader/EQ in firmware.
+    An internal mix would also need a cue output, so a second output either way.
+  - **Screen:** selected deck's scrolling waveform large; the other as a strip (overview, BPM,
+    time left, phase). Two scrolling waveforms would roughly double LVGL's core 0 cost.
+  - **Budget (estimates):** core 1 with two keylock decks about 50 % (one is 27–28 %). Core 0 gets a
+    second decoder: measure the MP3 decode. PSRAM: two 12 MB rings fit in 32 MB but are tight;
+    drop to about 8 MB each (~47 s).
+  - **Link:** two player numbers; SYNC can lock B to A inside the box.
+  - **Order:**
+    1. a second `TrackStream`/`Deck`, B mixed to the right channel, `Tab` to switch. Measure;
+    2. soft takeover;
+    3. screen A/B header + strip;
+    4. second I2S DAC for B;
+    5. the switch: `panel_gpio`, CAD hole, BUILDS.md.
+  - **Keylock cost, if needed:** coarse-to-fine search (4× decimated, then ±4 at full rate) or
+    compare every 4th sample. About 10× cheaper. Pajoniiir (another P4 dual-deck project)
+    compares only 2 samples over 15 candidates to fit two decks; that's too few for good sound.
 - [ ] **Overview waveform**: the whole track in one strip. Analyse in the background after load, and cache the peaks on the SD card so each track is only analysed once.
 
 ## Audio quality
