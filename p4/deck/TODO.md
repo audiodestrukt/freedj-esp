@@ -53,6 +53,17 @@ In order. Costs: **cheap** = logic only, no per-sample work; **moderate**; **hea
    - [ ] **3D-printed enclosure**, first design in [hardware/](hardware/README.md): a small CDJ
      around the 4" MSP4021, jog on two 608s + AS5600, CUE/PLAY, 45 mm pitch, angled and
      flat-top versions. Next: caliper the screen and the dev board's port heights, print and test the jog module alone, choose jog-touch sensing.
+   - [ ] **Get the jog's feel back on the final hardware.** The AS5600 reads ~±100 counts at
+     rest since the reassembly; the first bring-up read ±1. A filter hides it: 3-tick start
+     deadband, 1 Hz smoothing at rest (`as5600.cpp`, 2026-11-02). It holds still but feels
+     slower than the clean signal did. Once the jog is in its final form (shaft, magnet
+     mount, gap, wiring):
+     - run `R` at rest and aim for ±1–2 counts;
+     - suspects: the encoder's VCC/GND jumpers and routing, the breakout's 3.3 V setting,
+       and the 0.5 test piece having no gap;
+     - when it's clean, loosen the filter (deadband 1, higher cutoff) or go back to the
+       plain whole-tick path from f6dd05b. `sim5.py`-style offline tuning on `R` captures
+       worked well.
    - [ ] **Release 1 with no custom boards**: panel-mount buttons + pot straight to P4 GPIO,
      control board kept as the later build. Plan in [BUILDS.md](BUILDS.md).
    - [ ] **Touch back with the AS5600 on I2C.** The encoder took pins 3/5 and the screen's
