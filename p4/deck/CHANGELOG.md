@@ -30,6 +30,8 @@ frames LVGL actually rendered and flushed.
 - **New serial key `I`:** raw MIDI log. Every USB device that enumerates now logs its
   interfaces and endpoints.
 - Confirmed working on the XDJ-1000MK2, 2026-11-02.
+- **Output routing:** the P4's own output now always plays. A USB sound card (such as the
+  XDJ) gets a copy; before, the P4's output went silent while one was attached.
 
 ## 2026-11-02: Jog holds still on a noisy sensor
 
