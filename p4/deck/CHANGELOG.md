@@ -11,6 +11,25 @@ playing (see the README's *Audio health* section). Unless noted, it's
 the panel**, so they read high. From 2026-10-31 on, "screen fps" counts
 frames LVGL actually rendered and flushed.
 
+## 2026-11-02: Jog holds still on a noisy sensor
+
+- **The problem:** after reassembly the AS5600 read about ±100 counts (±4 ticks) at rest,
+  even with a strong field (AGC 2–8).
+  - Back-to-back reads 0.3 ms apart jump 65–130 counts. That's the chip's own output, not
+    the bus: 100 kHz I2C is just as noisy.
+  - Paused, those ticks scrubbed the audio (crackle), and the waveform jittered.
+  - Likely electrical, at VCC/GND or the breakout's 3.3 V/5 V setting. The first I2C
+    bring-up read ±1.
+- **The fix:** the jog filter is rebuilt, tuned offline on `R` captures:
+  - Smoothing is 1 Hz at rest, rising 0.15 Hz per tick/s.
+  - Speed comes from a 5 Hz low-pass over 100 ms.
+  - A 3-tick deadband to start or reverse; once moving, every tick goes out.
+  - I2C sample = two reads, averaged.
+- **Measured on the deck:** 0 stray ticks in 20 s at rest. In simulation on the captures,
+  a spin stays within 1–2 ticks, with up to ~5 ticks of lag at the start of a move.
+- Read time 177 → ~350 us per sample (two reads), ~2 % more of core 0.
+- `E` (probe) also prints 16 back-to-back raw reads.
+
 ## 2026-11-02: Real magnet size, gap test prints (CAD only)
 
 - `MAGNET` is now **Ø4 × 1 mm**, measured; it was a guessed 6 × 1.6. The shaft's pocket is

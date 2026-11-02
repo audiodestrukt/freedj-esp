@@ -2,13 +2,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // AS5600 jog encoder. See as5600.h.
 //
-// I2C (preferred): RAW ANGLE, 12 bits over the turn, no ADC noise. Read at
+// I2C (preferred): RAW ANGLE, 12 bits over the turn, two reads per sample. Read at
 // 500 Hz from this core-0 task; the bus driver serialises it with the codec
 // and touch (never touched from the audio task).
 // Analog (fallback, when nothing answers at 0x36): the OUT pin is 0..VCC over
 // a turn. The P4's ADC wanders ~±40 counts, so that path is smoothed, and its
 // range is learned from what's seen (lo/hi), so the first turn calibrates it.
 #include "as5600.h"
+#include <math.h>
 #include "board.h"
 #include "esp_adc/adc_oneshot.h"
 #include "esp_log.h"
@@ -26,9 +27,22 @@ const char* TAG = "as5600";
 constexpr float kTicksPerRev = 180.0f;
 constexpr int   kOversample  = 2;      // ADC reads averaged per sample (~140 us each on the P4)
 constexpr int   kPeriodMs    = 2;      // 500 Hz: ~6 % of core 0
-// Smoothing on the unwrapped position, per sample: the ADC wanders ~±40 counts
-// (~±2 ticks) at rest. 0.15 at 500 Hz is a ~13 ms time constant.
-constexpr float kSmooth      = 0.15f;
+// Noise handling, tuned offline on captured `R` data (2026-11-02: the sensor
+// read ~±100 counts, ~±4 ticks, at rest; the ADC fallback wanders ~±40):
+// - Speed-adaptive smoothing (1-euro style) on the unwrapped position, in ticks:
+//   kMinCutoff Hz at rest, rising kBeta Hz per tick/s, so 1 rev/s (180 ticks/s)
+//   gets ~28 Hz and a turn isn't lagged.
+// - Speed comes from a separate 5 Hz low-pass, differenced over 100 ms, so
+//   noise can't open the cutoff.
+// - Deadband: starting or reversing needs kDeadband ticks; once moving, every
+//   tick goes out. Below kStopSpeed it counts as stopped again.
+// On the captures: 0 stray ticks in 3 x 4 s at rest; a spin within 1-2 ticks.
+constexpr float kMinCutoff   = 1.0f;
+constexpr float kBeta        = 0.15f;
+constexpr float kSpeedCutoff = 5.0f;
+constexpr int   kSpeedWin    = 50;     // samples (100 ms)
+constexpr float kDeadband    = 3.0f;   // ticks
+constexpr float kStopSpeed   = 6.0f;   // ticks/s
 constexpr int   kMinSpan     = 1500;   // don't trust the learned range below this
 
 EventFn s_onEvent;
@@ -60,8 +74,20 @@ int readI2c()
     if (++n % 50 == 0 && (i2c_master_transmit_receive(s_dev, &reg, 1, &st, 1, 5) != ESP_OK || !(st & 0x20)))
         return -1;                     // status every 100 ms: no magnet, hold still
     reg = 0x0C;
-    if (i2c_master_transmit_receive(s_dev, &reg, 1, b, 2, 5) != ESP_OK) return -1;
-    return ((b[0] & 0x0F) << 8) | b[1];
+    int v[2];
+    for (int& x : v) {                 // two reads, averaged across the 0/4095 seam
+        if (i2c_master_transmit_receive(s_dev, &reg, 1, b, 2, 5) != ESP_OK) return -1;
+        x = ((b[0] & 0x0F) << 8) | b[1];
+    }
+    int d = v[1] - v[0];
+    if (d > 2048) d -= 4096; else if (d < -2048) d += 4096;
+    return (v[0] + d / 2 + 4096) % 4096;
+}
+
+float alpha(float cutoffHz)
+{
+    const float tau = 1.0f / (6.2831853f * cutoffHz), dt = kPeriodMs / 1000.0f;
+    return dt / (dt + tau);
 }
 
 int sample() { return s_dev ? readI2c() : readAvg(); }
@@ -69,13 +95,17 @@ int sample() { return s_dev ? readI2c() : readAvg(); }
 void task(void*)
 {
     const bool i2c = s_dev != nullptr;
-    const float a = i2c ? 1.0f : kSmooth;   // I2C is clean enough to use as read
+    const float aS = alpha(kSpeedCutoff);
     int prev;
     while ((prev = sample()) < 0) vTaskDelay(pdMS_TO_TICKS(100));
     float pos = 0;          // ticks, continuous
-    float smooth = 0;       // pos, low-passed
+    float smooth = 0;       // pos, low-passed (speed-adaptive)
+    float slow = 0;         // pos, low-passed at kSpeedCutoff, for the speed estimate
+    static float hist[kSpeedWin];   // slow, over the last kSpeedWin samples
+    int hi = 0;
+    int dir = 0;            // direction we're moving in; 0 = stopped (deadband applies)
     bool reseed = false;
-    int emitted = 0;        // ticks sent; pos must move a whole tick past it to send another
+    int emitted = 0;        // ticks sent
     for (;;) {
         vTaskDelay(pdMS_TO_TICKS(kPeriodMs));   // always yield: the ADC reads aren't free, and core 0's idle task needs time
         const int64_t t0 = esp_timer_get_time();
@@ -95,12 +125,21 @@ void task(void*)
         if (d > span / 2) d -= span;
         else if (d < -span / 2) d += span;
         pos += d * kTicksPerRev / span;
-        smooth += a * (pos - smooth);
+        slow += aS * (pos - slow);
+        const float speed = (slow - hist[hi]) * (1000.0f / (kSpeedWin * kPeriodMs));
+        hist[hi] = slow;
+        hi = (hi + 1) % kSpeedWin;
+        smooth += alpha(kMinCutoff + kBeta * fabsf(speed)) * (pos - smooth);
 
-        // Whole-tick hysteresis: ADC noise around a boundary can't chatter.
         int out = 0;
-        while (smooth >= emitted + 1) { emitted++; out++; }
-        while (smooth <= emitted - 1) { emitted--; out--; }
+        if (smooth >= emitted + 1 && (dir == 1 || smooth >= emitted + kDeadband)) {
+            while (smooth >= emitted + 1) { emitted++; out++; }
+            dir = 1;
+        } else if (smooth <= emitted - 1 && (dir == -1 || smooth <= emitted - kDeadband)) {
+            while (smooth <= emitted - 1) { emitted--; out--; }
+            dir = -1;
+        }
+        if (fabsf(speed) < kStopSpeed) dir = 0;
         if (out) {
             s_ticks += out;
             deck::Event e;
@@ -165,6 +204,12 @@ void probe(i2c_master_bus_handle_t bus)
         ESP_LOGE(TAG, "probe: no answer at 0x36 (SDA on pin 3, SCL on pin 5?)");
     } else {
         rd(0x00, &zmco, 1); rd(0x07, conf, 2); rd(0x0C, raw, 2); rd(0x1A, &agc, 1); rd(0x1B, mag, 2);
+        char seq[200]; int n = 0;
+        for (int i = 0; i < 16; i++) {      // back-to-back raw angle reads (~0.3 ms apart at 100 kHz)
+            uint8_t r[2]; rd(0x0C, r, 2);
+            n += snprintf(seq + n, sizeof seq - n, " %d", ((r[0] & 0x0F) << 8) | r[1]);
+        }
+        ESP_LOGI(TAG, "probe: back-to-back raw:%s", seq);
         ESP_LOGI(TAG, "probe: magnet %s%s%s (status 0x%02x), AGC %u (lower = stronger field), magnitude %u, raw angle %u/4095",
                  (st & 0x20) ? "DETECTED" : "NOT detected", (st & 0x10) ? ", TOO WEAK" : "", (st & 0x08) ? ", TOO STRONG" : "",
                  st, agc, ((mag[0] & 0x0F) << 8) | mag[1], ((raw[0] & 0x0F) << 8) | raw[1]);
