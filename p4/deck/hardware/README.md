@@ -111,8 +111,9 @@ Two firmware catches with the ILI9488 over SPI:
   This is what lets the deck scratch while playing, not only when paused.
 - **AS5600 board:** size and hole spacing measured with a ruler, pin columns placed
   from the listing photo (±0.5 mm). Check that the tails land in the pockets.
-- **Magnet:** Ø3 × 1 mm, measured 2026-11-02 (`MAGNET`). The pocket is Ø3.05 × 1 deep, so it
-  sits flush and centred. The earlier guess (Ø6 × 1.6) left the real magnet 0.6 mm down in
+- **Magnet:** Ø3 × 1 mm, measured 2026-11-02 (`MAGNET`). The pocket is Ø3.25 × 1 deep, so it
+  sits flush and centred. Ø3.05 printed too tight. `magnet_gauge.stl` has 3.1–3.4 holes
+  for tuning `MAGNET_FIT`. The earlier guess (Ø6 × 1.6) left the real magnet 0.6 mm down in
   the pocket and up to 1.5 mm off the axis. Stacking magnets to close that gap made it
   worse: stacked diametric magnets snap together with opposite poles, and the angle at
   rest wandered over ±330 counts.

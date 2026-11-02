@@ -79,6 +79,17 @@ def fit_gauge():
     labels = [Pos(6.5 + 13 * i, -5.5, 1.4) * extrude(Text(f"{M.SHAFT_D + d:.2f}", 3.0), 1) for i, d in enumerate(steps)]
     return plate.fuse(*parts).cut(*labels)
 
+def magnet_gauge():
+    """Magnet pocket sizes on a strip, 1 mm deep like the shaft's, printed hole up the same
+    way: MAGNET[0] + 0.10 .. +0.40. Use the smallest one the magnet presses into, and set
+    MAGNET_FIT to its step."""
+    steps = (0.10, 0.20, 0.30, 0.40)
+    plate = Box(4 * 9, 12, 2.5, align=(Align.MIN, Align.CENTER, Align.MIN))
+    holes = [Pos(4.5 + 9 * i, 2, 2.5 - M.MAGNET[1]) * Cylinder((M.MAGNET[0] + d) / 2, 2, align=C)
+             for i, d in enumerate(steps)]
+    labels = [Pos(4.5 + 9 * i, -3.5, 2.0) * extrude(Text(f"{d * 100:.0f}", 3.0), 1) for i, d in enumerate(steps)]
+    return plate.cut(*holes, *labels)
+
 def touch_plate():   # aluminium disc, wired to a capacitive input through a slip-free air gap
     return Cylinder(M.TOUCH_D / 2, TOUCH_T, align=C) - Pos(0, 0, -1) * Cylinder(M.CAP_D / 2 + 0.3, 5, align=C)
 
@@ -154,7 +165,7 @@ if __name__ == "__main__":
           f"magnet {M.MAGNET[1]} mm, air gap {M.AIR_GAP:.2f} mm")
     import trimesh
     tests = [(f"jog_test_{g:.1f}{M.SUFFIX}".replace(".", "_", 1), test_shaft(g)) for g in TEST_GAPS]
-    for name, solid in [(f"platter{M.SUFFIX}", platter()), ("fit_gauge", fit_gauge())] + tests:
+    for name, solid in [(f"platter{M.SUFFIX}", platter()), ("fit_gauge", fit_gauge()), ("magnet_gauge", magnet_gauge())] + tests:
         f = f"build/{name}.stl"
         export_stl(solid, f, tolerance=0.02, angular_tolerance=0.1)
         m = trimesh.load(f)

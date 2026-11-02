@@ -14,7 +14,7 @@ frames LVGL actually rendered and flushed.
 ## 2026-11-02: Real magnet size, gap test prints (CAD only)
 
 - `MAGNET` is now **Ø3 × 1 mm**, measured; it was a guessed 6 × 1.6. The shaft's pocket is
-  now Ø3.05 × 1 deep, so the magnet sits flush and centred. The old pocket left it 0.6 mm
+  now 1 deep, so the magnet sits flush and centred. The old pocket left it 0.6 mm
   recessed and up to 1.5 mm off the axis.
 - Stacking magnets to bridge the gap made it worse:
   - At rest the angle wandered 2048–2803, in 94-count steps.
@@ -23,6 +23,8 @@ frames LVGL actually rendered and flushed.
 - New `jog_test_1_1/0_8/0_5.stl` from `jog.py`: a 1" disc on the real 8.0 mm shaft, with
   the tip lengthened so the magnet sits 1.1, 0.8 or 0.5 mm from the chip. The gap is
   engraved on top. Print all three and choose by AGC and the `R` spread.
+- Pocket Ø3.25 (`MAGNET_FIT` 0.25): Ø3.05 printed too tight. New `magnet_gauge.stl`, holes
+  Ø3.1–3.4 labelled 10–40 (hundredths over 3 mm), to tune it.
 - `jog.shaft(extra)` takes the extra length; the platters are unchanged apart from the pocket.
 
 ## 2026-11-02: Jog encoder raw capture (serial R)

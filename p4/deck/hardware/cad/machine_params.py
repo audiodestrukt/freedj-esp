@@ -71,7 +71,7 @@ M3_INSERT_BORE = 4.0
 # Tune SHAFT_D with fit_gauge.stl (jog.py) on your printer before printing the platter.
 SHAFT_D = 8.0                 # full 8: 7.95 printed loose in the 608s (2026-11-01)
 SHAFT_LEAD = 0.5             # 45 degree lead-in on the tip, for pushing it through the bearings
-MAGNET_FIT = 0.05             # pocket over the magnet's diameter: a light press fit (0.16 let it fall out before the glue set)
+MAGNET_FIT = 0.25             # pocket over the magnet's diameter: 0.05 printed too tight on the Ø3; tune with magnet_gauge.stl
 MAGNET = (3.0, 1.0)          # diametric, the one that came with the breakout (Dan, 2026-11-02; was a guessed 6 x 1.6)
 # Nothing holds the platter down yet (it sits on the upper bearing); retention comes later.
 
