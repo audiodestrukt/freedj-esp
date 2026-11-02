@@ -7,6 +7,7 @@
 #   make timecode_test  # synthetic-carrier smoke test
 #   make timecode_analyze
 #   make dj2go_test     # DJ2Go MIDI decoder unit test
+#   make xdj_test       # XDJ-1000MK2 MIDI decoder unit test
 #
 # Run:
 #   make run_sim                     # SDL player against ./media  (alias: run)
@@ -43,7 +44,7 @@ WOKWI_ELF      ?= .pio/build/$(WOKWI_ENV)/firmware.elf
 WOKWI_SCENARIO ?= sim/scenario.test.yaml
 WOKWI_PROJECT  ?= sim/
 
-all: wsola_play mediaplayer timecode_test timecode_analyze vinyl_demo dj2go_test
+all: wsola_play mediaplayer timecode_test timecode_analyze vinyl_demo dj2go_test xdj_test
 
 wsola_play: wsola_play.cpp $(WSOLA_SRC)
 	$(CXX) $(CXXFLAGS) $^ -o $@ $(LDFLAGS)
@@ -101,3 +102,6 @@ clean:
 	rm -f wsola_play mediaplayer timecode_test timecode_analyze vinyl_demo
 
 .PHONY: all run run_sim run_wokwi sim_firmware run_play run_tc run_tc_wav run_vinyl_demo clean
+
+xdj_test: xdj_test.cpp ../src/xdj_midi.cpp ../src/deck_event.cpp
+	$(CXX) $(CXXFLAGS) $^ -o $@ $(LDFLAGS)

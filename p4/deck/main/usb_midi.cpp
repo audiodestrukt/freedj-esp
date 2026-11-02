@@ -20,6 +20,7 @@ typedef struct {
     usb_transfer_t          *xfer;
     uint8_t                  iface;
     bool                     gone;
+    uint16_t                 vid;    // USB vendor of the MIDI device
 } probe_t;
 
 static probe_t P;
@@ -70,6 +71,32 @@ static void print_str(const char *what, const usb_str_desc_t *s)
     ESP_LOGI(TAG, "  %s: %s", what, buf);
 }
 
+// Every interface and endpoint of the active config, so an unknown controller
+// (e.g. a Pioneer player in its computer-control mode) shows what it is.
+static void dump_config(const usb_config_desc_t *cfg)
+{
+    int off = 0;
+    const usb_standard_desc_t *d = (const usb_standard_desc_t *)cfg;
+    ESP_LOGI(TAG, "  config: %d interface(s), %d bytes", cfg->bNumInterfaces, cfg->wTotalLength);
+    while ((d = usb_parse_next_descriptor(d, cfg->wTotalLength, &off)) != nullptr) {
+        if (d->bDescriptorType == USB_B_DESCRIPTOR_TYPE_INTERFACE) {
+            const usb_intf_desc_t *i = (const usb_intf_desc_t *)d;
+            ESP_LOGI(TAG, "  iface %d alt %d: class %02X sub %02X proto %02X, %d endpoint(s)",
+                     i->bInterfaceNumber, i->bAlternateSetting, i->bInterfaceClass,
+                     i->bInterfaceSubClass, i->bInterfaceProtocol, i->bNumEndpoints);
+        } else if (d->bDescriptorType == USB_B_DESCRIPTOR_TYPE_ENDPOINT) {
+            const usb_ep_desc_t *e = (const usb_ep_desc_t *)d;
+            static const char *kType[] = {"control", "iso", "bulk", "interrupt"};
+            ESP_LOGI(TAG, "    ep 0x%02X %s %s, %d bytes, interval %d", e->bEndpointAddress,
+                     (e->bEndpointAddress & 0x80) ? "IN" : "OUT", kType[e->bmAttributes & 3],
+                     e->wMaxPacketSize, e->bInterval);
+        } else if (d->bDescriptorType == 0x21) {   // HID class descriptor
+            const uint8_t *h = (const uint8_t *)d;
+            ESP_LOGI(TAG, "    HID: report descriptor %d bytes", h[7] | (h[8] << 8));
+        }
+    }
+}
+
 static void on_new_dev(uint8_t addr)
 {
     usb_device_handle_t dev;
@@ -88,6 +115,7 @@ static void on_new_dev(uint8_t addr)
 
     const usb_config_desc_t *cfg;
     uint8_t iface, alt, ep; uint16_t mps;
+    if (usb_host_get_active_config_descriptor(dev, &cfg) == ESP_OK) dump_config(cfg);
     if (P.dev || usb_host_get_active_config_descriptor(dev, &cfg) != ESP_OK ||
         !find_midi_in(cfg, &iface, &alt, &ep, &mps)) {
         usb_host_device_close(P.client, dev);
@@ -99,7 +127,7 @@ static void on_new_dev(uint8_t addr)
         usb_host_device_close(P.client, dev);
         return;
     }
-    P.dev = dev; P.iface = iface; P.gone = false;
+    P.dev = dev; P.iface = iface; P.gone = false; P.vid = dd->idVendor;
     usb_host_transfer_alloc(mps, 0, &P.xfer);
     P.xfer->device_handle = dev;
     P.xfer->bEndpointAddress = ep;
@@ -172,6 +200,8 @@ void begin(PacketFn onPacket)
     xTaskCreate(host_task, "usb_host", 4096, NULL, 6, NULL);
     xTaskCreate(client_task, "usb_midi", 4096, NULL, 5, NULL);
 }
+
+uint16_t vendor() { return P.dev ? P.vid : 0; }
 
 void powerOn()
 {

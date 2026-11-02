@@ -2,7 +2,7 @@
 
 (in `p4/deck`; it started as "the P4 deck", then "ESP Deck")
 
-A small CDJ-style deck on the **Waveshare ESP32-P4-Module-DEV-KIT**. It plays WAV and MP3 from a rekordbox USB stick or the SD card. You control it with a Numark DJ2Go over USB, the touch screen, or serial keys. It has varispeed and keylock, CDJ-style CUE, a scrolling waveform, and beat sync to other players over Pro DJ Link.
+A small CDJ-style deck on the **Waveshare ESP32-P4-Module-DEV-KIT**. It plays WAV and MP3 from a rekordbox USB stick or the SD card. You control it with a Numark DJ2Go or a Pioneer XDJ-1000MK2 over USB, the AS5600 jog, the touch screen, or serial keys. It has varispeed and keylock, CDJ-style CUE, a scrolling waveform, and beat sync to other players over Pro DJ Link.
 
 This lives next to the A1S firmware in the repo root and doesn't replace it. The timecode vinyl path is still the A1S build. Both builds share the deck event types, the DJ2Go decoder and WSOLA, all from `../../src`.
 
@@ -16,7 +16,7 @@ This lives next to the A1S firmware in the repo root and doesn't replace it. The
 | USB stick | rekordbox export, FAT32. Can be plugged in or pulled while the deck runs. Its tracks are read in the background (a notice shows progress). Pulled mid-track, the deck goes into an emergency loop |
 | USB ports | Jumper H3 (between the right-hand USB pair and the Ethernet jack) picks between two paths. **Labelled DEVICE** = the on-board CH334F 4-port hub, so three ports work but the fourth (the direct one) is dead. **HOST, or no jumper** = only the direct port works. Use DEVICE, with the DJ2Go and the stick in two of the hub ports. ESP-IDF's USB host has no transaction translator, so the firmware limits the root port to full speed (12 Mbit/s) to reach a full-speed device like the DJ2Go behind the hub. The stick then runs at full speed too |
 | Ethernet | On-board IP101 PHY (RMII). DHCP, or 169.254.x.x link-local on a cable straight to a player |
-| Controller | Numark DJ2Go in any of the four USB-A ports (USB host, class-compliant MIDI) |
+| Controller | Numark DJ2Go, or a Pioneer XDJ-1000MK2 in USB-MIDI control mode, in any of the four USB-A ports (USB host, class-compliant MIDI; Pioneer's vendor ID picks the XDJ map) |
 | Screen (stand-in) | LCDwiki **MSP4021**: 4" 480×320, ST7796S over SPI + FT6336U capacitive touch. Will be replaced by a MIPI-DSI screen |
 | Serial | USB-C, CH343 → `/dev/ttyACM0`, console UART0 (GPIO 37/38) |
 
@@ -71,6 +71,14 @@ After changing `sdkconfig.defaults`, delete `sdkconfig` so the defaults are appl
 - **Jog:** nudge while playing; **scratch while paused** (the audio follows the wheel, both directions). See *Feel parameters*.
 - **SYNC:** beat sync to the Pro DJ Link tempo master on/off. Needs a track with a rekordbox beat grid.
 - **Channel volume:** level.
+
+**Pioneer XDJ-1000MK2 as a controller (deck A):** plug the XDJ's USB-B port into a P4 USB-A port. On the XDJ, choose **CONTROL MODE → USB MIDI**, then push the rotary selector when it says "push to connect". Re-select it after the P4 restarts. The map is the manual's *List of MIDI Messages* (p. 37), in `../../src/xdj_midi.cpp`:
+- **Rotary selector:** browse; **push** to load; **BACK** goes up a level.
+- **PLAY/PAUSE, CUE:** as on the DJ2Go.
+- **Tempo slider:** pitch, with the + side faster.
+- **Jog:** the top (touched) and the rim both send a speed. It's turned into jog ticks, so they nudge while playing and scratch while paused.
+- **Hot cues A–H, CALL ◀ ▶, MEMORY, DELETE, LOOP IN/OUT, RELOOP, beat loops 1/2–16, beat jump ±1–32, QUANTIZE, SLIP, SYNC, TEMPO RANGE, MASTER TEMPO** (keylock) and **DIRECTION REV** all go to the same deck functions as the serial keys.
+- **Not mapped yet:** SEARCH ◀◀ ▶▶, TRACK SEARCH, TIME MODE, JOG MODE, MASTER, the needle strip, and hot cue CALL/DELETE.
 
 **Touch:**
 - Tap a row to select it; tap it again, or press LOAD, to load it.

@@ -36,6 +36,7 @@
 #include "audio_out.h"
 #include "deck_event.h"
 #include "dj2go.h"
+#include "xdj_midi.h"
 #include "library.h"
 #include "net.h"
 #include "prolink.h"
@@ -96,6 +97,7 @@ static QueueHandle_t s_select;      // Pick (list index + list generation), scre
 static QueueHandle_t s_seekReq;     // float 0..1, overview needle search → audio task (latest wins)
 static TrackStream s_stream;        // deck A
 static dj2go::Decoder s_decoder;
+static xdj::Decoder s_xdj;
 static wsola::Wsola s_wsola;        // ~40 KB, keep out of task stacks
 // Beat grid of the loaded track, double-buffered because the screen draws
 // from it too: the loader (or the test hook) fills the spare one and the audio
@@ -109,10 +111,14 @@ static volatile int s_syncOffsetMs; // serial [ / ]: trim our phase against the 
 static volatile int s_fakeGridBpm;
 static volatile int s_jogTicks;     // jog ticks since the last serial J (calibration)  // serial g: test grid for a track without rekordbox analysis
 
+static volatile bool s_midiLog;   // serial I: print raw USB-MIDI packets (mapping new controllers)
+
 static void onMidiPacket(const uint8_t p[4])
 {
+    if (s_midiLog) ESP_LOGI(TAG, "midi %02X %02X %02X %02X", p[0], p[1], p[2], p[3]);
     deck::Event ev[2];
-    int n = s_decoder.decodeUsbPacket(p, ev, 2);
+    int n = usb_midi::vendor() == 0x2B73 ? s_xdj.decodeUsbPacket(p, ev, 2)    // Pioneer XDJ, USB MIDI mode
+                                         : s_decoder.decodeUsbPacket(p, ev, 2);
     for (int i = 0; i < n; i++) xQueueSend(s_events, &ev[i], 0);
 }
 
@@ -1124,7 +1130,7 @@ static void audioTask(void*)
 //   o 4-beat loop   x reloop/exit   ( ) loop 1/2, x2   i u loop in/out
 //   , . beat jump -/+4   < > call previous/next memory cue   q quantize
 //   t tempo range   T tempo reset   m M memory cue add/delete   z slip   r reverse
-//   Y become tempo master   J jog calibration (ticks since the last J)   e jog encoder readings   E its magnet status   R 4 s of its raw samples
+//   Y become tempo master   J jog calibration (ticks since the last J)   e jog encoder readings   E its magnet status   R 4 s of its raw samples   I raw MIDI log
 //   w cycle waveform test mode (normal / no flush / off)
 static void serialKeysTask(void*)
 {
@@ -1174,6 +1180,7 @@ static void serialKeysTask(void*)
             continue;
         }
         case 'E': as5600::probe(audio_out::i2cBus()); continue;   // jog encoder status over I2C (pins 3/5)
+        case 'I': s_midiLog = !s_midiLog; ESP_LOGI(TAG, "raw MIDI log %s", s_midiLog ? "on" : "off"); continue;
         case 'R': {   // jog encoder: 4 s of raw samples at 500 Hz, printed as RAW lines
             const int16_t* v;
             const int n = as5600::capture(2000, &v);

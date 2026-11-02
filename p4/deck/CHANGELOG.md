@@ -11,6 +11,26 @@ playing (see the README's *Audio health* section). Unless noted, it's
 the panel**, so they read high. From 2026-10-31 on, "screen fps" counts
 frames LVGL actually rendered and flushed.
 
+## 2026-11-02: XDJ-1000MK2 as a controller (USB MIDI)
+
+- **What the player presents over USB:** standard USB MIDI, a HID interface, USB audio
+  out (the P4 could play through it) and a USB network adapter.
+- **To use it:** on the XDJ, CONTROL MODE → USB MIDI, then push to connect. It then
+  sends the MIDI messages listed in its manual (p. 37).
+- New `src/xdj_midi.cpp`, built for both the host and the target:
+  - PLAY/CUE, tempo slider, rotary browse/load/back.
+  - Hot cues A–H, memory/call, loops and beat loops, beat jump ±1–32.
+  - Quantize, slip, sync, tempo range, master tempo, reverse.
+  - The jog sends a speed (64 = stop) about every 18 ms, for the top (0.06–4×) and the
+    rim (0.5–4×). That becomes jog ticks (10 ms of track each), with the remainder
+    carried over.
+- **Which map is used:** `usb_midi` remembers the MIDI device's vendor ID, so Pioneer
+  (0x2B73) gets the XDJ map and everything else gets the DJ2Go map.
+- `native/xdj_test`: 18 checks, all passing.
+- **New serial key `I`:** raw MIDI log. Every USB device that enumerates now logs its
+  interfaces and endpoints.
+- Confirmed working on the XDJ-1000MK2, 2026-11-02.
+
 ## 2026-11-02: Jog holds still on a noisy sensor
 
 - **The problem:** after reassembly the AS5600 read about ±100 counts (±4 ticks) at rest,
