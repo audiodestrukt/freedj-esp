@@ -51,7 +51,7 @@ def shaft(extra=0.0):
     z0 = -SHAFT_L - extra
     s = Pos(0, 0, z0 + LEAD) * Cylinder(r, -z0 - LEAD + 1, align=C)
     s = s.fuse(Pos(0, 0, z0) * Cone(r - LEAD, r, LEAD, align=C))
-    pocket = Pos(0, 0, z0 - 0.01) * Cylinder((M.MAGNET[0] + M.MAGNET_FIT) / 2, M.MAGNET[1] + 0.01, align=C)
+    pocket = Pos(0, 0, z0 - 0.01) * Cylinder((M.MAGNET[0] + M.MAGNET_FIT) / 2, M.MAGNET[1] + M.MAGNET_GLUE + 0.01, align=C)
     return s.cut(pocket)
 
 TEST_D, TEST_H = 25.4, 2.0
@@ -80,14 +80,15 @@ def fit_gauge():
     return plate.fuse(*parts).cut(*labels)
 
 def magnet_gauge():
-    """Magnet pocket sizes on a strip, 1 mm deep like the shaft's, printed hole up the same
+    """Magnet pocket sizes on a strip, as deep as the shaft's, printed hole up the same
     way: MAGNET[0] + 0.10 .. +0.40. Use the smallest one the magnet presses into, and set
     MAGNET_FIT to its step."""
     steps = (0.10, 0.20, 0.30, 0.40)
-    plate = Box(4 * 9, 12, 2.5, align=(Align.MIN, Align.CENTER, Align.MIN))
-    holes = [Pos(4.5 + 9 * i, 2, 2.5 - M.MAGNET[1]) * Cylinder((M.MAGNET[0] + d) / 2, 2, align=C)
+    t = M.MAGNET[1] + M.MAGNET_GLUE + 1.0
+    plate = Box(4 * 9, 12, t, align=(Align.MIN, Align.CENTER, Align.MIN))
+    holes = [Pos(4.5 + 9 * i, 2, t - M.MAGNET[1] - M.MAGNET_GLUE) * Cylinder((M.MAGNET[0] + d) / 2, 5, align=C)
              for i, d in enumerate(steps)]
-    labels = [Pos(4.5 + 9 * i, -3.5, 2.0) * extrude(Text(f"{d * 100:.0f}", 3.0), 1) for i, d in enumerate(steps)]
+    labels = [Pos(4.5 + 9 * i, -3.5, t - 0.5) * extrude(Text(f"{d * 100:.0f}", 3.0), 1) for i, d in enumerate(steps)]
     return plate.cut(*holes, *labels)
 
 def touch_plate():   # aluminium disc, wired to a capacitive input through a slip-free air gap
