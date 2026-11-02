@@ -49,8 +49,8 @@ frames LVGL actually rendered and flushed.
   a spin stays within 1–2 ticks, with up to ~5 ticks of lag at the start of a move.
 - Read time 177 → ~350 us per sample (two reads), ~2 % more of core 0.
 - `E` (probe) also prints 16 back-to-back raw reads.
-- Jog direction flipped (`kDirection`): spinning right now advances the track, like a CDJ. That was set
-  while DIR was floating, so check it again once DIR is grounded.
+- Jog direction: briefly flipped (`kDirection` -1) while DIR was floating, then set back to +1.
+  With DIR grounded, the original sign was right: spinning right advances the track.
 
 ## 2026-11-02: Real magnet size, gap test prints (CAD only)
 
