@@ -37,6 +37,25 @@ def board():
     b = Pos(0, 0, M.CTRL_Z - M.CTRL_T) * extrude(outline(), M.CTRL_T)
     return b - [Pos(x, y, M.CTRL_Z - M.CTRL_T - 1) * Cylinder(HOLE_D / 2, M.CTRL_T + 2, align=C) for x, y in M.CTRL_HOLES]
 
+def button_plate():
+    """Printable button plate for builds with no control board (release 1): the board's
+    outline, thickness and screw holes, with a low locating frame for a through-hole 6 x 6
+    tact switch under each cap and holes for its legs (both 6.5 x 4.5 orientations), so
+    the switch body sits on the plate exactly where the SMD switch sits on the PCB and the
+    wires solder on underneath. Bottom face on z = 0: prints flat, no supports."""
+    FRAME_IN, FRAME_W, FRAME_H, LEG_D = 6.4, 0.8, 1.0, 1.3
+    b = board()
+    for c in (M.PLAY_C, M.CUE_C):
+        f = Pos(c[0], c[1], M.CTRL_Z) * (Box(FRAME_IN + 2 * FRAME_W, FRAME_IN + 2 * FRAME_W, FRAME_H, align=C)
+                                         - Box(FRAME_IN, FRAME_IN, FRAME_H, align=C))
+        b = b + f
+        for dx, dy in ((3.25, 2.25), (2.25, 3.25)):
+            for sx in (-1, 1):
+                for sy in (-1, 1):
+                    b = b - Pos(c[0] + sx * dx, c[1] + sy * dy, M.CTRL_Z - M.CTRL_T - 1) * Cylinder(LEG_D / 2, M.CTRL_T + 3, align=C)
+    return Pos(0, 0, -(M.CTRL_Z - M.CTRL_T)) * b
+
+
 def leds(c):
     return [Pos(*c, M.CTRL_Z) * Rot(0, 0, a) * Pos(LED_R, 0, 0) * Rot(0, 0, 90) * Box(*LED, align=C)
             for a in LED_ANGLES]
