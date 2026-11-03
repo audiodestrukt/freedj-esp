@@ -36,6 +36,9 @@ constexpr float kPotDeadband = 12.0f;
 // ADC pin must not set the tempo, and the DJ2Go's fader keeps working until
 // the panel's own fader is touched.
 constexpr int kPotArm = 200;
+// The fader as wired reads high at the end that should be slower (CDJ: push
+// away = slower), so the position is flipped.
+constexpr bool kPotReverse = true;
 // Starting range, deliberately narrow; widened to whatever the pot actually
 // reaches (the test fader's top end read 3292, not ~4095), so both ends of the
 // travel give 0 and 1 after one full sweep.
@@ -111,6 +114,7 @@ void task(void*)
                     sentAt = filt;
                     float p = (filt - lo) / (float)(hi - lo);
                     p = p < 0 ? 0 : (p > 1 ? 1 : p);
+                    if (kPotReverse) p = 1 - p;
                     s_st.position = p;
                     s_st.sent++;
                     send(deck::Type::TempoFader, false, p);
