@@ -36,8 +36,11 @@ SCREEN = [
     ("SDI (MOSI)", 13, "#2471a3", ""),
     ("SCK", 11, "#d4ac0d", ""),
     ("LED", 19, "#7f8c8d", "backlight"),
+    ("CTP_SCL (touch)", 5, "#d4ac0d", "shared with the sensor's SCL"),
+    ("CTP_SDA (touch)", 3, "#2471a3", "shared with the sensor's SDA"),
+    ("CTP_RST (touch)", 21, "#c0392b", ""),
 ]
-SCREEN_UNUSED = ["SDO (MISO)", "touch: CTP_* pins", "SD_* pins"]
+SCREEN_UNUSED = ["SDO (MISO)", "CTP_INT", "SD_* pins"]
 JOG = [
     ("VCC", 1, RED, ""),
     ("GND", 6, BLACK, ""),
@@ -109,7 +112,7 @@ def harness_svg(title, part, wires, unused=(), note=""):
     """Component pins on the left, header pins on the right, one line per wire."""
     rowh, top = 34, 70
     n = len(wires)
-    W = 820
+    W = 900
     H = top + n * rowh + 40 + (22 if unused else 0) + (22 if note else 0)
     xl, xr = 240, 470
     out = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W}" height="{H}" {FONT} font-size="13">',
@@ -144,8 +147,8 @@ def main():
     os.makedirs(d, exist_ok=True)
     files = {
         "header.svg": header_svg(),
-        "harness-screen.svg": harness_svg("Screen harness: 8 wires", "4\" SPI screen (ST7796S)", SCREEN, SCREEN_UNUSED,
-                                          "Touch isn't used yet: leave the CTP_ pins unconnected."),
+        "harness-screen.svg": harness_svg("Screen harness: 11 wires", "4\" SPI screen (ST7796S)", SCREEN, SCREEN_UNUSED,
+                                          "Touch and the jog sensor share pins 3 and 5 (I2C): double up those wires."),
         "harness-jog.svg": harness_svg("Jog sensor harness: 5 wires", "AS5600 board", JOG, JOG_UNUSED,
                                        "DIR must go to GND. Left floating, the jog reads noisy and can run backwards."),
         "harness-panel.svg": harness_svg("Buttons and pitch fader: 7 wires", "switches and slide pot", PANEL, (),
