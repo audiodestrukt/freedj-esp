@@ -125,6 +125,7 @@ After changing `sdkconfig.defaults`, delete `sdkconfig` so the defaults are appl
 | `z` / `r` | slip / reverse |
 | `Y` | become tempo master |
 | `J` | jog calibration: ticks since the last `J` (see *Feel parameters*) |
+| `P` | panel: CUE/PLAY state and presses, pitch pot raw/filtered/range/position (GPIO 24/25/22) |
 | `w` | cycle the waveform test mode: normal → drawn but not sent to the screen → off |
 
 [`tools/p4_serial.py`](../../tools/p4_serial.py) holds the port open without resetting the board, logs to a file, and sends anything appended to `<log>.cmd`. A whole experiment can be scripted, for example:

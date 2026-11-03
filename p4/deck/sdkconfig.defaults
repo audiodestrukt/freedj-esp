@@ -63,3 +63,7 @@ CONFIG_LWIP_TCPIP_TASK_AFFINITY_CPU0=y
 # splash appears sooner. It only finds faulty RAM, which a deck that boots
 # and plays would show anyway.
 CONFIG_SPIRAM_MEMTEST=n
+
+# GPIO 24/25 (the USB serial/JTAG pins) are the panel buttons; the console is UART0 (CH343).
+CONFIG_ESP_CONSOLE_SECONDARY_NONE=y
+CONFIG_USJ_ENABLE_USB_SERIAL_JTAG=n

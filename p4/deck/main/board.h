@@ -37,6 +37,14 @@ constexpr gpio_num_t TP_INT   = GPIO_NUM_23;  // pin 7: not used; the jog encode
 // fallback when it doesn't answer on I2C (take the screen's CTP_INT jumper off).
 constexpr gpio_num_t JOG_ADC  = GPIO_NUM_23;  // pin 7
 
+// Panel controls wired straight to the header (release 1, no control board).
+// Buttons go to GND (internal pull-ups). 24/25 are the USB serial/JTAG pins,
+// unused here: the console is the CH343 on UART0. Swap CUE/PLAY here if wired
+// the other way round. The pitch pot: ends to 3V3 and GND, wiper to 22.
+constexpr gpio_num_t PANEL_CUE   = GPIO_NUM_24;
+constexpr gpio_num_t PANEL_PLAY  = GPIO_NUM_25;
+constexpr gpio_num_t PANEL_PITCH = GPIO_NUM_22;  // ADC1
+
 // Ethernet: IP101GRI PHY over RMII. The data pins, MDC 31, MDIO 52 and the
 // 50 MHz reference clock in on GPIO 50 are ESP-IDF's P4 defaults.
 constexpr gpio_num_t ETH_PHY_RST = GPIO_NUM_51;

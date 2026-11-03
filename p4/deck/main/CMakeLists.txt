@@ -3,7 +3,7 @@
 # Deck event types and the DJ2Go decoder are shared with the A1S firmware (../../../src).
 idf_component_register(
     SRCS "main.cpp" "usb_midi.cpp" "audio_out.cpp" "sd.cpp" "library.cpp" "stream.cpp" "display.cpp" "ui.cpp" "mp3_impl.c"
-         "lvgl_mem.c" "net.cpp" "prolink.cpp" "rekordbox.cpp" "usb_stick.cpp" "usb_audio.cpp" "as5600.cpp"
+         "lvgl_mem.c" "net.cpp" "prolink.cpp" "rekordbox.cpp" "usb_stick.cpp" "usb_audio.cpp" "as5600.cpp" "panel_gpio.cpp"
          "../../../src/wsola.cpp"
          "../../../src/dj2go.cpp" "../../../src/xdj_midi.cpp" "../../../src/deck_event.cpp"
     INCLUDE_DIRS "." "../../../src" "third_party/minimp3"

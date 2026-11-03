@@ -100,7 +100,9 @@ Total: about 9 conductors. A wiring table goes in hardware/README.md once the pi
    - **Either size:** momentary, not latching. If you want an LED version later, a 3–6 V one, not 12 V.
    - Measure the real one: the hole, the head diameter, the nut across the flats, and the
      depth including the terminals.
-2. **Get the P4 header map and choose the pins:** 1 ADC pin, 2 GPIO.
+2. **Pins (chosen 2026-11-03):** CUE GPIO 24, PLAY GPIO 25 (the USB serial/JTAG pins, free
+   since the console is UART0), pitch wiper GPIO 22 (ADC1). GPIO 16–19 go to the C6 Wi-Fi
+   chip. Firmware: `panel_gpio.cpp`, serial `P`.
 3. **Firmware:**
    - `panel_gpio`: buttons, then the pot;
    - the 0x42 probe with fallback;

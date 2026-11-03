@@ -11,6 +11,23 @@ playing (see the README's *Audio health* section). Unless noted, it's
 the panel**, so they read high. From 2026-10-31 on, "screen fps" counts
 frames LVGL actually rendered and flushed.
 
+## 2026-11-03: CUE, PLAY and pitch wired straight to the P4 (no control board)
+
+- New `panel_gpio.cpp` (release 1 in BUILDS.md): CUE on GPIO 24, PLAY on 25, buttons to GND
+  with internal pull-ups, 6 ms debounce; pitch slide pot wiper on GPIO 22 (ADC1 ch 6), ends
+  on 3V3/GND. Sends the same Cue / PlayPause / TempoFader events as the DJ2Go. Serial `P`.
+- GPIO 24/25 are the USB serial/JTAG pins. Its secondary console is now off (we use UART0 via
+  the CH343); setting the pins as GPIO turns the USB pad off.
+- **Pitch noise.** The ADC at rest reads +-60 counts; a 3-count threshold sent ~100 tempo
+  changes a second (2251 in 20 s). Now: 8 reads averaged every 20 ms, a low-pass that's slow
+  at rest (~0.5 Hz) and fast only after 3 reads in a row > 40 counts away (~6 Hz), and a
+  12-count send threshold. At rest: filtered +-10, nothing sent; a full sweep: ~220 updates.
+- **Range:** the test fader's top end read 3292, not ~4095. The range starts at 300..3000 and
+  widens to what the pot reaches, so one full sweep gives 0..1.
+- The fader is ignored until it moves 200 counts from where it was at boot, so a floating
+  pin can't set the tempo and the DJ2Go's fader still works.
+- 16 reads every 10 ms cost about as much core 0 time as LVGL; cut to 8 every 20 ms.
+
 ## 2026-11-02: XDJ-1000MK2 as a controller (USB MIDI)
 
 - **What the player presents over USB:** standard USB MIDI, a HID interface, USB audio
