@@ -61,7 +61,6 @@ INERTIA = (38.0, 46.0, 5.0)  # steel ring in the platter underside: r_in, r_out,
 # Two 608 skateboard bearings, 8 x 22 x 7
 B608 = (8.0, 22.0, 7.0)
 BOSS_OD = 32.0
-BOSS_BOTTOM = 10.0           # z of the boss underside = the lower bearing's bottom face
 BASE_T = 3.0
 
 # Small M3 heat-set inserts (M3 x 3, ~4.2 OD), used in the base plate
@@ -74,7 +73,12 @@ SHAFT_LEAD = 0.5             # 45 degree lead-in on the tip, for pushing it thro
 MAGNET_FIT = 0.15             # pocket over the magnet's diameter; tune with magnet_gauge.stl
 MAGNET = (4.0, 2.0)          # diametric, the one that came with the breakout (Dan, 2026-11-02: 4 dia, 2 thick)
 MAGNET_GLUE = 0.1            # extra pocket depth for a film of glue under the magnet, so it still sits flush
-# Nothing holds the platter down yet (it sits on the upper bearing); retention comes later.
+# Retention: an e-clip in a groove just under the lower bearing pulls the shaft down, so the
+# platter is held between its hub (on the upper inner race) and the clip (on the lower one).
+# The clip's OD stays inside the 608's inner race (~12 mm), clear of the outer race.
+ECLIP = (6.0, 0.75, 0.7, 11.3)   # DIN 6799 size 6 (shafts 7-9 mm): groove dia, groove width, clip t, clip OD
+ECLIP_PLAY = 0.05                # groove top below the bearing face (clip seats; ~no end float)
+CLIP_CAP = 1.5                   # solid shaft between the groove and the magnet pocket
 
 # Encoder: AS5600 breakout (WWZMDiB), 15/16" square (ruler), 4 corner holes 5/8" apart, chip
 # in the middle, chip side up under the shaft, on four bosses on the base plate with small
@@ -85,13 +89,18 @@ _h = 15.875 / 2
 ENC_HOLES = [(-_h, -_h), (_h, -_h), (-_h, _h), (_h, _h)]   # from the board centre (= chip = jog axis)
 AIR_GAP = 1.1                # magnet face to chip top; a magnet +-0.4 mm off 1.6 gives 0.7-1.5
 
-# The stack, top down from the lower bearing (the shell is printed; BOSS_BOTTOM is fixed):
-# the shaft ends just under the lower bearing, the magnet is glued flush in a pocket in its tip
-SHAFT_BOTTOM = BOSS_BOTTOM - SHAFT_LEAD
+# The stack, bottom up from the shaft tip (fixed by the encoder: its bosses are already at the
+# 2 mm minimum). Magnet pocket in the tip, solid cap, e-clip groove, then the lower bearing.
+# Moving the bearing up for the clip (2026-11-03) shortened the bearing span by 3.9 mm.
+SHAFT_BOTTOM = 9.5
+GROOVE_BOT = SHAFT_BOTTOM + MAGNET[1] + MAGNET_GLUE + CLIP_CAP
+GROOVE_TOP = GROOVE_BOT + ECLIP[1]
+BOSS_BOTTOM = GROOVE_TOP + ECLIP_PLAY     # z of the boss underside = the lower bearing's bottom face
 ENC_Z = SHAFT_BOTTOM - AIR_GAP - ENC_CHIP_H - ENC_PCB[2]   # PCB underside
 ENC_STANDOFF = ENC_Z - BASE_T                               # boss height above the plate
 assert ENC_STANDOFF >= 2.0, ENC_STANDOFF
 assert 0.5 <= AIR_GAP <= 3.0, AIR_GAP     # AS5600 working range
+assert ECLIP[3] < 12.0                     # clip on the inner race only
 
 # CUE / PLAY, bottom-left as on a CDJ. Each button is a cap and a light ring, put in from
 # below and held by the control board (no glue):

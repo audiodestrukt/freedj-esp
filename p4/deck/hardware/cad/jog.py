@@ -1,8 +1,8 @@
 # SPDX-FileCopyrightText: 2026 Dan Newcome
 # SPDX-License-Identifier: CERN-OHL-S-2.0
 """jog.py: the jog module. Printed platter with its shaft printed in one piece, through two
-608 bearings (pressed into the shell's boss); nothing holds it down yet, it sits on the
-upper bearing. Steel inertia ring in the underside, aluminium touch plate on top, diametric
+608 bearings (pressed into the shell's boss), held captive by a DIN 6799 size-6 e-clip in a
+groove just under the lower bearing (hub on the upper inner race, clip on the lower one). Steel inertia ring in the underside, aluminium touch plate on top, diametric
 magnet glued into the shaft end over an AS5600 breakout on the base plate.
 
 Print the platter upside down (shaft up): the shaft comes out round and needs no support;
@@ -46,13 +46,16 @@ LEAD = M.SHAFT_LEAD
 def shaft(extra=0.0):
     """In the platter's frame (z = 0 at its underside): down through both bearings,
     ending just under the lower one (extra mm further, toward the chip), with a pocket in
-    the tip that holds the magnet flush."""
+    the tip that holds the magnet flush and an e-clip groove under the lower bearing."""
     r = M.SHAFT_D / 2
     z0 = -SHAFT_L - extra
     s = Pos(0, 0, z0 + LEAD) * Cylinder(r, -z0 - LEAD + 1, align=C)
     s = s.fuse(Pos(0, 0, z0) * Cone(r - LEAD, r, LEAD, align=C))
     pocket = Pos(0, 0, z0 - 0.01) * Cylinder((M.MAGNET[0] + M.MAGNET_FIT) / 2, M.MAGNET[1] + M.MAGNET_GLUE + 0.01, align=C)
-    return s.cut(pocket)
+    # e-clip groove, placed off the bearing (not the tip), so a lengthened test tip keeps it
+    g0 = M.GROOVE_BOT - (FLOOR + M.PLATTER_GAP)
+    groove = Pos(0, 0, g0) * (Cylinder(r + 1, M.ECLIP[1], align=C) - Cylinder(M.ECLIP[0] / 2, M.ECLIP[1], align=C))
+    return s.cut(pocket, groove)
 
 TEST_D, TEST_H = 25.4, 2.0
 TEST_GAPS = (1.1, 0.8, 0.5)     # magnet face to chip top, if the board sits where the CAD has it

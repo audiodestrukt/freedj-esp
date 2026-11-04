@@ -11,6 +11,20 @@ playing (see the README's *Audio health* section). Unless noted, it's
 the panel**, so they read high. From 2026-10-31 on, "screen fps" counts
 frames LVGL actually rendered and flushed.
 
+## 2026-11-03: platter held captive by an e-clip (CAD only)
+
+- The lower 608 moves up 3.9 mm in the shell's boss (bottom face z 10.0 -> 13.9), which
+  leaves 4.4 mm of shaft below it. There's a DIN 6799 size-6 e-clip groove at z
+  13.10-13.85 (6.0 mm, 0.75 wide, 0.05 under the bearing face). Below that, 1.5 mm of solid
+  shaft, then the magnet pocket. Hub on the upper inner race, clip on the lower one: the
+  platter can't lift out.
+- Bearing span 22.1 mm flat / 18.1 mm angled (was 26.0 / 22.0); 8.1 / 4.1 mm between the
+  bearings.
+- Shaft tip, magnet, air gap (1.1 mm) and encoder bosses are unchanged, as is the shaft
+  length (28.0 flat / 24.0 angled). Reprint the shell and the platter. The base plate
+  is unchanged.
+- No firmware change, so the budget is unchanged.
+
 ## 2026-11-03: CUE, PLAY and pitch wired straight to the P4 (no control board)
 
 - New `panel_gpio.cpp` (release 1 in BUILDS.md): CUE on GPIO 24, PLAY on 25, buttons to GND
