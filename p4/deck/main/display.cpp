@@ -8,7 +8,11 @@
 #include "esp_heap_caps.h"
 #include "esp_lcd_panel_io.h"
 #include "esp_lcd_panel_ops.h"
+#if CONFIG_FREEDJ_SCREEN_28
+#include "esp_lcd_ili9341.h"
+#else
 #include "esp_lcd_st7796.h"
+#endif
 #include "esp_lcd_touch_ft5x06.h"
 #include "esp_lvgl_port.h"
 #include "esp_log.h"
@@ -119,12 +123,21 @@ lv_display_t* begin()
     pc.reset_gpio_num = board::LCD_RST;
     pc.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_BGR;
     pc.bits_per_pixel = 16;
+#if CONFIG_FREEDJ_SCREEN_28
+    // The IPS ILI9341V wants inverted colours (LCDwiki's init sends INVON, 0x21).
+    if (esp_lcd_new_panel_ili9341(io, &pc, &s_panel) != ESP_OK) return nullptr;
+    constexpr bool kInvert = true;
+    constexpr const char* kChip = "ILI9341V";
+#else
     if (esp_lcd_new_panel_st7796(io, &pc, &s_panel) != ESP_OK) return nullptr;
+    constexpr bool kInvert = false;
+    constexpr const char* kChip = "ST7796S";
+#endif
     esp_lcd_panel_reset(s_panel);
     esp_lcd_panel_init(s_panel);
-    esp_lcd_panel_invert_color(s_panel, false);
+    esp_lcd_panel_invert_color(s_panel, kInvert);
     esp_lcd_panel_disp_on_off(s_panel, true);
-    ESP_LOGI(TAG, "ST7796S up: %dx%d, SPI %d MHz", W, H, kSpiHz / 1000000);
+    ESP_LOGI(TAG, "%s up: %dx%d, SPI %d MHz", kChip, W, H, kSpiHz / 1000000);
 
     lvgl_port_cfg_t lc = {};
     lc.task_priority = 3;           // below the loader (4) on core 0
@@ -142,7 +155,10 @@ lv_display_t* begin()
     dc.double_buffer = true;
     dc.hres = W;
     dc.vres = H;
-    dc.rotation.swap_xy = true;     // landscape, as verified with the test bars
+    // Landscape with the module's pin header on the left, as it sits in the
+    // case. Verified with the test bars on the 4"; the 2.8" (same LCDwiki
+    // layout, header at the panel's bottom) starts from the same flags.
+    dc.rotation.swap_xy = true;
     dc.rotation.mirror_x = true;
     dc.rotation.mirror_y = true;
     dc.color_format = LV_COLOR_FORMAT_RGB565;

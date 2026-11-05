@@ -4,6 +4,7 @@
 .vscode/
 .idea/
 build/
+build28/
 *.bin
 *.elf
 *.hex

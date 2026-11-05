@@ -20,6 +20,15 @@ frames LVGL actually rendered and flushed.
   centre (`LCD_PCB_DX`, `LCD_HOLES_DX`): on this module the glass is 4 mm nearer the hole end.
   Files `*_28.stl`. Dev board, shell, pot and screen module: no clashes in either version.
   The 4" geometry is unchanged.
+- Firmware: a build option, `CONFIG_FREEDJ_SCREEN_28` (`sdkconfig.defaults.screen28`, built
+  into `build28/`). ILI9341V driver with inverted colours (LCDwiki's init sends INVON), same
+  pins, same touch driver. The UI's positions and fonts come from one block per screen: same
+  bands at about the same physical size (the panels are ~5.6-5.75 px/mm); time in Montserrat
+  32, labels 12, touch keys 10 (PERFORM is 63 px at 12, the keys 60); label widths checked
+  against the fonts' advance tables. PERFORM pads 6 x 4, over the time row. Not run on the
+  panel yet: rotation and inversion may need flipping.
+- Budget: 4" image +48 bytes (1,464,320), behaviour unchanged. 2.8" image 1,468,224 bytes;
+  half the pixels per frame, not measured yet.
 
 ## 2026-11-04: Link on a direct cable; steady tempo display while synced
 

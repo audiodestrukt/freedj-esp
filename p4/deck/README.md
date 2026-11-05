@@ -17,7 +17,7 @@ This lives next to the A1S firmware in the repo root and doesn't replace it. The
 | USB ports | Jumper H3 (between the right-hand USB pair and the Ethernet jack) picks between two paths. **Labelled DEVICE** = the on-board CH334F 4-port hub, so three ports work but the fourth (the direct one) is dead. **HOST, or no jumper** = only the direct port works. Use DEVICE, with the DJ2Go and the stick in two of the hub ports. ESP-IDF's USB host has no transaction translator, so the firmware limits the root port to full speed (12 Mbit/s) to reach a full-speed device like the DJ2Go behind the hub. The stick then runs at full speed too |
 | Ethernet | On-board IP101 PHY (RMII). DHCP, or 169.254.x.x link-local on a cable straight to a player |
 | Controller | Numark DJ2Go, or a Pioneer XDJ-1000MK2 in USB-MIDI control mode, in any of the four USB-A ports (USB host, class-compliant MIDI; Pioneer's vendor ID picks the XDJ map) |
-| Screen (stand-in) | LCDwiki **MSP4021**: 4" 480×320, ST7796S over SPI + FT6336U capacitive touch. Will be replaced by a MIPI-DSI screen |
+| Screen (stand-in) | LCDwiki **MSP4021**: 4" 480×320, ST7796S over SPI + FT6336U capacitive touch. Or a 2.8" **MSP2834** (320×240 ILI9341V, same wiring; see *Build and flash*). Will be replaced by a MIPI-DSI screen |
 | Serial | USB-C, CH343 → `/dev/ttyACM0`, console UART0 (GPIO 37/38) |
 
 ### Wiring the MSP4021
@@ -57,6 +57,23 @@ cd p4/deck/build && esptool --chip esp32p4 --port /dev/ttyACM0 -b 921600 write-f
 ```
 
 After changing `sdkconfig.defaults`, delete `sdkconfig` so the defaults are applied again.
+
+**2.8" screen** (LCDwiki MSP2834 / Hosyond 2.8" IPS, ILI9341V 320×240, same 14-pin wiring
+as the MSP4021): build into its own directory with the screen's defaults layered on top:
+
+```
+docker run --rm -v $PWD:/repo -w /repo/p4/deck espressif/idf:release-v5.5 idf.py -B build28 \
+  -D SDKCONFIG=build28/sdkconfig -D "SDKCONFIG_DEFAULTS=sdkconfig.defaults;sdkconfig.defaults.screen28" build
+cd p4/deck/build28 && esptool --chip esp32p4 --port /dev/ttyACM0 -b 921600 write-flash @flash_args
+```
+
+The choice is `menuconfig` > *freedj deck* > *Screen* (`CONFIG_FREEDJ_SCREEN_28`). The panels
+have about the same pixel density (5.75 and 5.56 px/mm), so the 2.8" layout keeps the same
+bands at the same physical size with smaller fonts: Montserrat 32 for the time, 12 for most
+labels, 10 on the touch keys; the list shows about 3½ rows and the waveform 3.7 s. The
+PERFORM pads are 6 × 4 instead of 8 × 3 (about 7 mm wide) and cover the time row while they're
+open. Not tried on the panel yet: the landscape rotation flags and colour inversion are
+LCDwiki's, and may need flipping.
 
 ## Controls
 

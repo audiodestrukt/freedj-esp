@@ -1,0 +1,7 @@
+# 2.8" screen (MSP2834, ILI9341V 320x240). Layered on sdkconfig.defaults:
+#   idf.py -B build28 -D SDKCONFIG=build28/sdkconfig \
+#     -D SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.screen28" build
+CONFIG_FREEDJ_SCREEN_28=y
+# fonts the smaller layout uses: 32 for the time, 10 for the touch keys
+CONFIG_LV_FONT_MONTSERRAT_32=y
+CONFIG_LV_FONT_MONTSERRAT_10=y

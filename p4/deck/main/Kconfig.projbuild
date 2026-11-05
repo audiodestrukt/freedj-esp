@@ -1,0 +1,16 @@
+menu "freedj deck"
+
+    choice FREEDJ_SCREEN
+        prompt "Screen"
+        default FREEDJ_SCREEN_4
+        help
+            Which LCDwiki SPI module is on the header. Both use the same
+            14-pin wiring and FT6336 touch on I2C 0x38.
+
+        config FREEDJ_SCREEN_4
+            bool "4 inch, 480x320, ST7796S (MSP4021 / MSP4031)"
+        config FREEDJ_SCREEN_28
+            bool "2.8 inch, 320x240, ILI9341V (MSP2834, Hosyond)"
+    endchoice
+
+endmenu

@@ -22,7 +22,7 @@ namespace ui {
 
 static const char* TAG = "ui";
 
-// Layout (480 x 320):
+// Layout, 4" (480 x 320):
 //   y   0.. 34  track name ................... SYNC  KEY  state chip
 //   y  36.. 90  elapsed (big)  -remaining               tempo %
 //                                          master BPM | our BPM
@@ -30,10 +30,59 @@ static const char* TAG = "ui";
 //   y 120..264  track list; while playing, the phase meter (120..152) and
 //               the scrolling waveform (156..236) instead
 //   y 272..318  XDJ touch keys: BROWSE  TAG LIST  INFO  MENU  PERFORM
+// 2.8" (320 x 240): the same bands at about the same physical size (the two
+// panels are ~5.7 px/mm), so smaller fonts and fewer list rows:
+//   y 0..26 header, 28..66 time, 70..86 overview, 90..196 list or meter
+//   (90..118) + waveform (122..196), 202..238 keys. The PERFORM pads are 6 x 4
+//   and cover 28..198 (time row too), so each stays ~7 mm wide.
+#if CONFIG_FREEDJ_SCREEN_28
+constexpr int kMargin = 6;
+constexpr int kHeadY = 4, kNameW = 0;           // 0: up to the chips
+#define FONT_NAME   lv_font_montserrat_16
+#define FONT_CHIP   lv_font_montserrat_12
+#define FONT_TIME   lv_font_montserrat_32
+#define FONT_REMAIN lv_font_montserrat_16
+#define FONT_TEMPO  lv_font_montserrat_20
+#define FONT_SMALL  lv_font_montserrat_12       // pitch range, BPM line
+#define FONT_KEY    lv_font_montserrat_10       // PERFORM, LINK INFO: 63 px at 12, keys are 60
+#define FONT_KEYCAP lv_font_montserrat_10
+#define FONT_PAD    lv_font_montserrat_12
+#define FONT_PAD_NARROW lv_font_montserrat_10   // for a label wider than its pad (RELOOP)
+#define FONT_METER  lv_font_montserrat_12
+constexpr int kChipPadH = 5, kChipPadV = 2, kChipGap = 4;
+// Widths (Montserrat advance tables): time 100-112, remaining <= 48, tempo
+// <= 90 (-100.00 %), range <= 39, BPM line <= 140.
+constexpr int kTimeY = 28, kRemainX = 124, kRemainY = 38, kTempoY = 28, kRangeDX = -100, kRangeY = 34, kBpmY = 53;
+constexpr int kOvY = 70, kOvH = 16;
+constexpr int kBandY = 90, kBandH = 106, kRowH = 30;
+constexpr int kKeyY = 202, kKeyH = 36, kKeyLabelDY = -6, kKeyCapDY = 6;
+constexpr int kPadsY = 28, kPadsH = 170, kPadCols = 6, kPadH = 38;
+constexpr int kToastY = 170;
+#else
 constexpr int kMargin = 10;
+constexpr int kHeadY = 8, kNameW = 200;
+#define FONT_NAME   lv_font_montserrat_20
+#define FONT_CHIP   lv_font_montserrat_16
+#define FONT_TIME   lv_font_montserrat_40
+#define FONT_REMAIN lv_font_montserrat_24
+#define FONT_TEMPO  lv_font_montserrat_24
+#define FONT_SMALL  lv_font_montserrat_16
+#define FONT_KEY    lv_font_montserrat_16
+#define FONT_KEYCAP lv_font_montserrat_12
+#define FONT_PAD    lv_font_montserrat_16
+#define FONT_PAD_NARROW lv_font_montserrat_12
+#define FONT_METER  lv_font_montserrat_16
+constexpr int kChipPadH = 8, kChipPadV = 3, kChipGap = 6;
+constexpr int kTimeY = 42, kRemainX = 160, kRemainY = 56, kTempoY = 44, kRangeDX = -122, kRangeY = 52, kBpmY = 76;
+constexpr int kOvY = 94, kOvH = 22;
+constexpr int kBandY = 120, kBandH = 144, kRowH = 36;
+constexpr int kKeyY = 272, kKeyH = 46, kKeyLabelDY = -6, kKeyCapDY = 11;
+constexpr int kPadsY = 120, kPadsH = 144, kPadCols = 8, kPadH = 44;
+constexpr int kToastY = 240;
+#endif
 // Track overview: the whole track in one strip, from rekordbox's preview
 // waveform (PWAV). Touch or drag it to jump (needle search).
-constexpr int kOvX = kMargin, kOvY = 94, kOvW = display::W - 2 * kMargin, kOvH = 22;
+constexpr int kOvX = kMargin, kOvW = display::W - 2 * kMargin;
 
 static const lv_color_t kBg     = lv_color_hex(0x0B0D10);
 static const lv_color_t kPanel  = lv_color_hex(0x1A1E24);
@@ -78,8 +127,12 @@ static lv_obj_t* s_toast;                 // "Reading USB…" etc., on the top l
 // Scrolling waveform: playhead fixed in the middle, track moves right to
 // left. Shown while playing, unless the list was used in the last few
 // seconds. Drawn into a canvas straight from the stream's peak bins.
+#if CONFIG_FREEDJ_SCREEN_28
+constexpr int kWaveY = 122, kWaveH = 74;
+#else
 constexpr int kWaveY = 156, kWaveH = 80;
-constexpr int kBinsPerPx = 4;                  // 512 frames/px: ~5.6 s across at 44.1 kHz
+#endif
+constexpr int kBinsPerPx = 4;                  // 512 frames/px: ~5.6 s across at 44.1 kHz (3.7 s on the 2.8")
 constexpr uint32_t kListLingerMs = 3000;
 static const TrackStream* s_stream;
 static std::atomic<const rekordbox::Grid*> s_grid{nullptr};
@@ -148,7 +201,7 @@ static lv_obj_t* label(lv_obj_t* parent, const lv_font_t* font, lv_color_t color
 // the screen that's showing lights blue.
 static const lv_color_t kKeyFace = lv_color_hex(0x3A4658), kKeyDim = lv_color_hex(0x2A3340),
                         kKeyLit = lv_color_hex(0x2F7FE0), kKeyFaint = lv_color_hex(0x4A525C);
-constexpr int kKeyY = 272, kKeyH = 46, kKeyGap = 2;
+constexpr int kKeyGap = 2;
 
 static lv_obj_t* key(lv_obj_t* parent, const char* text, const char* caption, int i, int n, lv_event_cb_t cb)
 {
@@ -159,13 +212,13 @@ static lv_obj_t* key(lv_obj_t* parent, const char* text, const char* caption, in
     lv_obj_set_style_radius(b, 2, 0);
     lv_obj_set_style_shadow_width(b, 0, 0);
     lv_obj_set_style_bg_color(b, cb ? kKeyFace : kKeyDim, 0);
-    lv_obj_t* l = label(b, &lv_font_montserrat_16, cb ? kText : kKeyFaint);
+    lv_obj_t* l = label(b, &FONT_KEY, cb ? kText : kKeyFaint);
     lv_label_set_text(l, text);
-    lv_obj_align(l, LV_ALIGN_CENTER, 0, caption[0] ? -6 : 0);
+    lv_obj_align(l, LV_ALIGN_CENTER, 0, caption[0] ? kKeyLabelDY : 0);
     if (caption[0]) {
-        lv_obj_t* c = label(b, &lv_font_montserrat_12, cb ? kDim : kKeyFaint);
+        lv_obj_t* c = label(b, &FONT_KEYCAP, cb ? kDim : kKeyFaint);
         lv_label_set_text(c, caption);
-        lv_obj_align(c, LV_ALIGN_CENTER, 0, 11);
+        lv_obj_align(c, LV_ALIGN_CENTER, 0, kKeyCapDY);
     }
     if (cb) lv_obj_add_event_cb(b, cb, LV_EVENT_CLICKED, nullptr);
     else lv_obj_remove_flag(b, LV_OBJ_FLAG_CLICKABLE);    // not built yet: drawn, dimmed
@@ -175,13 +228,13 @@ static lv_obj_t* key(lv_obj_t* parent, const char* text, const char* caption, in
 // A tappable status chip in the header (SYNC, KEY).
 static lv_obj_t* chip(lv_obj_t* parent, const char* text, lv_event_cb_t cb)
 {
-    lv_obj_t* c = label(parent, &lv_font_montserrat_16, kDim);
+    lv_obj_t* c = label(parent, &FONT_CHIP, kDim);
     lv_label_set_text(c, text);
     lv_obj_set_style_bg_opa(c, LV_OPA_COVER, 0);
     lv_obj_set_style_bg_color(c, kPanel, 0);
     lv_obj_set_style_radius(c, 4, 0);
-    lv_obj_set_style_pad_hor(c, 8, 0);
-    lv_obj_set_style_pad_ver(c, 3, 0);
+    lv_obj_set_style_pad_hor(c, kChipPadH, 0);
+    lv_obj_set_style_pad_ver(c, kChipPadV, 0);
     lv_obj_set_ext_click_area(c, 8);
     lv_obj_add_flag(c, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(c, cb, LV_EVENT_PRESSED, nullptr);
@@ -327,32 +380,36 @@ static void onPerformKey(lv_event_t*) { setView(s_view == View::Perform ? View::
 
 static void buildPads(lv_obj_t* scr)
 {
-    // Three rows over the meter and waveform (y 120..264).
+    // 4": three rows of eight over the meter and waveform (y 120..264).
+    // 2.8": the same 24 pads in reading order, six to a row (y 28..198).
     s_pads = lv_obj_create(scr);
     lv_obj_remove_style_all(s_pads);
-    lv_obj_set_pos(s_pads, 0, 120);
-    lv_obj_set_size(s_pads, display::W, 144);
+    lv_obj_set_pos(s_pads, 0, kPadsY);
+    lv_obj_set_size(s_pads, display::W, kPadsH);
     lv_obj_set_style_bg_opa(s_pads, LV_OPA_COVER, 0);
     lv_obj_set_style_bg_color(s_pads, kBg, 0);
-    const int gap = 4, w = (display::W - 2 * kMargin - 7 * gap) / 8, h = 44;
-    for (int r = 0; r < 3; r++)
-        for (int c = 0; c < 8; c++) {
-            const PadDef* p = &kPadRows[r][c];
+    const int gap = 4, w = (display::W - 2 * kMargin - (kPadCols - 1) * gap) / kPadCols, h = kPadH;
+    for (int k = 0; k < 24; k++) {
+            const PadDef* p = &kPadRows[k / 8][k % 8];
+            const int r = k / kPadCols, c = k % kPadCols;
             lv_obj_t* b = lv_button_create(s_pads);
             lv_obj_set_pos(b, kMargin + c * (w + gap), 2 + r * (h + gap));
             lv_obj_set_size(b, w, h);
             lv_obj_set_style_radius(b, 6, 0);
             lv_obj_set_style_shadow_width(b, 0, 0);
-            lv_obj_set_style_bg_color(b, r == 0 ? kDimBlue : kPanel, 0);
-            lv_obj_t* l = label(b, &lv_font_montserrat_16, kText);
+            lv_obj_set_style_pad_all(b, 0, 0);
+            lv_obj_set_style_bg_color(b, p->type == deck::Type::HotCue ? kDimBlue : kPanel, 0);
+            lv_obj_t* l = label(b, &FONT_PAD, kText);
             lv_label_set_text(l, p->text);
+            lv_obj_update_layout(l);                 // a label wider than its pad (RELOOP on the 2.8") steps down
+            if (lv_obj_get_width(l) > w - 4) lv_obj_set_style_text_font(l, &FONT_PAD_NARROW, 0);
             lv_obj_center(l);
             lv_obj_add_event_cb(b, onPad, LV_EVENT_PRESSED, (void*)p);
             if (p->type == deck::Type::HotCue) {
                 lv_obj_add_event_cb(b, onPad, LV_EVENT_LONG_PRESSED, (void*)p);
                 lv_obj_add_event_cb(b, onPad, LV_EVENT_RELEASED, (void*)p);
                 lv_obj_add_event_cb(b, onPad, LV_EVENT_PRESS_LOST, (void*)p);
-                s_hotPad[c] = b;
+                s_hotPad[p->delta - 1] = b;
             }
             if (p->type == deck::Type::ReloopExit) s_reloopPad = b;
             if (p->type == deck::Type::Slip) s_slipPad = b;
@@ -392,7 +449,7 @@ static void fillList()
     s_rows.reserve(n);
     for (int i = 0; i < n; i++) {
         lv_obj_t* row = lv_button_create(s_list);
-        lv_obj_set_size(row, LV_PCT(100), 36);
+        lv_obj_set_size(row, LV_PCT(100), kRowH);
         lv_obj_add_style(row, &rowStyle, 0);
         lv_obj_add_style(row, &rowChecked, LV_STATE_CHECKED);
         lv_obj_t* text = lv_label_create(row);
@@ -450,47 +507,49 @@ static void build()
     lv_obj_set_style_bg_color(scr, kBg, 0);
     lv_obj_set_scrollable(scr, false);
 
-    s_name = label(scr, &lv_font_montserrat_20, kText);
-    lv_obj_set_pos(s_name, kMargin, 8);
-    // DOTS only truncates a label with a fixed height; without one a long
-    // name wraps onto the time counter.
-    lv_obj_set_size(s_name, 200, lv_font_get_line_height(&lv_font_montserrat_20));
+    s_name = label(scr, &FONT_NAME, kText);
+    lv_obj_set_pos(s_name, kMargin, kHeadY);
     lv_label_set_long_mode(s_name, LV_LABEL_LONG_MODE_DOTS);
 
-    s_state = label(scr, &lv_font_montserrat_16, kBg);
+    s_state = label(scr, &FONT_CHIP, kBg);
     lv_obj_set_style_bg_opa(s_state, LV_OPA_COVER, 0);
     lv_obj_set_style_radius(s_state, 4, 0);
-    lv_obj_set_style_pad_hor(s_state, 8, 0);
-    lv_obj_set_style_pad_ver(s_state, 3, 0);
-    lv_obj_align(s_state, LV_ALIGN_TOP_RIGHT, -kMargin, 8);
+    lv_obj_set_style_pad_hor(s_state, kChipPadH, 0);
+    lv_obj_set_style_pad_ver(s_state, kChipPadV, 0);
+    lv_obj_align(s_state, LV_ALIGN_TOP_RIGHT, -kMargin, kHeadY);
     lv_label_set_text(s_state, "PLAYING");      // widest text: chips sit left of it
     lv_obj_update_layout(s_state);
     s_key = chip(scr, "KEY", onKeyTap);
-    lv_obj_align_to(s_key, s_state, LV_ALIGN_OUT_LEFT_MID, -6, 0);
+    lv_obj_align_to(s_key, s_state, LV_ALIGN_OUT_LEFT_MID, -kChipGap, 0);
     s_sync = chip(scr, "SYNC", onSyncTap);
     lv_obj_add_event_cb(s_sync, [](lv_event_t*) { s_onMaster(); }, LV_EVENT_LONG_PRESSED, nullptr);
-    lv_obj_align_to(s_sync, s_key, LV_ALIGN_OUT_LEFT_MID, -6, 0);
+    lv_obj_align_to(s_sync, s_key, LV_ALIGN_OUT_LEFT_MID, -kChipGap, 0);
     s_quant = chip(scr, "Q", onQuantTap);
-    lv_obj_align_to(s_quant, s_sync, LV_ALIGN_OUT_LEFT_MID, -6, 0);
+    lv_obj_align_to(s_quant, s_sync, LV_ALIGN_OUT_LEFT_MID, -kChipGap, 0);
+    // DOTS only truncates a label with a fixed height; without one a long
+    // name wraps onto the time counter.
+    int nameW = kNameW;
+    if (!nameW) { lv_obj_update_layout(s_quant); nameW = lv_obj_get_x(s_quant) - kMargin - kChipGap; }
+    lv_obj_set_size(s_name, nameW, lv_font_get_line_height(&FONT_NAME));
 
-    s_time = label(scr, &lv_font_montserrat_40, kText);
-    lv_obj_set_pos(s_time, kMargin, 42);
+    s_time = label(scr, &FONT_TIME, kText);
+    lv_obj_set_pos(s_time, kMargin, kTimeY);
 
-    s_remain = label(scr, &lv_font_montserrat_24, kDim);
-    lv_obj_set_pos(s_remain, 160, 56);
+    s_remain = label(scr, &FONT_REMAIN, kDim);
+    lv_obj_set_pos(s_remain, kRemainX, kRemainY);
 
-    s_tempo = label(scr, &lv_font_montserrat_24, kText);
-    lv_obj_align(s_tempo, LV_ALIGN_TOP_RIGHT, -kMargin, 44);
+    s_tempo = label(scr, &FONT_TEMPO, kText);
+    lv_obj_align(s_tempo, LV_ALIGN_TOP_RIGHT, -kMargin, kTempoY);
 
-    s_range = label(scr, &lv_font_montserrat_16, kDim);
-    lv_obj_align(s_range, LV_ALIGN_TOP_RIGHT, -122, 52);
+    s_range = label(scr, &FONT_SMALL, kDim);
+    lv_obj_align(s_range, LV_ALIGN_TOP_RIGHT, kRangeDX, kRangeY);
     lv_obj_set_ext_click_area(s_range, 10);
     lv_obj_add_flag(s_range, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(s_range, [](lv_event_t*) { send(deck::Type::TempoRange, true); }, LV_EVENT_SHORT_CLICKED, nullptr);
     lv_obj_add_event_cb(s_range, [](lv_event_t*) { send(deck::Type::TempoReset, true); }, LV_EVENT_LONG_PRESSED, nullptr);
 
-    s_bpm = label(scr, &lv_font_montserrat_16, kDim);
-    lv_obj_align(s_bpm, LV_ALIGN_TOP_RIGHT, -kMargin, 76);
+    s_bpm = label(scr, &FONT_SMALL, kDim);
+    lv_obj_align(s_bpm, LV_ALIGN_TOP_RIGHT, -kMargin, kBpmY);
 
     s_ovBuf = (uint16_t*)heap_caps_malloc(kOvW * kOvH * 2, MALLOC_CAP_SPIRAM);
     s_ov = lv_canvas_create(scr);
@@ -504,8 +563,8 @@ static void build()
     s_list = lv_obj_create(scr);     // flex column of rows (lv_list is deprecated)
     lv_obj_set_flex_flow(s_list, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_radius(s_list, 0, 0);
-    lv_obj_set_pos(s_list, 0, 120);
-    lv_obj_set_size(s_list, display::W, 144);
+    lv_obj_set_pos(s_list, 0, kBandY);
+    lv_obj_set_size(s_list, display::W, kBandH);
     lv_obj_set_style_bg_color(s_list, kBg, 0);
     lv_obj_set_style_border_width(s_list, 0, 0);
     lv_obj_set_style_pad_all(s_list, 0, 0);
@@ -528,7 +587,7 @@ static void build()
     lv_obj_set_style_radius(s_toast, 4, 0);
     lv_obj_set_style_pad_hor(s_toast, 8, 0);
     lv_obj_set_style_pad_ver(s_toast, 3, 0);
-    lv_obj_set_pos(s_toast, kMargin, 240);
+    lv_obj_set_pos(s_toast, kMargin, kToastY);
     lv_obj_set_hidden(s_toast, true);
 
     buildPads(scr);
@@ -552,7 +611,11 @@ static void build()
 // The "Bars" readouts on the right count down to the next memory / hot cue
 // on an XDJ. There are no cues yet, so they show dashes, like the unit does
 // for a track without cues.
-constexpr int kMeterY = 120, kMeterH = 32, kMeterW = 330, kTagW = 92;
+#if CONFIG_FREEDJ_SCREEN_28
+constexpr int kMeterY = kBandY, kMeterH = 28, kMeterW = 220, kTagW = 70, kTagNumX = 50, kBarsDX = 34;
+#else
+constexpr int kMeterY = kBandY, kMeterH = 32, kMeterW = 330, kTagW = 92, kTagNumX = 64, kBarsDX = 48;
+#endif
 constexpr int kTickW = kMeterW - kTagW, kTickH = kMeterH;
 static lv_obj_t *s_meter, *s_boxes[8], *s_ticks, *s_tag, *s_tagNum;
 static uint16_t* s_tickBuf;           // kTickW x kTickH RGB565, PSRAM (internal RAM is the scarce one)
@@ -594,14 +657,15 @@ static void buildMeter(lv_obj_t* scr)
         s_boxes[i] = b;
     }
 
-    s_tag = label(s_meter, &lv_font_montserrat_16, kText);
+    const int tagY = (kMeterH - lv_font_get_line_height(&FONT_METER)) / 2;
+    s_tag = label(s_meter, &FONT_METER, kText);
     lv_label_set_text(s_tag, "MASTER");
-    lv_obj_set_pos(s_tag, kMargin, 7);
-    s_tagNum = label(s_meter, &lv_font_montserrat_16, kBg);
+    lv_obj_set_pos(s_tag, kMargin, tagY + 1);
+    s_tagNum = label(s_meter, &FONT_METER, kBg);
     lv_obj_set_style_bg_opa(s_tagNum, LV_OPA_COVER, 0);
     lv_obj_set_style_bg_color(s_tagNum, kGold, 0);
     lv_obj_set_style_pad_hor(s_tagNum, 5, 0);
-    lv_obj_set_pos(s_tagNum, kMargin + 64, 6);
+    lv_obj_set_pos(s_tagNum, kMargin + kTagNumX, tagY);
     s_tickBuf = (uint16_t*)heap_caps_malloc(kTickW * kTickH * 2, MALLOC_CAP_SPIRAM);
     s_ticks = lv_canvas_create(s_meter);
     lv_canvas_set_buffer(s_ticks, s_tickBuf, kTickW, kTickH, LV_COLOR_FORMAT_RGB565);
@@ -614,13 +678,13 @@ static void buildMeter(lv_obj_t* scr)
     const int bx = kMeterW + 2 * kMargin;
     for (int row = 0; row < 2; row++) {
         const lv_color_t c = row ? kBlue : kOrange;
-        lv_obj_t* v = label(s_meter, &lv_font_montserrat_16, c);
+        lv_obj_t* v = label(s_meter, &FONT_METER, c);
         lv_label_set_text(v, "--.-");
         lv_obj_set_pos(v, bx, row * (rh + gap) - 2);
         (row ? s_barsHot : s_barsMem) = v;
-        lv_obj_t* u = label(s_meter, &lv_font_montserrat_16, c);
+        lv_obj_t* u = label(s_meter, &FONT_METER, c);
         lv_label_set_text(u, "Bars");
-        lv_obj_set_pos(u, bx + 48, row * (rh + gap) - 2);
+        lv_obj_set_pos(u, bx + kBarsDX, row * (rh + gap) - 2);
     }
 }
 
