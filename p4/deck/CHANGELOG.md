@@ -27,6 +27,9 @@ frames LVGL actually rendered and flushed.
   32, labels 12, touch keys 10 (PERFORM is 63 px at 12, the keys 60); label widths checked
   against the fonts' advance tables. PERFORM pads 6 x 4, over the time row. Not run on the
   panel yet: rotation and inversion may need flipping.
+- `CONFIG_FREEDJ_SCREEN_PREVIEW` (`sdkconfig.defaults.preview28`, `build28p/`): the 2.8" layout
+  in the top-left 320x240 of the 4" panel, at nearly its real size. Boots and draws on the
+  bench deck (touch not wired on the bench right now, so untested; the deck runs without it).
 - Budget: 4" image +48 bytes (1,464,320), behaviour unchanged. 2.8" image 1,468,224 bytes;
   half the pixels per frame, not measured yet.
 

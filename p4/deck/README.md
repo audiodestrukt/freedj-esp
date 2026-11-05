@@ -67,6 +67,12 @@ docker run --rm -v $PWD:/repo -w /repo/p4/deck espressif/idf:release-v5.5 idf.py
 cd p4/deck/build28 && esptool --chip esp32p4 --port /dev/ttyACM0 -b 921600 write-flash @flash_args
 ```
 
+To try the 2.8" layout without the 2.8" panel, build into `build28p/` with
+`sdkconfig.defaults.preview28` added after the other two defaults files
+(`CONFIG_FREEDJ_SCREEN_PREVIEW`). This runs the 4" panel as usual and gives the UI only its
+top-left 320×240. The pixel pitches are close (0.174 / 0.180 mm), so it shows the layout at
+almost its real size, touch included.
+
 The choice is `menuconfig` > *freedj deck* > *Screen* (`CONFIG_FREEDJ_SCREEN_28`). The panels
 have about the same pixel density (5.75 and 5.56 px/mm), so the 2.8" layout keeps the same
 bands at the same physical size with smaller fonts: Montserrat 32 for the time, 12 for most

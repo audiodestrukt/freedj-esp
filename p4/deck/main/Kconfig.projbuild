@@ -13,4 +13,13 @@ menu "freedj deck"
             bool "2.8 inch, 320x240, ILI9341V (MSP2834, Hosyond)"
     endchoice
 
+    config FREEDJ_SCREEN_PREVIEW
+        bool "Preview the 2.8 inch layout on the 4 inch panel"
+        depends on FREEDJ_SCREEN_28
+        default n
+        help
+            Drive the 4 inch ST7796S as usual but give the UI only its top-left
+            320x240. The pixel pitches are close (0.174 vs 0.180 mm), so this shows
+            the 2.8 inch layout at almost its real size, touch included.
+
 endmenu

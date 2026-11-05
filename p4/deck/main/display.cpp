@@ -8,7 +8,7 @@
 #include "esp_heap_caps.h"
 #include "esp_lcd_panel_io.h"
 #include "esp_lcd_panel_ops.h"
-#if CONFIG_FREEDJ_SCREEN_28
+#if CONFIG_FREEDJ_SCREEN_28 && !CONFIG_FREEDJ_SCREEN_PREVIEW
 #include "esp_lcd_ili9341.h"
 #else
 #include "esp_lcd_st7796.h"
@@ -73,8 +73,8 @@ static void beginTouch()
     ioc.flags.disable_control_phase = 1;
     if (esp_lcd_new_panel_io_i2c(bus, &ioc, &io) != ESP_OK) { ESP_LOGW(TAG, "touch io failed"); return; }
     esp_lcd_touch_config_t tc = {};
-    tc.x_max = H;               // native portrait coordinates
-    tc.y_max = W;
+    tc.x_max = PANEL_H;         // native portrait coordinates
+    tc.y_max = PANEL_W;
     tc.rst_gpio_num = board::TP_RST;
     // INT is wired but not used: LVGL polls touch every refresh anyway, and on
     // jumper wires the SPI clock couples into INT. Each false edge woke LVGL
@@ -105,7 +105,7 @@ lv_display_t* begin()
     bus.miso_io_num = -1;
     bus.quadwp_io_num = -1;
     bus.quadhd_io_num = -1;
-    bus.max_transfer_sz = W * kStripRows * 2;
+    bus.max_transfer_sz = PANEL_W * kStripRows * 2;
     if (spi_bus_initialize(SPI2_HOST, &bus, SPI_DMA_CH_AUTO) != ESP_OK) return nullptr;
 
     esp_lcd_panel_io_handle_t io = nullptr;
@@ -123,7 +123,7 @@ lv_display_t* begin()
     pc.reset_gpio_num = board::LCD_RST;
     pc.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_BGR;
     pc.bits_per_pixel = 16;
-#if CONFIG_FREEDJ_SCREEN_28
+#if CONFIG_FREEDJ_SCREEN_28 && !CONFIG_FREEDJ_SCREEN_PREVIEW
     // The IPS ILI9341V wants inverted colours (LCDwiki's init sends INVON, 0x21).
     if (esp_lcd_new_panel_ili9341(io, &pc, &s_panel) != ESP_OK) return nullptr;
     constexpr bool kInvert = true;
@@ -137,7 +137,7 @@ lv_display_t* begin()
     esp_lcd_panel_init(s_panel);
     esp_lcd_panel_invert_color(s_panel, kInvert);
     esp_lcd_panel_disp_on_off(s_panel, true);
-    ESP_LOGI(TAG, "%s up: %dx%d, SPI %d MHz", kChip, W, H, kSpiHz / 1000000);
+    ESP_LOGI(TAG, "%s up: %dx%d, SPI %d MHz", kChip, PANEL_W, PANEL_H, kSpiHz / 1000000);
 
     lvgl_port_cfg_t lc = {};
     lc.task_priority = 3;           // below the loader (4) on core 0
@@ -166,6 +166,21 @@ lv_display_t* begin()
     dc.flags.swap_bytes = 1;        // panel takes big-endian RGB565
     lv_display_t* disp = lvgl_port_add_disp(&dc);
     if (!disp) return nullptr;
+#if CONFIG_FREEDJ_SCREEN_PREVIEW
+    // LVGL only draws the top-left W x H: blank the rest of the panel once.
+    // Under the LVGL lock so its first flush can't interleave with these writes.
+    if (uint16_t* black = (uint16_t*)heap_caps_calloc(PANEL_W * kStripRows, 2, MALLOC_CAP_DMA); black && lvgl_port_lock(0)) {
+        for (int y = 0; y < PANEL_H; y += kStripRows) {
+            if (y >= H) esp_lcd_panel_draw_bitmap(s_panel, 0, y, PANEL_W, y + kStripRows, black);
+            else esp_lcd_panel_draw_bitmap(s_panel, W, y, PANEL_W, y + kStripRows, black);
+            vTaskDelay(pdMS_TO_TICKS(5));
+        }
+        vTaskDelay(pdMS_TO_TICKS(20));
+        lvgl_port_unlock();
+        heap_caps_free(black);
+    }
+    ESP_LOGI(TAG, "2.8\" preview: UI in the top-left %dx%d", W, H);
+#endif
     // Replace the port's busy-wait flush handshake with a sleeping one.
     s_flushDone = xSemaphoreCreateBinary();
     lvgl_port_lock(0);

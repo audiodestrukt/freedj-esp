@@ -5,6 +5,7 @@
 .idea/
 build/
 build28/
+build28p/
 *.bin
 *.elf
 *.hex

@@ -11,9 +11,15 @@
 
 namespace display {
 #if CONFIG_FREEDJ_SCREEN_28
-constexpr int W = 320, H = 240;
+constexpr int W = 320, H = 240;       // what the UI draws on
 #else
 constexpr int W = 480, H = 320;
+#endif
+// The panel itself; bigger than W x H only in the 2.8" preview on the 4".
+#if CONFIG_FREEDJ_SCREEN_28 && !CONFIG_FREEDJ_SCREEN_PREVIEW
+constexpr int PANEL_W = 320, PANEL_H = 240;
+#else
+constexpr int PANEL_W = 480, PANEL_H = 320;
 #endif
 // Panel + LVGL, first thing at boot, so a splash can show while the rest
 // starts. The backlight stays off until backlight(true). Returns the LVGL

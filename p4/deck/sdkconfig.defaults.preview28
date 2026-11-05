@@ -1,0 +1,3 @@
+# The 2.8" layout on the 4" panel (top-left 320x240). Layered on top of
+# sdkconfig.defaults and sdkconfig.defaults.screen28; build into build28p/.
+CONFIG_FREEDJ_SCREEN_PREVIEW=y
