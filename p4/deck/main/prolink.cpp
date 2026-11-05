@@ -351,6 +351,13 @@ static int buildStatus(uint8_t* p, const Ours& o, uint32_t counter)
     p[0x28] = o.loaded ? s_player : 0;
     p[0x29] = o.loaded ? 0x03 : 0;
     p[0x2a] = o.loaded ? 0x01 : 0;
+    // Our USB and SD slots read as empty. The template came from an XDJ with a
+    // stick in (0x6f = 0x00, "USB loaded"), so peers listed our USB under LINK
+    // and then failed to browse it ("link error"): we answer neither media
+    // queries nor the dbserver (TCP 12523). freedj-3000 serves its media; we don't.
+    p[0x6a] = 0x04; p[0x6b] = 0x04;   // no USB / SD activity
+    p[0x6f] = 0x04; p[0x73] = 0x04;   // USB / SD local: no media
+    p[0x75] = 0x00;                   // no Link media on our side
     p[0x7b] = !o.loaded ? 0x00 : o.emergencyLoop ? 0x12 : o.playing ? 0x03 : 0x05;
     memcpy(p + 0x7c, "0.1 ", 4);
     bool master;
