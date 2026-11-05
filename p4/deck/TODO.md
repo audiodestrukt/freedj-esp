@@ -111,6 +111,13 @@ In order. Costs: **cheap** = logic only, no per-sample work; **moderate**; **hea
 - [ ] **Pro DJ Link, next steps** (following the master works; see README):
   - Test against the XDJ-1000MK2 and trim the phase by ear (`[` `]`).
   - Send beat packets so the deck can be tempo master, and handle master handoff.
+- [ ] **Sync bend smoothing: probably too much, cut the lag** (added 2026-11-04 at
+  `kSyncBendSmooth` 0.02/block, ~0.3 s, after the tempo display jumped against an
+  XDJ-1000MK2; the display fix alone may have been enough). Measure the phase error
+  (serial sync stats, avg/max ms) and the bend's spread with smoothing off, 0.1 and
+  0.02, on a direct cable. Then use the least that keeps it inaudible in varispeed,
+  possibly none. Lag matters more: also check whether the beat-packet timestamp jitter
+  is ours (link task priority, select wake-up) before filtering it.
 - [ ] **Waveform got slower with a stick track**: 34–41 fps (was 46), core 0 at 42–48 %. It isn't the allocator. Suspects: USB stick reads on core 0, the 224-row list.
 - [ ] **One keylock block took 5.1 of its 5.8 ms** while a track was still loading. Find out why.
 - [ ] **LVGL costs ~8 points more with the 224-track list** (34 % vs 26 %), even with the list hidden behind the waveform. Confirm, then build only the visible rows (a virtual list).
