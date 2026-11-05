@@ -98,7 +98,7 @@ After changing `sdkconfig.defaults`, delete `sdkconfig` so the defaults are appl
 - Tap the **Q** chip to toggle quantize.
 - **Long-press SYNC** to become tempo master. The BPM line shows MASTER in orange; other players can then sync to the deck.
 
-**DJ2Go LOOP IN / LOOP OUT:** set a manual loop; LOOP OUT while looping exits it.
+**DJ2Go pitch bend − / +:** − toggles key lock, + switches the beat meter between bar boxes and phase ticks (as tapping it does). The DJ2Go no longer sets manual loops; use the touch screen or serial `i` / `u`.
 
 **Serial keys** (console UART), for hands-off testing:
 

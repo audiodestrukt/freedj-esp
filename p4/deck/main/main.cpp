@@ -124,7 +124,11 @@ static void onMidiPacket(const uint8_t p[4])
     deck::Event ev[2];
     int n = usb_midi::vendor() == 0x2B73 ? s_xdj.decodeUsbPacket(p, ev, 2)    // Pioneer XDJ, USB MIDI mode
                                          : s_decoder.decodeUsbPacket(p, ev, 2);
-    for (int i = 0; i < n; i++) xQueueSend(s_events, &ev[i], 0);
+    for (int i = 0; i < n; i++) {
+        // Screen-only: toggled here, as the audio task mustn't take the LVGL lock.
+        if (ev[i].type == deck::Type::MeterView) { if (ev[i].pressed) ui::togglePhaseView(); continue; }
+        xQueueSend(s_events, &ev[i], 0);
+    }
 }
 
 // Owns the SD card: opens tracks on request and keeps the stream window

@@ -39,6 +39,7 @@ const char* typeName(Type t)
     case Type::MemoryDelete: return "delete memory";
     case Type::Slip:         return "slip";
     case Type::Reverse:      return "reverse";
+    case Type::MeterView:    return "meter view";
     }
     return "?";
 }

@@ -24,6 +24,8 @@ frames LVGL actually rendered and flushed.
 - The phase bend itself is low-passed (~0.3 s, `kSyncBendSmooth`), so beat-packet jitter
   doesn't wobble the speed. Phase error not re-measured yet.
 - Budget unchanged (a few float ops per block).
+- DJ2Go pitch bend − / + now toggle key lock / the beat meter view (they were LOOP IN / OUT; the
+  DJ2Go has no loop buttons). New `deck::Type::MeterView`, handled on the USB task.
 
 ## 2026-11-03: platter held captive by an e-clip (CAD only)
 

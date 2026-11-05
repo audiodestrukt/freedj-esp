@@ -48,6 +48,7 @@ enum class Type : uint8_t {
     MemoryDelete, // delete the memory cue at the cue point
     Slip,         // toggle slip mode
     Reverse,      // toggle reverse
+    MeterView,    // toggle the beat meter between bar boxes and phase ticks (UI only)
 };
 
 enum : uint8_t { DeckA = 0, DeckB = 1, DeckAny = 0xFF };

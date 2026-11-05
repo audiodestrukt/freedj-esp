@@ -20,8 +20,9 @@ const NoteMap kNotes[] = {
     {0x3B, Type::PlayPause, DeckA}, {0x42, Type::PlayPause, DeckB},
     {0x33, Type::Cue,       DeckA}, {0x3C, Type::Cue,       DeckB},
     {0x40, Type::Sync,      DeckA}, {0x47, Type::Sync,      DeckB},
-    {0x44, Type::LoopIn,    DeckA}, {0x46, Type::LoopIn,    DeckB},
-    {0x43, Type::LoopOut,   DeckA}, {0x45, Type::LoopOut,   DeckB},
+    // Pitch bend -/+ buttons (the DJ2Go has no loop buttons): - = key lock, + = beat meter view.
+    {0x43, Type::KeyLock,   DeckA}, {0x45, Type::KeyLock,   DeckB},
+    {0x44, Type::MeterView, DeckA}, {0x46, Type::MeterView, DeckB},
     {0x65, Type::Pfl,       DeckA}, {0x66, Type::Pfl,       DeckB},
 };
 
