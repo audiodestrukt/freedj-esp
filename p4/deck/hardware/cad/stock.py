@@ -22,18 +22,19 @@ def tft():
 
 def lcd_pcb():
     w, h, t = M.LCD_PCB
-    pcb = Pos(0, 0, -M.STACK) * Box(w, h, t, align=CM)
+    pcb = Pos(M.LCD_PCB_DX, 0, -M.STACK) * Box(w, h, t, align=CM)
     hx, hy = M.LCD_HOLES
-    return pcb.cut(*[Pos(sx * hx / 2, sy * hy / 2, -M.STACK - 5) * Cylinder(1.6, 10)
+    return pcb.cut(*[Pos(M.LCD_HOLES_DX + sx * hx / 2, sy * hy / 2, -M.STACK - 5) * Cylinder(1.6, 10)
                      for sx in (-1, 1) for sy in (-1, 1)])
 
 def lcd_header():   # 14-pin header along the board's left end, down to LCD_DEPTH
     top = M.STACK + M.LCD_PCB[2]
-    return Pos(-M.LCD_PCB[0] / 2 + 3.3, 0, -top) * Box(2.5, 35.6, M.LCD_DEPTH - top, align=CM)
+    return Pos(M.LCD_PCB_DX - M.LCD_PCB[0] / 2 + M.LCD_HEADER_X, 0, -top) * Box(2.5, 35.6, M.LCD_DEPTH - top, align=CM)
 
-def screw_m3():     # pan head M3 x 5 thread-former (1.6 board + 3.4 into a 3.8 pilot); z = 0 under the head
-    head = Pos(0, 0, -2.0) * Cylinder(2.8, 2.0, align=C)
-    return head.fuse(Cylinder(1.5, 5.0, align=C))
+def screw_m3():     # pan head M3 (or M2.5 on the 2.8") x 5 thread-former; z = 0 under the head
+    d = M.SCREEN_SCREW
+    head = Pos(0, 0, -2.0) * Cylinder(d * 0.93, 2.0, align=C)
+    return head.fuse(Cylinder(d / 2, 5.0, align=C))
 
 def usb_a():        # receptacle, mouth 1 mm below the bezel face
     shell = Pos(0, 0, -1) * Box(13.1, 5.7, 14, align=CM)

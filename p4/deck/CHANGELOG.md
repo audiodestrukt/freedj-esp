@@ -11,6 +11,16 @@ playing (see the README's *Audio health* section). Unless noted, it's
 the panel**, so they read high. From 2026-10-31 on, "screen fps" counts
 frames LVGL actually rendered and flushed.
 
+## 2026-11-04: 2.8" screen option (MSP2834, 320x240)
+
+- CAD: `FREEDJ_SCREEN=2.8` builds the deck around LCDwiki's MSP2834 (Hosyond 2.8" IPS,
+  ILI9341V, FT6336G), from its drawing. 160 x 174.1 mm angled, 175.4 flat (184.7 / 186 with
+  the 4"); width and height unchanged. M2.5 screws in 5.6 mm bosses (the holes are 3.4 mm
+  past the glass ends; 0.6 mm clear). The board and hole pattern can now sit off the glass
+  centre (`LCD_PCB_DX`, `LCD_HOLES_DX`): on this module the glass is 4 mm nearer the hole end.
+  Files `*_28.stl`. Dev board, shell, pot and screen module: no clashes in either version.
+  The 4" geometry is unchanged.
+
 ## 2026-11-04: Link on a direct cable; steady tempo display while synced
 
 - Tested on a cable straight to an XDJ-1000MK2: link-local 169.254.x.x in ~9 s, XDJ found

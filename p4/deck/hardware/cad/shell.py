@@ -137,7 +137,7 @@ def part():
 def screen_holes():
     """The LCD module's 4 mounting holes, as Locations on the board's top face (+z out of the deck)."""
     hx, hy = M.LCD_HOLES
-    return [face_loc() * Pos(M.SCREEN_X - M.W / 2 + sx * hx / 2, M.SCREEN_V + sy * hy / 2, M.GLASS_Z - M.STACK)
+    return [face_loc() * Pos(M.SCREEN_X - M.W / 2 + M.LCD_HOLES_DX + sx * hx / 2, M.SCREEN_V + sy * hy / 2, M.GLASS_Z - M.STACK)
             for sx in (-1, 1) for sy in (-1, 1)]
 
 F = face_loc()

@@ -65,22 +65,37 @@ they come out as clean as the bed surface allows.
 
 ## Screen options (for the parametric freedj-1000)
 
-The 4" is what the CAD uses today. The 3.5" numbers come from LCDwiki's
-[MSP3520 drawing](https://www.lcdwiki.com/res/MSP3520/MSP3520_Size.pdf) (the red board
-sold with a stylus), not measured yet. Both are drawn portrait, with the 14-pin header
-at the bottom.
+The CAD builds the 4" (default) or the **2.8"** (`FREEDJ_SCREEN=2.8`). The 3.5" is
+numbers only. The 2.8" numbers come from LCDwiki's
+[MSP2834 drawing](https://www.lcdwiki.com/res/MSP2833_MSP2834/2.8inch_SPI_Module_MSP2834_Size.pdf)
+and the 3.5" ones from the [MSP3520 drawing](https://www.lcdwiki.com/res/MSP3520/MSP3520_Size.pdf)
+(the red board sold with a stylus); neither is measured yet. All are drawn portrait, with
+the 14-pin header at the bottom.
 
-| | 4" MSP4031 (Hosyond, current) | 3.5" MSP3520 |
-|---|---|---|
-| Controller | ST7796S | **ILI9488** |
-| Touch | Capacitive, FT6336U on I2C | **Resistive**, XPT2046 on SPI (T_CLK, T_CS, T_DIN, T_DO, T_IRQ) |
-| Board | 60.88 × 108.00 × 1.6 | 56.34 × 98.00 × 1.6 |
-| Holes | 4 × Ø3.2, 54.88 × 102.00, 3.00 in | 4 × Ø3.2 (Ø4.7 pads), **49.50 × 92.00**, 3.42 / 3.00 in |
-| Glass / panel outline | 60.88 × 94.57, centred | 55.50 × 84.96, centred across, 6.54 from the top / 6.50 from the bottom |
-| Active area | 55.68 × 83.52, 2.88 off-centre away from the header | **48.96 × 73.44**, centred across, **9.95 from the top, 14.61 from the bottom**: 2.33 off-centre away from the header |
-| Stack above the board | 4.85 (CTP 1.35, tape 0.5, TFT 2.5, tape 0.5) | 4.20 (RTP 1.2, TFT 2.5, tape 0.5) |
-| Depth with header | 14.8 | 14.18 |
-| Other | | microSD socket on the back; 4-pin SD header at the top edge |
+| | 4" MSP4031 (Hosyond, current) | 2.8" MSP2834 (Hosyond IPS) | 3.5" MSP3520 |
+|---|---|---|---|
+| Controller | ST7796S | **ILI9341V** (IPS: colours inverted) | **ILI9488** |
+| Touch | Capacitive, FT6336U on I2C | Capacitive, FT6336G on I2C (same driver) | **Resistive**, XPT2046 on SPI (T_CLK, T_CS, T_DIN, T_DO, T_IRQ) |
+| Pins | 14, VCC … SD_CS | the same 14 in the same order: same wiring | |
+| Board | 60.88 × 108.00 × 1.6 | 50.00 × 86.00 × 1.6 | 56.34 × 98.00 × 1.6 |
+| Holes | 4 × Ø3.2, 54.88 × 102.00, 3.00 in | 4 × Ø3.2 (Ø4.7 pads), **44.00 × 76.08**, 3.00 in | 4 × Ø3.2 (Ø4.7 pads), **49.50 × 92.00**, 3.42 / 3.00 in |
+| Glass / panel outline | 60.88 × 94.57, centred | **50.00 × 69.20, as wide as the board**; 6.40 from the top, 10.40 from the bottom | 55.50 × 84.96, centred across, 6.54 from the top / 6.50 from the bottom |
+| Active area | 55.68 × 83.52, 2.88 off-centre away from the header | 43.20 × 57.60, centred across, 9.30 from the top: **2.9 off the glass centre** away from the header | **48.96 × 73.44**, centred across, **9.95 from the top, 14.61 from the bottom**: 2.33 off-centre away from the header |
+| Stack above the board | 4.85 (CTP 1.35, tape 0.5, TFT 2.5, tape 0.5) | 4.30 (CTP 1.0, tape 0.5, TFT 2.3, tape 0.5) | 4.20 (RTP 1.2, TFT 2.5, tape 0.5) |
+| Depth with header | 14.8 | 14.28 | 14.18 |
+| Screen bosses | 6.8 OD, M3 × 5 | **5.6 OD, M2.5 × 5** (2.2 pilot, 5 deep): the holes are only 3.4 mm past the glass ends, so the boss is slim; 0.6 mm clear of the glass | |
+| Other | | microSD socket on the back | microSD socket on the back; 4-pin SD header at the top edge |
+
+**The 2.8" deck** (`FREEDJ_SCREEN=2.8`, with either `FREEDJ_CONFIG`) is **160 × 174.1 mm
+angled, 175.4 flat** (from 184.7 / 186): the bezel is 10.9 mm shorter along the slope. Width
+and height don't change: the jog, the buttons and the slider set the width, and the jog
+stack and the dev board's USB-A stacks set the height. Files get a `_28` suffix
+(`shell_28.stl`, `base_28.stl`, `shell_flat_28.stl`, `base_flat_28.stl`); the platter and
+the other parts are the same. The dev board moves 10.6 mm forward with the back wall, further
+under the jog, and still clears everything: no clashes with the shell, the pot or the screen
+module in either version, and the screen's board is at least 1.6 mm over the USB-A stacks.
+A noticeably smaller deck needs a smaller jog (an 80 mm platter would make it roughly
+136 × 150), which is a separate choice.
 
 The 3.5" window shrinks the deck by about 6 mm in depth (glass 55.5 vs 60.9 mm tall in
 landscape). Width doesn't change, because the jog and slider set it.

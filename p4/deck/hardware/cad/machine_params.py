@@ -4,7 +4,7 @@
 
 Frame: x across the deck (0 = left edge), y front-to-back (0 = the edge nearest you),
 z up (0 = underside of the shell). Sized around the 4" MSP4021 (480x320 ST7796S,
-capacitive touch) the deck runs on today.
+capacitive touch) the deck runs on today, or a 2.8" (FREEDJ_SCREEN=2.8).
 
 Two configurations, picked by FREEDJ_CONFIG before this module is imported:
   angled (default)  the CDJ look: screen bezel tilted 12 degrees
@@ -15,8 +15,12 @@ from build123d import Location, Pos, Rot
 
 CONFIG = os.environ.get("FREEDJ_CONFIG", "angled")
 assert CONFIG in ("angled", "flat"), CONFIG
-NAME = "freedj_esp" if CONFIG == "angled" else "freedj_esp_flat"   # output file stem
-SUFFIX = "" if CONFIG == "angled" else "_flat"
+# Screen, picked by FREEDJ_SCREEN: "4" (MSP4031, 480x320) or "2.8" (MSP2834, 320x240).
+# The 2.8" only changes the depth (the bezel is shorter); width and height come from the jog.
+SCREEN = os.environ.get("FREEDJ_SCREEN", "4")
+assert SCREEN in ("4", "2.8"), SCREEN
+SUFFIX = ("" if CONFIG == "angled" else "_flat") + ("" if SCREEN == "4" else "_28")
+NAME = "freedj_esp" + SUFFIX   # output file stem
 
 # Body
 W = 160.0                    # width; the depth D is derived below from the jog + screen layout
@@ -28,21 +32,57 @@ WALL = 2.5                   # side walls
 TOP_T = 4.0                  # top plate (stiff: the jog boss hangs off it)
 EDGE_R = 2.0                 # top-edge round
 
-# 4" LCD: the capacitive-touch version of the LCDwiki 4" SPI module (FT6336U, I2C), whose
-# drawing is MSP4031 (lcdwiki.com/res/MSP4030_MSP4031/4.0inch_SPI_Module_MSP4031_Size.pdf).
-# The resistive MSP4021 differs slightly (108.04 x 61.74 board, 102.04 x 54.90 holes).
-LCD_ACTIVE = (83.52, 55.68)
-LCD_AA_DX = 2.88             # active area sits off-centre, away from the 14-pin header end
-GLASS = (94.57, 60.88)       # touch lens / TFT outline, centred on the board
-CTP_T, CTP_TAPE, TFT_T, TAPE_T = 1.35, 0.5, 2.5, 0.5   # glass top -> board: 4.85 mm
+# Screen module. Frame: x along the long side, centred on the glass; the 14-pin header is
+# at the -x end. LCD_AA_DX, LCD_PCB_DX, LCD_HOLES_DX: active area, board and hole pattern
+# centres from the glass centre. LCD_HEADER_X: header pin row in from the board's -x end.
+if SCREEN == "4":
+    # The capacitive-touch version of the LCDwiki 4" SPI module (FT6336U, I2C), whose drawing
+    # is MSP4031 (lcdwiki.com/res/MSP4030_MSP4031/4.0inch_SPI_Module_MSP4031_Size.pdf).
+    # The resistive MSP4021 differs slightly (108.04 x 61.74 board, 102.04 x 54.90 holes).
+    LCD_ACTIVE = (83.52, 55.68)
+    LCD_AA_DX = 2.88             # active area sits off-centre, away from the header end
+    GLASS = (94.57, 60.88)       # touch lens / TFT outline, centred on the board
+    CTP_T, CTP_TAPE, TFT_T, TAPE_T = 1.35, 0.5, 2.5, 0.5   # glass top -> board: 4.85 mm
+    LCD_PCB = (108.0, 60.88, 1.6)
+    LCD_PCB_DX = 0.0
+    LCD_HOLES = (102.0, 54.88)   # 4 x 3.2 mm, 3.00 mm in from the board edges
+    LCD_HOLES_DX = 0.0
+    LCD_HEADER_X = 3.3
+    LCD_DEPTH = 14.8             # whole module incl. pin header, from the glass top
+    SCREEN_BOSS_D = 6.8          # bosses on the 4 holes, down to the board; must clear the glass edge (3.7 mm away)
+    SCREEN_PILOT = (2.5, 6.0)    # M3 thread-forming screws for plastic: pilot diameter, depth from the board face
+    SCREEN_SCREW = 3.0
+else:
+    # LCDwiki MSP2834 (sold as Hosyond 2.8" IPS capacitive): ILI9341V, FT6336G touch.
+    # lcdwiki.com/res/MSP2833_MSP2834/2.8inch_SPI_Module_MSP2834_Size.pdf. Measured from
+    # the hole end along the 86 mm side: holes 3.00 and 79.08, glass 6.40-75.60,
+    # active area 9.30-66.90, header row 84.0. The glass is as wide as the board (50).
+    LCD_ACTIVE = (57.60, 43.20)
+    LCD_AA_DX = 41.0 - 38.1      # 2.9, toward the hole end, away from the header
+    GLASS = (69.20, 50.00)
+    CTP_T, CTP_TAPE, TFT_T, TAPE_T = 1.0, 0.5, 2.3, 0.5    # glass top -> board: 4.3 mm
+    LCD_PCB = (86.0, 50.0, 1.6)
+    LCD_PCB_DX = 41.0 - 43.0     # the board runs 4 mm further past the glass at the header end
+    LCD_HOLES = (76.08, 44.0)    # 4 x 3.2 mm
+    LCD_HOLES_DX = 41.0 - 41.04
+    LCD_HEADER_X = 2.0
+    LCD_DEPTH = 14.28
+    # The holes are only 3.4 mm past the glass ends (pads 4.7): a slim boss, M2.5 screws.
+    SCREEN_BOSS_D = 5.6
+    SCREEN_PILOT = (2.2, 5.0)    # M2.5 thread-forming, as the control board uses
+    SCREEN_SCREW = 2.5
 STACK = CTP_T + CTP_TAPE + TFT_T + TAPE_T
-LCD_PCB = (108.0, 60.88, 1.6)
-LCD_HOLES = (102.0, 54.88)   # 4 x 3.2 mm, 3.00 mm in from the board edges
-LCD_DEPTH = 14.8             # whole module incl. pin header, from the glass top
 WINDOW_X = W / 2             # the visible window is centred on the deck
-SCREEN_X = WINDOW_X - 2.88   # so the module sits 2.88 mm left: its active area is off-centre on the glass
-SCREEN_BOSS_D = 6.8          # bosses on the 4 holes, down to the board; must clear the glass edge (3.7 mm away)
-SCREEN_PILOT = (2.5, 6.0)    # M3 thread-forming screws for plastic: pilot diameter, depth from the board face
+SCREEN_X = WINDOW_X - LCD_AA_DX   # glass centre: the active area is off-centre on the glass
+def _boss_to_glass():
+    """Clear gap between a screen boss and the glass edge (the nearest of the 4)."""
+    gaps = []
+    for sx in (-1, 1):
+        dx = max(0.0, abs(LCD_HOLES_DX + sx * LCD_HOLES[0] / 2) - GLASS[0] / 2)
+        dy = max(0.0, LCD_HOLES[1] / 2 - GLASS[1] / 2)
+        gaps.append(math.hypot(dx, dy) - SCREEN_BOSS_D / 2)
+    return min(gaps)
+assert _boss_to_glass() >= 0.3, ("screen boss hits the glass", _boss_to_glass())
 GASKET = 0.5                 # foam between the glass and the top's underside
 WINDOW_MARGIN = 0.5          # window = active area + this all round
 WINDOW_LIP = 1.0             # straight part of the window wall; above it a 45 degree chamfer for fingers
