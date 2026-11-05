@@ -74,6 +74,10 @@ constexpr float    kNudgePerTick = 0.004f, kNudgeMax = 0.3f, kNudgeDecay = 0.97f
 // Beat sync: fraction of the phase error corrected per beat-ish, and the
 // most the tempo may bend to do it.
 constexpr float    kSyncGain = 0.3f, kSyncMaxBend = 0.03f;
+// The bend is low-passed (one pole, per 5.8 ms block, ~0.3 s) so beat-packet
+// jitter on the network doesn't wobble the speed; the phase loop itself takes
+// ~1.7 s at 120 BPM, so this barely slows it.
+constexpr float    kSyncBendSmooth = 0.02f;
 // ──────────────────────────────────────────────────────────────────────────────
 
 constexpr uint8_t  kLinkPlayer = 2;      // our Pro DJ Link player number
@@ -692,6 +696,7 @@ static float syncSpeed(float masterBpm, float trackBpm)
 
 struct SyncStats { double errSumMs = 0, errMaxMs = 0; int n = 0; };
 static SyncStats s_syncStats;
+static float s_syncBend;           // smoothed phase bend (audio task only)
 
 // Click detector on what actually goes to the DAC. A clean signal changes
 // slope smoothly; a dropout, a missed block or a bad splice makes the second
@@ -790,10 +795,15 @@ static void publishState(const Deck& d, float speed)
         u.cueFrame = (size_t)d.cue;
         strlcpy(u.name, s_stream.name(), sizeof u.name);
     }
-    u.tempoPct = (speed - 1.0f) * 100.0f;
+    // Tempo and BPM as a CDJ shows them: the fader's tempo, or the synced one
+    // (d.tempo = master BPM / track BPM). Not `speed`, which adds the jog
+    // nudge and sync's phase bend (up to +-3 %, recalculated every block), so
+    // the display jumped around while synced.
+    (void)speed;
+    u.tempoPct = (d.tempo - 1.0f) * 100.0f;
     u.sync = d.sync;
     u.hasGrid = d.loaded && !grid().empty();
-    if (u.hasGrid) u.bpm = grid().bpmAt(d.pos * 1000.0 / s_stream.sampleRate()) * speed;
+    if (u.hasGrid) u.bpm = grid().bpmAt(d.pos * 1000.0 / s_stream.sampleRate()) * d.tempo;
     u.masterPlayer = s_master.present ? s_master.player : 0;
     u.weMaster = prolink::isMaster();
     u.onAir = prolink::onAir();
@@ -1021,7 +1031,8 @@ static void audioTask(void*)
                     float bend = (float)(-kSyncGain * e);
                     if (bend > kSyncMaxBend) bend = kSyncMaxBend;
                     if (bend < -kSyncMaxBend) bend = -kSyncMaxBend;
-                    speed = base * (1 + bend) + d.nudge;
+                    s_syncBend += kSyncBendSmooth * (bend - s_syncBend);
+                    speed = base * (1 + s_syncBend) + d.nudge;
                     const double errMs = fabs(e) * 60000.0 / s_master.bpm;
                     s_syncStats.errSumMs += errMs;
                     if (errMs > s_syncStats.errMaxMs) s_syncStats.errMaxMs = errMs;
@@ -1030,6 +1041,7 @@ static void audioTask(void*)
                 }
             }
         }
+        if (!synced) s_syncBend = 0;   // start each sync from no bend
         d.nudge *= kNudgeDecay;
 
         // Slip: while slipping, the shadow playhead runs on at normal speed;

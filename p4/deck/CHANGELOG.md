@@ -11,6 +11,20 @@ playing (see the README's *Audio health* section). Unless noted, it's
 the panel**, so they read high. From 2026-10-31 on, "screen fps" counts
 frames LVGL actually rendered and flushed.
 
+## 2026-11-04: Link on a direct cable; steady tempo display while synced
+
+- Tested on a cable straight to an XDJ-1000MK2: link-local 169.254.x.x in ~9 s, XDJ found
+  as player 1, beat sync tracks.
+- Fix: the XDJ gave a link error. Our status packets (copied from an XDJ with a stick in)
+  said our USB was loaded (byte 0x6f = 0x00), so the XDJ offered it under LINK and tried to
+  browse it; we serve neither media queries nor the dbserver. USB and SD now read as empty
+  (0x6a/0x6b/0x6f/0x73 = 0x04, 0x75 = 0).
+- The tempo % and BPM on screen show the synced tempo (master BPM / track BPM), not the
+  playback speed: that adds sync's phase bend (up to +-3 %) and jumped around.
+- The phase bend itself is low-passed (~0.3 s, `kSyncBendSmooth`), so beat-packet jitter
+  doesn't wobble the speed. Phase error not re-measured yet.
+- Budget unchanged (a few float ops per block).
+
 ## 2026-11-03: platter held captive by an e-clip (CAD only)
 
 - The lower 608 moves up 3.9 mm in the shell's boss (bottom face z 10.0 -> 13.9), which
