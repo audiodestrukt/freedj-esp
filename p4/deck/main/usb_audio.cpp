@@ -38,7 +38,7 @@ static std::atomic<uint32_t> s_underruns, s_corrections, s_overflows;
 static usb_host_client_handle_t s_client;
 static SemaphoreHandle_t s_ctrlDone;
 
-enum class Ev : uint8_t { New, Gone };
+enum class Ev : uint8_t { New, Gone, RestartIn };
 struct Msg { Ev ev; uint8_t addr; };
 static QueueHandle_t s_q;
 
@@ -59,7 +59,7 @@ constexpr uint32_t kInRing = 8192;          // frames, power of two (~170 ms)
 static uint32_t* s_inRing;
 static std::atomic<uint32_t> s_inWr, s_inRd;
 static std::atomic<bool> s_inActive;
-static std::atomic<uint32_t> s_inRate, s_inOverflows, s_inPackets, s_inErrors;
+static std::atomic<uint32_t> s_inRate, s_inOverflows, s_inPackets, s_inErrors, s_inRestarts;
 static std::atomic<int> s_inFlightIn;
 static usb_transfer_t* s_inXfer[kXfers];
 static In s_in;
@@ -263,9 +263,30 @@ static void isoInCb(usb_transfer_t* t)
         t->num_bytes = kPktsPerXfer * s_in.mps;
         if (usb_host_transfer_submit(t) == ESP_OK) return;
     }
-    if (!s_gone) ESP_LOGW(TAG, "input stopped (transfer status %d)", t->status);
-    s_inActive = false;
-    s_inFlightIn--;
+    // A transfer error halts the endpoint (the PCM2902 overflowed one after
+    // ~220 s). When the last one is back, the device task clears it and
+    // restarts the input; the decoder keeps its state meanwhile.
+    s_inErrors++;
+    if (--s_inFlightIn == 0 && !s_gone && t->status != USB_TRANSFER_STATUS_NO_DEVICE && s_inActive) {
+        Msg m{Ev::RestartIn, (uint8_t)t->status};
+        xQueueSend(s_q, &m, 0);
+    }
+}
+
+static void restartIn(int status)
+{
+    if (!s_dev || s_inFlightIn > 0) return;
+    usb_host_endpoint_flush(s_dev, s_in.ep);
+    usb_host_endpoint_clear(s_dev, s_in.ep);
+    for (usb_transfer_t* t : s_inXfer) {
+        if (!t) continue;
+        t->num_bytes = kPktsPerXfer * s_in.mps;
+        for (int k = 0; k < kPktsPerXfer; k++) t->isoc_packet_desc[k].num_bytes = s_in.mps;
+        if (usb_host_transfer_submit(t) == ESP_OK) s_inFlightIn++;
+    }
+    s_inRestarts++;
+    if (s_inFlightIn == 0) { s_inActive = false; ESP_LOGE(TAG, "input stopped (status %d); restart failed", status); }
+    else ESP_LOGW(TAG, "input restarted after transfer status %d (%lu restarts)", status, (unsigned long)s_inRestarts.load());
 }
 
 static bool startIn(const In& in)
@@ -400,6 +421,7 @@ static void devTask(void*)
         Msg m;
         xQueueReceive(s_q, &m, portMAX_DELAY);
         if (m.ev == Ev::New) open(m.addr);
+        else if (m.ev == Ev::RestartIn) restartIn(m.addr);
         else if (s_dev) close(true);
     }
 }
@@ -453,7 +475,7 @@ size_t read(int16_t* lr, size_t maxFrames)
     return n;
 }
 
-InputStats inputStats() { return {s_inPackets, s_inErrors, s_inOverflows}; }
+InputStats inputStats() { return {s_inPackets, s_inErrors, s_inOverflows, s_inRestarts}; }
 uint32_t corrections() { return s_corrections; }
 
 } // namespace usb_audio
