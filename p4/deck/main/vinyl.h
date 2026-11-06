@@ -46,4 +46,9 @@ int32_t startMs();
 // Absolute / relative (serial A).
 void setAbsolute(bool on);
 bool absolute();
+// Serato's three modes: ABS (position + speed), REL (speed), INT (the record
+// is ignored; the deck plays on its own). The VINYL chip cycles them.
+enum class Mode : uint8_t { Abs, Rel, Int };
+Mode mode();
+void cycleMode();
 } // namespace vinyl

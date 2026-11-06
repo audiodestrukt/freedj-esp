@@ -27,7 +27,8 @@ struct State {
     bool  tempoReset = false;
     bool  slip       = false;
     bool  reverse    = false;
-    uint8_t vinyl    = 0;      // timecode record drives the deck: 1 moving, 2 stopped
+    uint8_t vinylMode = 0;     // timecode chip: 0 hidden (no USB input), 1 ABS, 2 REL, 3 INT
+    uint8_t vinylLive = 0;     // 0 waiting for a carrier, 1 the record drives and moves, 2 drives but stopped
     size_t slipFrame = 0;      // slip's shadow playhead
     bool  looping    = false;
     size_t loopStart = 0, loopEnd = 0;     // frames (active loop)
@@ -74,6 +75,8 @@ using Fn       = void (*)();
 // no screen.
 // onMaster: long press on the SYNC chip (the XDJ's MASTER button).
 bool begin(const TrackStream& stream, EventFn onEvent, SelectFn onSelect, SeekFn onSeek, Fn onMaster);
+// Tap on the timecode vinyl chip (cycles ABS / REL / INT). Runs on the LVGL task.
+void onVinylTap(Fn fn);
 
 // Boot splash: brings the screen up (display::begin) and shows the deck's
 // name and a status line, as early as possible. splashStatus() updates the

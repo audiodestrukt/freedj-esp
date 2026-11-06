@@ -30,6 +30,13 @@ frames LVGL actually rendered and flushed.
   (status 5), the endpoint halted, and vinyl stopped for good. The last failed transfer now
   queues a flush/clear/resubmit on the device task; restarts are counted in the vinyl line.
 - Image 1,476,080 B (+2,896). No change to the steady-state budget (no new tasks or buffers).
+- **Timecode chip, ABS / REL / INT** (Serato's modes): its own header chip left of Q, shown
+  only while a USB audio input streams; tap or serial `V` to cycle. The state chip is
+  PLAYING / PAUSED again (it had read VINYL). INT keeps the record's last speed until the
+  fader moves. Without an interface the header is unchanged.
+- **Jog scratches while the record is stopped**: in vinyl mode the deck counts as playing, so
+  the jog was a nudge, and vinyl zeroes nudge: it did nothing. The record moving takes over again.
+- Image 1,476,928 B (+848).
 
 ## 2026-11-05: timecode vinyl over a USB audio interface; looser jog filter
 

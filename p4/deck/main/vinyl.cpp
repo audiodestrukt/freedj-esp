@@ -168,6 +168,17 @@ void setStartHere()
     ESP_LOGI(TAG, "record start %s: %ld ms of timecode", s.rawMs >= 0 ? "set" : "unchanged (no bit lock)", (long)s_startMs);
 }
 bool absolute() { return s_absolute; }
+Mode mode() { return !s_enabled ? Mode::Int : s_absolute ? Mode::Abs : Mode::Rel; }
+void cycleMode()
+{
+    switch (mode()) {
+    case Mode::Abs: s_enabled = true;  s_absolute = false; break;   // -> REL
+    case Mode::Rel: s_enabled = false; break;                       // -> INT
+    case Mode::Int: s_enabled = true;  s_absolute = true;  break;   // -> ABS
+    }
+    static const char* kName[] = {"ABS", "REL", "INT"};
+    ESP_LOGI(TAG, "mode %s", kName[(int)mode()]);
+}
 bool enabled() { return s_enabled; }
 
 uint32_t cycleFlags()

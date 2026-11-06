@@ -120,6 +120,7 @@ LCDwiki's, and may need flipping.
   - row 3: beat loops 1–16, beat jump ◀4 4▶, REV
 - Tap the **range** label next to the tempo to cycle ±6/10/16/WIDE; long-press it for tempo reset.
 - Tap the **Q** chip to toggle quantize.
+- Tap the **timecode chip** (ABS / REL / INT, only with a USB audio input) to cycle the vinyl mode.
 - **Long-press SYNC** to become tempo master. The BPM line shows MASTER in orange; other players can then sync to the deck.
 
 **DJ2Go pitch bend − / +:** − toggles key lock, + switches the beat meter between bar boxes and phase ticks (as tapping it does). The DJ2Go no longer sets manual loops; use the touch screen or serial `i` / `u`.
@@ -150,7 +151,7 @@ LCDwiki's, and may need flipping.
 | `Y` | become tempo master |
 | `J` | jog calibration: ticks since the last `J` (see *Feel parameters*) |
 | `P` | panel: CUE/PLAY state and presses, pitch pot raw/filtered/range/position (GPIO 24/25/22) |
-| `V` | timecode vinyl on / off |
+| `V` | timecode vinyl mode: ABS → REL → INT (as tapping the chip) |
 | `A` | timecode vinyl: absolute (needle drops seek) / relative |
 | `f` | cycle the timecode decoder's flags (record plays backwards, or L/R swapped in the cabling) |
 | `L` | timecode vinyl status (also in the 2 s report) |
@@ -169,12 +170,14 @@ echo -n 3l >> deck.log.cmd; sleep 3; echo -n p >> deck.log.cmd
 Plug a USB audio interface (*Hardware*) into a hub port and a turntable with a Serato Control Vinyl record into its line in, through a phono preamp or a mixer's line out. Load a track and press PLAY. Once the deck has heard 0.3 s of steady timecode at 0.6–1.5× (33 or 45), the record drives it:
 
 - **Speed and direction** follow the record. Stopping it stops the audio; backwards plays backwards. Keylock hands over to varispeed below 0.5× and in reverse. The tempo fader, nudge and SYNC don't apply.
-- **Absolute mode** (default, `A` toggles): the track follows the record's position too, with 0:00 at the record's first groove. Lift the needle and drop it further in, and the track jumps there. Inside a loop the loop wins.
+- **Jog:** with the record stopped, the jog scratches (as when paused); once the record moves it has the deck again.
+- **Modes**, Serato's three: tap the timecode chip (or serial `V`) to cycle **ABS → REL → INT**. INT ignores the record: the deck plays on at the record's last speed until the pitch fader moves (like SYNC off), with fader, jog, nudge, SYNC and keylock as normal.
+- **Absolute mode** (ABS, default; `A` toggles ABS / REL): the track follows the record's position too, with 0:00 at the record's first groove. Lift the needle and drop it further in, and the track jumps there. Inside a loop the loop wins.
   - **Needle drops:** after a lift, the deck stays silent until the decoder has a position (bit lock), then jumps there: about 0.1–0.5 s, typically 0.2 s, plus any MP3 decode at the new spot. No lock within 1 s: it follows speed only.
   - **Staying on it:** a jump of 300 ms or more seeks at once; a smaller steady error (after a scratch, or a seek that waited for the decoder) re-syncs after 0.2 s, once that audio is decoded. Steady play stays within ~25 ms.
   - **Record start:** our Serato Control Vinyl's first groove reads 24.0 s of timecode, so that's track 0:00 (`kStartMs` in `vinyl.cpp`). Another record: drop on the first groove and press `Z`. Before the start, the track waits at 0:00.
 - **Relative mode:** speed and direction only.
-- The state chip reads **VINYL**: green while the record moves, orange while it's stopped.
+- **The timecode chip**, left of Q, shows the mode and only appears while a USB audio input streams (the track name gives it room; without an interface the header is unchanged). Green: the record drives and moves. Orange: drives, stopped. Outline: waiting for timecode. Grey: INT. The PLAYING / PAUSED chip is unchanged.
 - An interface used only for its output, or music on its line in, never takes over: it needs the timecode carrier first.
 
 The decoder (`../../src/timecode.cpp`) is the A1S one, a clean-room version of xwax's. The P4 side is `main/vinyl.cpp` (decoder task, core 0) and the input half of `main/usb_audio.cpp`. A 45 rpm record plays 1.35× fast: there's no 33/45 setting yet.

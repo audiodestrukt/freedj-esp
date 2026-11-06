@@ -778,7 +778,7 @@ static void onUiSeek(float fraction) { xQueueOverwrite(s_seekReq, &fraction); }
 
 static prolink::Master s_master;     // audio task's copy, refreshed every block
 
-static uint8_t s_vinylUi;          // ui::State::vinyl, set by the audio task
+static uint8_t s_vinylLive;        // ui::State::vinylLive, set by the audio task
 static volatile uint32_t s_vinylSeeks;   // seeks to the record (audio task), for the report
 static volatile uint32_t s_vinylTrims;   // ...of which small re-syncs
 static volatile int s_vinylErrMs;        // playhead - (record + lead), latest while locked
@@ -787,7 +787,9 @@ static volatile int s_vinylDriftMs;      // track vs record before the last seek
 static void publishState(const Deck& d, float speed)
 {
     ui::State u;
-    u.vinyl = s_vinylUi;
+    const vinyl::State vs = vinyl::state();
+    u.vinylMode = !vs.input ? 0 : 1 + (int)vinyl::mode();
+    u.vinylLive = s_vinylLive;
     u.selected = d.selected;
     u.libGen = d.libGen;
     u.loaded = d.loaded;
@@ -1056,6 +1058,12 @@ static void audioTask(void*)
         const vinyl::State vs = vinyl::state();
         const bool vinylOn = d.loaded && vinyl::driving(vs);
         static float vinylSpeed;
+        static bool wasVinylOn;
+        // Switched to INT while the record drove it: carry on at the record's
+        // speed (as Serato does) until the fader moves, like SYNC off.
+        if (wasVinylOn && !vinylOn && vinyl::mode() == vinyl::Mode::Int && fabsf(vinylSpeed) > 0.05f)
+            d.tempo = fabsf(vinylSpeed);
+        wasVinylOn = vinylOn;
         if (vinylOn) {
             vinylSpeed += kVinylSmooth * (vs.speed - vinylSpeed);
             speed = vinylSpeed;
@@ -1063,7 +1071,7 @@ static void audioTask(void*)
         } else {
             vinylSpeed = 0;
         }
-        s_vinylUi = !vinylOn ? 0 : vs.signal ? 1 : 2;
+        s_vinylLive = !vinylOn ? 0 : vs.signal ? 1 : 2;
         s_vinylStill = vinylOn && !vs.signal && !vs.settling;
         if (vinylOn && vs.signal) d.scratching = false;   // the record moves again: it has the deck
         // Absolute: follow the needle. Not in a loop (the loop wins, as in Serato).
@@ -1248,7 +1256,7 @@ static void audioTask(void*)
 //   , . beat jump -/+4   < > call previous/next memory cue   q quantize
 //   t tempo range   T tempo reset   m M memory cue add/delete   z slip   r reverse
 //   Y become tempo master   J jog calibration (ticks since the last J)   e jog encoder readings   E its magnet status   R 4 s of its raw samples   I raw MIDI log   P panel buttons + pitch pot
-//   V timecode vinyl on/off   f cycle its decoder flags (backwards record / swapped channels)   L vinyl status   A absolute / relative   Z the needle is at the record's start (track 0:00)
+//   V timecode vinyl mode ABS / REL / INT   f cycle its decoder flags (backwards record / swapped channels)   L vinyl status   A absolute / relative   Z the needle is at the record's start (track 0:00)
 //   w cycle waveform test mode (normal / no flush / off)
 static void serialKeysTask(void*)
 {
@@ -1324,7 +1332,7 @@ static void serialKeysTask(void*)
                      t * kScrubFrames / (double)kRate);
             continue;
         }
-        case 'V': vinyl::setEnabled(!vinyl::enabled()); ESP_LOGI(TAG, "timecode vinyl %s", vinyl::enabled() ? "on" : "off"); continue;
+        case 'V': vinyl::cycleMode(); continue;   // ABS -> REL -> INT, like tapping the chip
         case 'f': ESP_LOGI(TAG, "timecode flags -> %lu", (unsigned long)vinyl::cycleFlags()); continue;
         case 'L': logVinyl(); continue;
         case 'Z': vinyl::setStartHere(); continue;
@@ -1378,6 +1386,7 @@ extern "C" void app_main(void)
     xTaskCreatePinnedToCore(audioTask, "audio", 8192, nullptr, 10, nullptr, 1);
     xSemaphoreTake(s_audioUp, portMAX_DELAY);  // the screen's touch shares the codec's I2C bus
     ui::begin(s_stream, onUiEvent, onUiSelect, onUiSeek, [] { prolink::requestMaster(); });
+    ui::onVinylTap([] { vinyl::cycleMode(); });
     as5600::begin(onUiEvent, audio_out::i2cBus());   // jog encoder: I2C on pins 3/5, else analog on pin 7 (core 0)
     panel_gpio::begin(onUiEvent);                    // CUE/PLAY on GPIO 24/25, pitch pot on 22
     xTaskCreatePinnedToCore(reporterTask, "report", 6144, nullptr, 1, nullptr, 0);

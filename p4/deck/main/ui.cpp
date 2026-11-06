@@ -103,6 +103,9 @@ static EventFn  s_onEvent;
 static SelectFn s_onSelect;
 static SeekFn   s_onSeek;
 static Fn       s_onMaster;
+static Fn       s_onVinyl;
+static lv_obj_t* s_vinyl;          // timecode chip, left of Q; shown only with a USB audio input
+static int      s_nameW;           // the name's width without it
 
 static lv_obj_t *s_name, *s_state, *s_time, *s_remain, *s_tempo, *s_key, *s_sync, *s_bpm, *s_quant;
 static lv_obj_t *s_barsMem, *s_barsHot;   // XDJ "Bars" countdowns
@@ -526,11 +529,15 @@ static void build()
     lv_obj_align_to(s_sync, s_key, LV_ALIGN_OUT_LEFT_MID, -kChipGap, 0);
     s_quant = chip(scr, "Q", onQuantTap);
     lv_obj_align_to(s_quant, s_sync, LV_ALIGN_OUT_LEFT_MID, -kChipGap, 0);
+    s_vinyl = chip(scr, "ABS", [](lv_event_t*) { if (s_onVinyl) s_onVinyl(); });
+    lv_obj_align_to(s_vinyl, s_quant, LV_ALIGN_OUT_LEFT_MID, -kChipGap, 0);
+    lv_obj_add_flag(s_vinyl, LV_OBJ_FLAG_HIDDEN);
     // DOTS only truncates a label with a fixed height; without one a long
     // name wraps onto the time counter.
     int nameW = kNameW;
     if (!nameW) { lv_obj_update_layout(s_quant); nameW = lv_obj_get_x(s_quant) - kMargin - kChipGap; }
     lv_obj_set_size(s_name, nameW, lv_font_get_line_height(&FONT_NAME));
+    s_nameW = nameW;
 
     s_time = label(scr, &FONT_TIME, kText);
     lv_obj_set_pos(s_time, kMargin, kTimeY);
@@ -892,7 +899,6 @@ static void refresh(lv_timer_t*)
     else if (!s.loaded)     { st = "EMPTY";   sc = kDim; }
     else if (s.emergency)   { st = "E.LOOP";  sc = lv_color_hex(0xE0453A); }
     else if (s.previewing)  { st = "CUE";     sc = kOrange; }
-    else if (s.playing && s.vinyl) { st = "VINYL"; sc = s.vinyl == 1 ? kGreen : kOrange; }
     else if (s.playing)     { st = "PLAYING"; sc = kGreen; }
     else                    { st = "PAUSED";  sc = kOrange; }
     if (s_first || strcmp(lv_label_get_text(s_state), st)) {
@@ -928,6 +934,26 @@ static void refresh(lv_timer_t*)
     if (s_first || fabsf(s.tempoPct - o.tempoPct) >= 0.005f) {
         snprintf(buf, sizeof buf, "%+.2f%%", s.tempoPct);
         lv_label_set_text(s_tempo, buf);
+    }
+    if (s_first || s.vinylMode != o.vinylMode || s.vinylLive != o.vinylLive) {
+        // Timecode: hidden without a USB input (the header is as before). ABS/REL:
+        // green while the record drives and moves, orange when it's stopped,
+        // outline while waiting for a carrier. INT: grey (the record is ignored).
+        if (!s.vinylMode) {
+            lv_obj_add_flag(s_vinyl, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_width(s_name, s_nameW);
+        } else {
+            static const char* kText[] = {"", "ABS", "REL", "INT"};
+            lv_label_set_text(s_vinyl, kText[s.vinylMode]);
+            const bool on = s.vinylMode != 3 && s.vinylLive;
+            const lv_color_t c = s.vinylLive == 1 ? kGreen : kOrange;
+            lv_obj_set_style_bg_color(s_vinyl, on ? c : kPanel, 0);
+            lv_obj_set_style_text_color(s_vinyl, on ? kBg : s.vinylMode == 3 ? kDim : kGreen, 0);
+            lv_obj_remove_flag(s_vinyl, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_update_layout(s_vinyl);
+            const int w = lv_obj_get_x(s_vinyl) - kMargin - kChipGap;
+            lv_obj_set_width(s_name, w < s_nameW ? w : s_nameW);
+        }
     }
     if (s_first || s.keylock != o.keylock) {
         lv_obj_set_style_bg_color(s_key, s.keylock ? kOrange : kPanel, 0);
@@ -1064,6 +1090,8 @@ void togglePhaseView()
     onMeterTap(nullptr);
     lvgl_port_unlock();
 }
+
+void onVinylTap(Fn fn) { s_onVinyl = fn; }
 
 bool begin(const TrackStream& stream, EventFn onEvent, SelectFn onSelect, SeekFn onSeek, Fn onMaster)
 {
