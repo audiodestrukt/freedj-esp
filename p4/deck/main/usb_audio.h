@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Dan Newcome
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
-// USB audio output (UAC1, e.g. Behringer UCA202). When an audio-class device
+// USB audio output and input (UAC1, e.g. Behringer UCA202). When an audio-class device
 // with a 16-bit stereo isochronous output at the deck's rate enumerates, the
 // deck's audio streams to it. audio_out::write() feeds it and mutes the
 // speaker while it's active. Unplugging it brings the speaker back.
@@ -24,4 +24,14 @@ void write(const int16_t* lr, size_t frames);
 // Packets sent with the ring empty (silence), and drift corrections.
 uint32_t underruns();
 uint32_t corrections();
+
+// USB audio input (UAC1 capture, e.g. the UCA202's line in), for timecode
+// vinyl. Runs alongside the output when the device has both. 16/24/32-bit
+// samples arrive as 16-bit stereo (the first two channels).
+bool inputActive();
+uint32_t inputRate();      // Hz, 0 when no input
+// Take up to maxFrames interleaved stereo frames (one reader). Never blocks.
+size_t read(int16_t* lr, size_t maxFrames);
+struct InputStats { uint32_t packets, errors, overflows; };
+InputStats inputStats();
 } // namespace usb_audio

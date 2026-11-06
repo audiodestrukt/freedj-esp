@@ -5,6 +5,7 @@
 #include "usb_audio.h"
 
 #include <atomic>
+#include <initializer_list>
 #include <string.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
@@ -50,6 +51,20 @@ static int s_claimed = -1;                  // claimed interface, or -1
 
 struct Out { bool found; uint8_t iface, alt, ep; uint16_t mps; };
 
+// Input (timecode): the first 2+ channel PCM capture stream. Its own ring
+// of stereo frames (L | R << 16), filled by the IN transfer callback and
+// drained by vinyl.cpp's decoder task.
+struct In { bool found; uint8_t iface, alt, ep; uint16_t mps; uint8_t ch, sub; uint32_t rate; };
+constexpr uint32_t kInRing = 8192;          // frames, power of two (~170 ms)
+static uint32_t* s_inRing;
+static std::atomic<uint32_t> s_inWr, s_inRd;
+static std::atomic<bool> s_inActive;
+static std::atomic<uint32_t> s_inRate, s_inOverflows, s_inPackets, s_inErrors;
+static std::atomic<int> s_inFlightIn;
+static usb_transfer_t* s_inXfer[kXfers];
+static In s_in;
+static int s_claimedIn = -1;
+
 // ---- descriptors ----------------------------------------------------------------
 
 static bool hasRate(const uint8_t* fmt, uint32_t rate)
@@ -82,6 +97,50 @@ static Out findOut(const usb_config_desc_t* cfg)
         }
     }
     return {};
+}
+
+// First AudioStreaming alt setting with an isochronous IN endpoint, 2 or more
+// channels, 16/24/32-bit PCM. Rate: the deck's if offered, else 48 or 44.1 kHz,
+// else the first listed (the decoder works at any rate).
+static uint32_t pickRate(const uint8_t* fmt)
+{
+    for (uint32_t r : {(uint32_t)s_rate, (uint32_t)48000, (uint32_t)44100}) if (hasRate(fmt, r)) return r;
+    const uint8_t* p = fmt + 8;
+    return (uint32_t)(p[0] | p[1] << 8 | p[2] << 16);
+}
+
+static In findIn(const usb_config_desc_t* cfg)
+{
+    const uint8_t* b = (const uint8_t*)cfg;
+    uint8_t cls = 0, sub = 0, proto = 0, iface = 0, alt = 0;
+    In cand = {}, best = {};
+    bool fmtOk = false, uac2 = false;
+    for (int off = 0; off < cfg->wTotalLength && b[off]; off += b[off]) {
+        const uint8_t* d = b + off;
+        if (d[1] == USB_B_DESCRIPTOR_TYPE_INTERFACE) {
+            iface = d[2]; alt = d[3]; cls = d[5]; sub = d[6]; proto = d[7]; fmtOk = false;
+            if (cls == 0x01 && proto == 0x20) uac2 = true;
+        } else if (cls == 0x01 && sub == 2 && d[1] == 0x24 && d[2] == 2 && d[3] == 1 && proto == 0) {
+            fmtOk = d[4] >= 2 && (d[5] == 2 || d[5] == 3 || d[5] == 4);
+            if (fmtOk) { cand.ch = d[4]; cand.sub = d[5]; cand.rate = pickRate(d); }
+            if (fmtOk) ESP_LOGI(TAG, "  AS iface %d alt %d: %d ch, %d-bit in %d-byte slots, %d rate(s), first %lu Hz",
+                     iface, alt, d[4], d[6], d[5], d[7], (unsigned long)(d[8] | d[9] << 8 | d[10] << 16));
+        } else if (cls == 0x01 && sub == 2 && d[1] == USB_B_DESCRIPTOR_TYPE_ENDPOINT && fmtOk &&
+                   (d[2] & 0x80) && (d[3] & 3) == 1) {
+            const uint16_t mps = (d[4] | d[5] << 8) & 0x7FF;
+            const uint16_t need = (cand.rate + 999) / 1000 * cand.ch * cand.sub;
+            if (mps >= need) {
+                cand.found = true; cand.iface = iface; cand.alt = alt; cand.ep = d[2]; cand.mps = mps;
+                if (cand.rate == s_rate) return cand;    // same rate as the output: one clock
+                if (!best.found) best = cand;
+                fmtOk = false;
+                continue;
+            }
+            ESP_LOGW(TAG, "  IN 0x%02X max packet %d < %d needed at %lu Hz", d[2], mps, need, (unsigned long)cand.rate);
+        }
+    }
+    if (!best.found && uac2) ESP_LOGW(TAG, "  USB Audio Class 2 interface: not supported (full-speed host speaks UAC1 only)");
+    return best;
 }
 
 // ---- control requests ------------------------------------------------------------
@@ -173,6 +232,73 @@ static void isoCb(usb_transfer_t* t)
     s_inFlight--;
 }
 
+// ---- input streaming ------------------------------------------------------------
+
+static inline int16_t sampleAt(const uint8_t* p, int sub)
+{
+    return (int16_t)(p[sub - 2] | p[sub - 1] << 8);   // top 16 bits, little-endian
+}
+
+static void isoInCb(usb_transfer_t* t)
+{
+    if (!s_gone && t->status == USB_TRANSFER_STATUS_COMPLETED) {
+        const int frameBytes = s_in.ch * s_in.sub;
+        uint32_t wr = s_inWr.load(std::memory_order_relaxed);
+        const uint32_t rd = s_inRd.load(std::memory_order_acquire);
+        for (int i = 0; i < kPktsPerXfer; i++) {
+            const auto& pd = t->isoc_packet_desc[i];
+            if (pd.status != USB_TRANSFER_STATUS_COMPLETED) { s_inErrors++; continue; }
+            s_inPackets++;
+            const uint8_t* p = t->data_buffer + i * s_in.mps;
+            const int n = pd.actual_num_bytes / frameBytes;
+            for (int f = 0; f < n; f++, p += frameBytes) {
+                if (wr - rd >= kInRing) { s_inOverflows++; break; }
+                s_inRing[wr & (kInRing - 1)] = (uint16_t)sampleAt(p, s_in.sub) |
+                                               (uint32_t)(uint16_t)sampleAt(p + s_in.sub, s_in.sub) << 16;
+                wr++;
+            }
+        }
+        s_inWr.store(wr, std::memory_order_release);
+        for (int i = 0; i < kPktsPerXfer; i++) t->isoc_packet_desc[i].num_bytes = s_in.mps;
+        t->num_bytes = kPktsPerXfer * s_in.mps;
+        if (usb_host_transfer_submit(t) == ESP_OK) return;
+    }
+    if (!s_gone) ESP_LOGW(TAG, "input stopped (transfer status %d)", t->status);
+    s_inActive = false;
+    s_inFlightIn--;
+}
+
+static bool startIn(const In& in)
+{
+    if (usb_host_interface_claim(s_client, s_dev, in.iface, in.alt) != ESP_OK) {
+        ESP_LOGW(TAG, "claim of input interface %d alt %d failed", in.iface, in.alt);
+        return false;
+    }
+    s_claimedIn = in.iface;
+    if (!setInterface(in.iface, in.alt)) return false;
+    const uint8_t r[3] = {(uint8_t)in.rate, (uint8_t)(in.rate >> 8), (uint8_t)(in.rate >> 16)};
+    control(0x22, 0x01, 0x0100, in.ep, r, 3, "SET_CUR input sample rate (optional)");
+    s_in = in;
+    s_inRd.store(s_inWr.load());
+    s_inRate = in.rate;
+    for (int i = 0; i < kXfers; i++) {
+        if (usb_host_transfer_alloc(kPktsPerXfer * in.mps, kPktsPerXfer, &s_inXfer[i]) != ESP_OK) break;
+        usb_transfer_t* t = s_inXfer[i];
+        t->device_handle = s_dev;
+        t->bEndpointAddress = in.ep;
+        t->callback = isoInCb;
+        t->num_bytes = kPktsPerXfer * in.mps;
+        for (int k = 0; k < kPktsPerXfer; k++) t->isoc_packet_desc[k].num_bytes = in.mps;
+        if (usb_host_transfer_submit(t) != ESP_OK) break;
+        s_inFlightIn++;
+    }
+    if (s_inFlightIn == 0) return false;
+    s_inActive = true;
+    ESP_LOGI(TAG, "input: %lu Hz, %d ch x %d bytes from interface %d alt %d, IN 0x%02X (max packet %d)",
+             (unsigned long)in.rate, in.ch, in.sub, in.iface, in.alt, in.ep, in.mps);
+    return true;
+}
+
 static bool start(const Out& o)
 {
     if (usb_host_interface_claim(s_client, s_dev, o.iface, o.alt) != ESP_OK) {
@@ -210,13 +336,21 @@ static bool start(const Out& o)
 static void close(bool log)
 {
     s_active = false;
+    s_inActive = false;
     // Transfers to a gone device complete with an error; wait for them all.
-    for (int i = 0; s_inFlight > 0 && i < 100; i++) vTaskDelay(pdMS_TO_TICKS(10));
-    if (s_inFlight > 0) ESP_LOGE(TAG, "%d transfer(s) never returned; leaking them", s_inFlight.load());
-    else for (auto*& t : s_xfer) if (t) { usb_host_transfer_free(t); t = nullptr; }
+    for (int i = 0; (s_inFlight > 0 || s_inFlightIn > 0) && i < 100; i++) vTaskDelay(pdMS_TO_TICKS(10));
+    if (s_inFlight > 0 || s_inFlightIn > 0)
+        ESP_LOGE(TAG, "%d transfer(s) never returned; leaking them", s_inFlight.load() + s_inFlightIn.load());
+    else {
+        for (auto*& t : s_xfer) if (t) { usb_host_transfer_free(t); t = nullptr; }
+        for (auto*& t : s_inXfer) if (t) { usb_host_transfer_free(t); t = nullptr; }
+    }
     for (auto*& t : s_xfer) t = nullptr;
+    for (auto*& t : s_inXfer) t = nullptr;
     if (s_claimed >= 0) usb_host_interface_release(s_client, s_dev, s_claimed);
-    s_claimed = -1;
+    if (s_claimedIn >= 0) usb_host_interface_release(s_client, s_dev, s_claimedIn);
+    s_claimed = s_claimedIn = -1;
+    s_inRate = 0;
     usb_host_device_close(s_client, s_dev);
     s_dev = nullptr;
     if (log) ESP_LOGI(TAG, "USB audio gone; speaker back");
@@ -228,9 +362,13 @@ static void open(uint8_t addr)
     s_gone = false;
     const usb_config_desc_t* cfg;
     Out o = {};
-    if (usb_host_get_active_config_descriptor(s_dev, &cfg) == ESP_OK) o = findOut(cfg);
-    if (o.found && start(o)) return;
-    if (o.found) ESP_LOGW(TAG, "audio device @%d: couldn't start streaming", addr);
+    In in = {};
+    if (usb_host_get_active_config_descriptor(s_dev, &cfg) == ESP_OK) { o = findOut(cfg); in = findIn(cfg); }
+    bool ok = o.found && start(o);
+    if (o.found && !ok) ESP_LOGW(TAG, "audio device @%d: couldn't start output", addr);
+    const bool inOk = in.found && startIn(in);
+    if (in.found && !inOk) ESP_LOGW(TAG, "audio device @%d: couldn't start input", addr);
+    if (ok || inOk) return;
     // Not ours (or failed): let go.
     close(false);
 }
@@ -272,6 +410,7 @@ void begin(uint32_t sampleRate)
 {
     s_rate = sampleRate;
     s_ring = (uint32_t*)heap_caps_calloc(kRing, 4, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    s_inRing = (uint32_t*)heap_caps_calloc(kInRing, 4, MALLOC_CAP_SPIRAM);
     s_q = xQueueCreate(8, sizeof(Msg));
     s_ctrlDone = xSemaphoreCreateBinary();
     usb_host_client_config_t cc = {};
@@ -296,6 +435,25 @@ void write(const int16_t* lr, size_t frames)
 }
 
 uint32_t underruns() { return s_underruns; }
+
+bool inputActive() { return s_inActive; }
+uint32_t inputRate() { return s_inRate; }
+
+size_t read(int16_t* lr, size_t maxFrames)
+{
+    const uint32_t rd = s_inRd.load(std::memory_order_relaxed);
+    uint32_t n = s_inWr.load(std::memory_order_acquire) - rd;
+    if (n > maxFrames) n = maxFrames;
+    for (uint32_t i = 0; i < n; i++) {
+        const uint32_t v = s_inRing[(rd + i) & (kInRing - 1)];
+        lr[2 * i] = (int16_t)(v & 0xFFFF);
+        lr[2 * i + 1] = (int16_t)(v >> 16);
+    }
+    s_inRd.store(rd + n, std::memory_order_release);
+    return n;
+}
+
+InputStats inputStats() { return {s_inPackets, s_inErrors, s_inOverflows}; }
 uint32_t corrections() { return s_corrections; }
 
 } // namespace usb_audio
