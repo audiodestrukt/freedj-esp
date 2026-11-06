@@ -40,6 +40,7 @@ uint32_t s_flags = 0;            // USB interfaces: L/R as recorded (the A1S cod
 volatile uint32_t s_wantFlags = 0xFFFFFFFF;
 volatile bool s_enabled = true;
 volatile bool s_absolute = true;
+volatile bool s_thru = false;
 volatile int32_t s_startMs = kStartMs;
 portMUX_TYPE s_mux = portMUX_INITIALIZER_UNLOCKED;
 State s_state;
@@ -77,6 +78,20 @@ void task(void*)
             }
             s_dec.begin((int)rate, timecode::Format::SeratoControlVinyl);
             s_dec.setFlags(s_flags);
+        }
+        if (s_thru) {
+            // The audio task reads the input now; leave it alone. Coming back,
+            // the gap reads as a needle lift: the decoder starts fresh.
+            signal = false;
+            portENTER_CRITICAL(&s_mux);
+            s_state.input = true;
+            s_state.signal = false;
+            s_state.speed = 0;
+            s_state.settling = false;
+            s_state.posMs = s_state.rawMs = -1;
+            portEXIT_CRITICAL(&s_mux);
+            vTaskDelay(pdMS_TO_TICKS(20));
+            continue;
         }
         const size_t n = usb_audio::read(buf, 512);
         for (size_t i = 0; i < n * 2; i++) {
@@ -153,7 +168,7 @@ State state()
     portENTER_CRITICAL(&s_mux);
     State s = s_state;
     portEXIT_CRITICAL(&s_mux);
-    if (!s_enabled) s.armed = false;
+    if (!s_enabled || s_thru) s.armed = false;
     s.absolute = s_absolute;
     return s;
 }
@@ -168,15 +183,16 @@ void setStartHere()
     ESP_LOGI(TAG, "record start %s: %ld ms of timecode", s.rawMs >= 0 ? "set" : "unchanged (no bit lock)", (long)s_startMs);
 }
 bool absolute() { return s_absolute; }
-Mode mode() { return !s_enabled ? Mode::Int : s_absolute ? Mode::Abs : Mode::Rel; }
+Mode mode() { return s_thru ? Mode::Thru : !s_enabled ? Mode::Int : s_absolute ? Mode::Abs : Mode::Rel; }
 void cycleMode()
 {
     switch (mode()) {
     case Mode::Abs: s_enabled = true;  s_absolute = false; break;   // -> REL
     case Mode::Rel: s_enabled = false; break;                       // -> INT
-    case Mode::Int: s_enabled = true;  s_absolute = true;  break;   // -> ABS
+    case Mode::Int: s_thru = true;     break;                       // -> THRU
+    case Mode::Thru: s_thru = false; s_enabled = true; s_absolute = true; break;   // -> ABS
     }
-    static const char* kName[] = {"ABS", "REL", "INT"};
+    static const char* kName[] = {"ABS", "REL", "INT", "THRU"};
     ESP_LOGI(TAG, "mode %s", kName[(int)mode()]);
 }
 bool enabled() { return s_enabled; }

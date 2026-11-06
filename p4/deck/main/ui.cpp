@@ -939,14 +939,16 @@ static void refresh(lv_timer_t*)
         // Timecode: hidden without a USB input (the header is as before). ABS/REL:
         // green while the record drives and moves, orange when it's stopped,
         // outline while waiting for a carrier. INT: grey (the record is ignored).
+        // THRU: blue (the input is on the output).
         if (!s.vinylMode) {
             lv_obj_add_flag(s_vinyl, LV_OBJ_FLAG_HIDDEN);
             lv_obj_set_width(s_name, s_nameW);
         } else {
-            static const char* kText[] = {"", "ABS", "REL", "INT"};
+            static const char* kText[] = {"", "ABS", "REL", "INT", "THRU"};
             lv_label_set_text(s_vinyl, kText[s.vinylMode]);
-            const bool on = s.vinylMode != 3 && s.vinylLive;
-            const lv_color_t c = s.vinylLive == 1 ? kGreen : kOrange;
+            const bool thru = s.vinylMode == 4;
+            const bool on = thru || (s.vinylMode != 3 && s.vinylLive);
+            const lv_color_t c = thru ? kBlue : s.vinylLive == 1 ? kGreen : kOrange;
             lv_obj_set_style_bg_color(s_vinyl, on ? c : kPanel, 0);
             lv_obj_set_style_text_color(s_vinyl, on ? kBg : s.vinylMode == 3 ? kDim : kGreen, 0);
             lv_obj_remove_flag(s_vinyl, LV_OBJ_FLAG_HIDDEN);

@@ -120,7 +120,7 @@ LCDwiki's, and may need flipping.
   - row 3: beat loops 1–16, beat jump ◀4 4▶, REV
 - Tap the **range** label next to the tempo to cycle ±6/10/16/WIDE; long-press it for tempo reset.
 - Tap the **Q** chip to toggle quantize.
-- Tap the **timecode chip** (ABS / REL / INT, only with a USB audio input) to cycle the vinyl mode.
+- Tap the **timecode chip** (ABS / REL / INT / THRU, only with a USB audio input) to cycle the vinyl mode.
 - **Long-press SYNC** to become tempo master. The BPM line shows MASTER in orange; other players can then sync to the deck.
 
 **DJ2Go pitch bend − / +:** − toggles key lock, + switches the beat meter between bar boxes and phase ticks (as tapping it does). The DJ2Go no longer sets manual loops; use the touch screen or serial `i` / `u`.
@@ -151,7 +151,7 @@ LCDwiki's, and may need flipping.
 | `Y` | become tempo master |
 | `J` | jog calibration: ticks since the last `J` (see *Feel parameters*) |
 | `P` | panel: CUE/PLAY state and presses, pitch pot raw/filtered/range/position (GPIO 24/25/22) |
-| `V` | timecode vinyl mode: ABS → REL → INT (as tapping the chip) |
+| `V` | timecode vinyl mode: ABS → REL → INT → THRU (as tapping the chip) |
 | `A` | timecode vinyl: absolute (needle drops seek) / relative |
 | `f` | cycle the timecode decoder's flags (record plays backwards, or L/R swapped in the cabling) |
 | `L` | timecode vinyl status (also in the 2 s report) |
@@ -171,13 +171,14 @@ Plug a USB audio interface (*Hardware*) into a hub port and a turntable with a S
 
 - **Speed and direction** follow the record. Stopping it stops the audio; backwards plays backwards. Keylock hands over to varispeed below 0.5× and in reverse. The tempo fader, nudge and SYNC don't apply.
 - **Jog:** with the record stopped, the jog scratches (as when paused); once the record moves it has the deck again.
-- **Modes**, Serato's three: tap the timecode chip (or serial `V`) to cycle **ABS → REL → INT**. INT ignores the record: the deck plays on at the record's last speed until the pitch fader moves (like SYNC off), with fader, jog, nudge, SYNC and keylock as normal.
+- **Modes**, Serato's: tap the timecode chip (or serial `V`) to cycle **ABS → REL → INT → THRU**. INT ignores the record: the deck plays on at the record's last speed until the pitch fader moves (like SYNC off), with fader, jog, nudge, SYNC and keylock as normal.
+- **THRU** plays a real record: the interface's input goes straight to the output (speaker and USB), through the deck's volume. The deck is bypassed and holds its place (nothing is mixed, so the track pauses), and the decoder stops. Swap records, switch modes. It adds ~12 ms: 512 frames of input stay queued for the interface's 4 ms bursts, and since its clock isn't ours, a block now and then reads one frame more or less (0.4 %, stretched over the block). Back to ABS, the first needle-down re-syncs.
 - **Absolute mode** (ABS, default; `A` toggles ABS / REL): the track follows the record's position too, with 0:00 at the record's first groove. Lift the needle and drop it further in, and the track jumps there. Inside a loop the loop wins.
   - **Needle drops:** after a lift, the deck stays silent until the decoder has a position (bit lock), then jumps there: about 0.1–0.5 s, typically 0.2 s, plus any MP3 decode at the new spot. No lock within 1 s: it follows speed only.
   - **Staying on it:** a jump of 300 ms or more seeks at once; a smaller steady error (after a scratch, or a seek that waited for the decoder) re-syncs after 0.2 s, once that audio is decoded. Steady play stays within ~25 ms.
   - **Record start:** our Serato Control Vinyl's first groove reads 24.0 s of timecode, so that's track 0:00 (`kStartMs` in `vinyl.cpp`). Another record: drop on the first groove and press `Z`. Before the start, the track waits at 0:00.
 - **Relative mode:** speed and direction only.
-- **The timecode chip**, left of Q, shows the mode and only appears while a USB audio input streams (the track name gives it room; without an interface the header is unchanged). Green: the record drives and moves. Orange: drives, stopped. Outline: waiting for timecode. Grey: INT. The PLAYING / PAUSED chip is unchanged.
+- **The timecode chip**, left of Q, shows the mode and only appears while a USB audio input streams (the track name gives it room; without an interface the header is unchanged). Green: the record drives and moves. Orange: drives, stopped. Outline: waiting for timecode. Grey: INT. Blue: THRU. The PLAYING / PAUSED chip is unchanged.
 - An interface used only for its output, or music on its line in, never takes over: it needs the timecode carrier first.
 
 The decoder (`../../src/timecode.cpp`) is the A1S one, a clean-room version of xwax's. The P4 side is `main/vinyl.cpp` (decoder task, core 0) and the input half of `main/usb_audio.cpp`. A 45 rpm record plays 1.35× fast: there's no 33/45 setting yet.
@@ -280,6 +281,7 @@ How the deck responds to your hands. All in one block at the top of `main/main.c
 | `kVinylSeekMs` / `kVinylSeekGapMs` | 300 ms / 250 ms | Absolute mode: how far off the record the track must be before it jumps (a needle drop), and how often it may. | Same as the A1S. |
 | `kVinylTrimMs` / `kVinylTrimHoldMs` | 25 ms / 200 ms | Smaller errors re-sync once they've held this long (only when the audio there is decoded). | |
 | `kVinylLeadMs` | 60 ms | The playhead runs this far ahead of the record so the sound (I2S + USB out + USB in delay) lines up with it. | Estimated, not measured: a click on the record vs the sound would pin it. |
+| `kThruFill` / `kThruSlack` | 512 / 64 frames | THRU's input queue and how far its average may stray before a block reads a frame more or less. | Lower fill = less delay but more dropouts (10 in ~9 min at 512, with one USB error, clustered); slack trades trims for drift. |
 | `kLiftMs` / `kSettleMaxMs` (vinyl.cpp) | 150 ms / 1 s | A carrier gap this long is a lift; then hold silent until bit lock, at most this long. | Serato: a needle drop lands on the new spot without scratching the old one. |
 | `kMinCutoff` / `kDeadband` (as5600.cpp) | 30 Hz / 1 tick | The AS5600 jog's smoothing at rest and the ticks needed to start or reverse. 1 Hz / 3 ticks hid ±100 counts of noise but lagged (first tick 88 ms after a start); the sensor is clean now (0 counts at rest). | Back to 1 Hz / 3 if the noise returns: run `R` at rest. |
 | `kListLingerMs` (ui.cpp) | 3 s | How long the track list stays after browsing, before the waveform returns. | |

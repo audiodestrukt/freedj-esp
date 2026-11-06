@@ -475,6 +475,8 @@ size_t read(int16_t* lr, size_t maxFrames)
     return n;
 }
 
+size_t inputFill() { return s_inWr.load(std::memory_order_acquire) - s_inRd.load(std::memory_order_relaxed); }
+
 InputStats inputStats() { return {s_inPackets, s_inErrors, s_inOverflows, s_inRestarts}; }
 uint32_t corrections() { return s_corrections; }
 

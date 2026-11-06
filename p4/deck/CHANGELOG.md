@@ -11,6 +11,18 @@ playing (see the README's *Audio health* section). Unless noted, it's
 the panel**, so they read high. From 2026-10-31 on, "screen fps" counts
 frames LVGL actually rendered and flushed.
 
+## 2026-11-06: THRU (a real record through the interface)
+
+- **THRU**, Serato's fourth mode: the timecode chip (or serial `V`) now cycles ABS → REL → INT →
+  THRU. The USB interface's input goes straight to the output, through the deck's volume; the
+  deck holds its place and the decoder stops. Chip blue. The input queue is held at 512 frames
+  (~12 ms) and a block reads one frame more or less when the average strays 64 frames (the
+  interface's clock isn't ours). ~9 min of THRU with a real record: 193 trimmed blocks, 10
+  dropouts (re-primed; clustered, one USB transfer error in that time), none in the last 90 s.
+
+Budget (THRU, the record playing): audio block work avg 0.64 / max 1.64 ms (budget 5.8), core 0
+64 %, core 1 12 %, 34.5 fps. Image 1,477,952 B (+1,024).
+
 ## 2026-11-05 (later): needle drops land clean; record start; USB input recovers
 
 - **Needle drops**: a carrier gap of 150 ms or more is a lift. On landing the decoder resets

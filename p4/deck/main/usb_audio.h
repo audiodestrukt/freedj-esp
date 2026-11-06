@@ -32,6 +32,8 @@ bool inputActive();
 uint32_t inputRate();      // Hz, 0 when no input
 // Take up to maxFrames interleaved stereo frames (one reader). Never blocks.
 size_t read(int16_t* lr, size_t maxFrames);
+// Frames queued for read().
+size_t inputFill();
 struct InputStats { uint32_t packets, errors, overflows, restarts; };
 InputStats inputStats();
 } // namespace usb_audio

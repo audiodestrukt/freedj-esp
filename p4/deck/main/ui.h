@@ -27,7 +27,7 @@ struct State {
     bool  tempoReset = false;
     bool  slip       = false;
     bool  reverse    = false;
-    uint8_t vinylMode = 0;     // timecode chip: 0 hidden (no USB input), 1 ABS, 2 REL, 3 INT
+    uint8_t vinylMode = 0;     // timecode chip: 0 hidden (no USB input), 1 ABS, 2 REL, 3 INT, 4 THRU
     uint8_t vinylLive = 0;     // 0 waiting for a carrier, 1 the record drives and moves, 2 drives but stopped
     size_t slipFrame = 0;      // slip's shadow playhead
     bool  looping    = false;

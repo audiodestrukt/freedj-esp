@@ -99,6 +99,12 @@ constexpr int      kVinylTrimHoldMs = 200;
 // I2S DMA (~33 ms) + USB output ring (~23 ms) + USB input (~5 ms). Aim the
 // playhead this far ahead of the record so the sound lines up with it.
 constexpr int      kVinylLeadMs = 60;
+// THRU (a real record through the interface): keep this much input queued,
+// enough to ride out its 4 ms bursts (~11.6 ms extra latency). Its clock and
+// ours differ, so when the average strays kThruSlack from it, a block reads
+// one frame more or less (stretched over the block: 0.4 %, a few blocks a minute).
+constexpr int      kThruFill  = 512;
+constexpr int      kThruSlack = 64;
 // ──────────────────────────────────────────────────────────────────────────────
 
 constexpr uint8_t  kLinkPlayer = 2;      // our Pro DJ Link player number
@@ -571,6 +577,51 @@ static bool renderPitched(Deck& d, float speed, int16_t* out)
     return true;
 }
 
+// THRU: the USB interface's input straight out, the deck bypassed.
+static volatile uint32_t s_thruUnderruns, s_thruTrims;
+static bool s_thruPrimed;
+static void renderThru(int16_t* out)
+{
+    static int16_t in[(kBlock + 1) * 2];
+    static float avg;
+    size_t fill = usb_audio::inputFill();
+    if (!s_thruPrimed) {
+        // Wait for a cushion, then drop anything beyond it (stale input).
+        if (fill < (size_t)kThruFill) { memset(out, 0, kBlock * 4); return; }
+        while (fill > (size_t)kThruFill) {
+            const size_t n = usb_audio::read(in, fill - kThruFill > kBlock ? kBlock : fill - kThruFill);
+            if (!n) break;
+            fill -= n;
+        }
+        avg = kThruFill;
+        s_thruPrimed = true;
+    }
+    avg += 0.02f * ((float)fill - avg);
+    int want = kBlock;
+    if (avg > kThruFill + kThruSlack) want++;        // the input runs fast: catch up a frame
+    else if (avg < kThruFill - kThruSlack) want--;   // slow: stretch a frame
+    if (want != kBlock) s_thruTrims = s_thruTrims + 1;
+    const int n = (int)usb_audio::read(in, want);
+    if (n < want) {   // ran dry: play what came, re-prime
+        s_thruUnderruns = s_thruUnderruns + 1;
+        s_thruPrimed = false;
+        memcpy(out, in, n * 4);
+        memset(out + n * 2, 0, (kBlock - (n < kBlock ? n : kBlock)) * 4);
+        return;
+    }
+    if (want == kBlock) { memcpy(out, in, kBlock * 4); return; }
+    // want input frames onto kBlock output frames, linearly.
+    const float step = (float)(want - 1) / (kBlock - 1);
+    for (int i = 0; i < kBlock; i++) {
+        const float x = i * step;
+        const int j = (int)x;
+        const float f = x - j;
+        const int k = j + 1 < want ? j + 1 : j;
+        out[2 * i]     = (int16_t)(in[2 * j]     + f * (in[2 * k]     - in[2 * j]));
+        out[2 * i + 1] = (int16_t)(in[2 * j + 1] + f * (in[2 * k + 1] - in[2 * j + 1]));
+    }
+}
+
 // Scratch (paused jog): each output frame moves the playhead a fraction of
 // the way to the target, so speed and direction follow the hand and glide to
 // a stop. Linear interpolation, like varispeed. Returns false once it has
@@ -918,11 +969,12 @@ static void logVinyl()
     char pos[24] = "-";
     if (v.rawMs >= 0) snprintf(pos, sizeof pos, "%d:%04.1f", (int)(v.rawMs / 60000), fmodf(v.rawMs / 1000.0f, 60));
     ESP_LOGI(TAG, "  vinyl: %s%s, %s  speed %+.3f  record at %s (start %ld)  seeks %lu (%lu re-syncs, last %d ms off)  track - record %+d ms  peak %d  bit lock %s  flags %lu"
-             "  (%lu Hz, %lu packets, %lu errors, %lu overflows, %lu restarts)",
-             !vinyl::enabled() ? "off (V)" : v.armed ? "driving" : "waiting for carrier", v.armed && !v.signal ? ", record stopped" : "",
+             "  (%lu Hz, %lu packets, %lu errors, %lu overflows, %lu restarts)  thru: %lu dry, %lu trims",
+             vinyl::mode() == vinyl::Mode::Thru ? "THRU" : !vinyl::enabled() ? "off (V)" : v.armed ? "driving" : "waiting for carrier", v.armed && !v.signal ? ", record stopped" : "",
              v.absolute ? "absolute" : "relative", v.speed, pos, (long)vinyl::startMs(), (unsigned long)s_vinylSeeks, (unsigned long)s_vinylTrims, s_vinylDriftMs, s_vinylErrMs,
              v.peak, v.locked ? "yes" : "no", (unsigned long)v.flags, (unsigned long)v.rate,
-             (unsigned long)is.packets, (unsigned long)is.errors, (unsigned long)is.overflows, (unsigned long)is.restarts);
+             (unsigned long)is.packets, (unsigned long)is.errors, (unsigned long)is.overflows, (unsigned long)is.restarts,
+             (unsigned long)s_thruUnderruns, (unsigned long)s_thruTrims);
 }
 
 static void reporterTask(void*)
@@ -1152,7 +1204,15 @@ static void audioTask(void*)
         const bool slipping = d.slip && d.playing && (((d.looping && !d.emergency)) || d.reverse || d.hotHeld);
         if (wasSlipping && !slipping && d.loaded) seek(d, d.slipPos);
         wasSlipping = slipping;
-        if (d.loaded && d.scratching && s_vinylStill) {
+        const bool thru = vinyl::mode() == vinyl::Mode::Thru && usb_audio::inputActive() && usb_audio::inputRate() == kRate;
+        if (!thru) s_thruPrimed = false;
+        if (thru) {
+            // THRU: the record on the turntable, not the track (the deck holds its place).
+            renderThru(buf);
+            const float g = d.gain;
+            for (int i = 0; i < kBlock * 2; i++) buf[i] = (int16_t)(buf[i] * g);
+            s_clicks.reset();
+        } else if (d.loaded && d.scratching && s_vinylStill) {
             // Record still, jog moving: scratch, as when paused.
             if (!renderScratch(d, buf)) { d.scratching = false; d.pos = d.scratchTarget; }
             s_stream.setPlayhead((size_t)d.pos);
@@ -1332,7 +1392,7 @@ static void serialKeysTask(void*)
                      t * kScrubFrames / (double)kRate);
             continue;
         }
-        case 'V': vinyl::cycleMode(); continue;   // ABS -> REL -> INT, like tapping the chip
+        case 'V': vinyl::cycleMode(); continue;   // ABS -> REL -> INT -> THRU, like tapping the chip
         case 'f': ESP_LOGI(TAG, "timecode flags -> %lu", (unsigned long)vinyl::cycleFlags()); continue;
         case 'L': logVinyl(); continue;
         case 'Z': vinyl::setStartHere(); continue;
