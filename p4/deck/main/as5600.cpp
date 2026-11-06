@@ -41,11 +41,17 @@ constexpr int   kPeriodMs    = 2;      // 500 Hz: ~6 % of core 0
 // - Deadband: starting or reversing needs kDeadband ticks; once moving, every
 //   tick goes out. Below kStopSpeed it counts as stopped again.
 // On the captures: 0 stray ticks in 3 x 4 s at rest; a spin within 1-2 ticks.
-constexpr float kMinCutoff   = 1.0f;
+// 2026-11-05: with DIR grounded and the speaker away (muted for USB audio), it
+// reads 0 counts of spread at rest (2000 samples, AGC 128), so the filter was
+// loosened from 1 Hz / 3-tick deadband: first tick after a start 88 -> 38 ms,
+// a 4 Hz +-40 degree baby scratch trails by at most 3.1 ticks (was 10.7), in a
+// simulation with +-1 count noise. If the ±100 count noise comes back (speaker
+// coil playing next to the sensor), these two go back to 1.0 / 3.0.
+constexpr float kMinCutoff   = 30.0f;
 constexpr float kBeta        = 0.15f;
 constexpr float kSpeedCutoff = 5.0f;
 constexpr int   kSpeedWin    = 50;     // samples (100 ms)
-constexpr float kDeadband    = 3.0f;   // ticks
+constexpr float kDeadband    = 1.0f;   // ticks
 constexpr float kStopSpeed   = 6.0f;   // ticks/s
 constexpr int   kMinSpan     = 1500;   // don't trust the learned range below this
 
