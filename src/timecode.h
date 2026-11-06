@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#ifndef TIMECODE_NATIVE
+#if defined(ARDUINO) && !defined(TIMECODE_NATIVE)
 #include <Arduino.h>
 #endif
 

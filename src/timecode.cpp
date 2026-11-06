@@ -8,9 +8,17 @@
 
 #ifdef TIMECODE_NATIVE
 #include <unordered_map>
-#else
+#elif defined(ARDUINO)
 #include <Arduino.h>
 #include <esp_heap_caps.h>
+#define TC_PRINTF(...) Serial.printf(__VA_ARGS__)
+static inline uint32_t tcMs() { return millis(); }
+#else   // plain ESP-IDF (the P4 deck)
+#include <stdio.h>
+#include <esp_heap_caps.h>
+#include <esp_timer.h>
+#define TC_PRINTF(...) printf(__VA_ARGS__)
+static inline uint32_t tcMs() { return (uint32_t)(esp_timer_get_time() / 1000); }
 #endif
 
 namespace timecode {
@@ -137,31 +145,31 @@ void buildDeviceLut(const Def& d) {
     if (g_devLutFailed_) return;
     size_t largest = heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM);
     if (largest < DEV_LUT_BYTES) {
-        Serial.printf("[tc] PSRAM largest free block %u < required %u; position unavailable\n",
+        TC_PRINTF("[tc] PSRAM largest free block %u < required %u; position unavailable\n",
                       (unsigned)largest, (unsigned)DEV_LUT_BYTES);
         g_devLutFailed_ = true;
         return;
     }
     uint8_t* buf = (uint8_t*)heap_caps_malloc(DEV_LUT_BYTES, MALLOC_CAP_SPIRAM);
     if (!buf) {
-        Serial.println(F("[tc] PSRAM LUT alloc FAILED; position unavailable"));
+        TC_PRINTF("[tc] PSRAM LUT alloc FAILED; position unavailable\n");
         g_devLutFailed_ = true;
         return;
     }
     memset(buf, 0xFF, DEV_LUT_BYTES);
 
-    uint32_t t0 = millis();
+    uint32_t t0 = tcMs();
     uint32_t cur = d.seed;
     for (uint32_t i = 0; i < d.length; ++i) {
         lutWrite(buf + (size_t)cur * 3, i);
         cur = lfsrFwd(cur, d.taps, d.bits);
     }
-    uint32_t ms = millis() - t0;
+    uint32_t ms = tcMs() - t0;
 
     // Leak old LUT on format switch; see file-scope comment.
     g_devLut_    = buf;
     g_devLutFmt_ = d.fmt;
-    Serial.printf("[tc] LUT built for %s: %u entries in %u ms (PSRAM free %u)\n",
+    TC_PRINTF("[tc] LUT built for %s: %u entries in %u ms (PSRAM free %u)\n",
                   d.fmt == Format::SeratoControlVinyl ? "VINYL" : "CD",
                   (unsigned)d.length, (unsigned)ms,
                   (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
@@ -188,7 +196,7 @@ void rebuildLutInPlace(Format f) {
 #ifndef TIMECODE_NATIVE
     if (g_devLut_ == nullptr) return;  // no buffer to rewrite
     const Def& d = findDef(f);
-    uint32_t t0 = millis();
+    uint32_t t0 = tcMs();
     memset(g_devLut_, 0xFF, DEV_LUT_BYTES);
     uint32_t cur = d.seed;
     for (uint32_t i = 0; i < d.length; ++i) {
@@ -196,9 +204,9 @@ void rebuildLutInPlace(Format f) {
         cur = lfsrFwd(cur, d.taps, d.bits);
     }
     g_devLutFmt_ = d.fmt;
-    Serial.printf("[tc] LUT rewritten for %s: %u entries in %u ms (PSRAM free %u)\n",
+    TC_PRINTF("[tc] LUT rewritten for %s: %u entries in %u ms (PSRAM free %u)\n",
                   d.fmt == Format::SeratoControlVinyl ? "VINYL" : "CD",
-                  (unsigned)d.length, (unsigned)(millis() - t0),
+                  (unsigned)d.length, (unsigned)(tcMs() - t0),
                   (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
 #else
     buildLut(findDef(f), lutFor(f));
