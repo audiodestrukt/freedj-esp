@@ -195,6 +195,12 @@ void cycleMode()
     static const char* kName[] = {"ABS", "REL", "INT", "THRU"};
     ESP_LOGI(TAG, "mode %s", kName[(int)mode()]);
 }
+void toggleThru()
+{
+    s_thru = !s_thru;   // the mode underneath is kept
+    static const char* kName[] = {"ABS", "REL", "INT", "THRU"};
+    ESP_LOGI(TAG, "mode %s", kName[(int)mode()]);
+}
 bool enabled() { return s_enabled; }
 
 uint32_t cycleFlags()

@@ -155,6 +155,12 @@ static void onMidiPacket(const uint8_t p[4])
     for (int i = 0; i < n; i++) {
         // Screen-only: toggled here, as the audio task mustn't take the LVGL lock.
         if (ev[i].type == deck::Type::MeterView) { if (ev[i].pressed) ui::togglePhaseView(); continue; }
+        // DJ2Go pitch bend - is key lock; with a USB audio input it's THRU instead
+        // (swap the timecode record for a real one without the touch screen).
+        if (ev[i].type == deck::Type::KeyLock && usb_midi::vendor() != 0x2B73 && usb_audio::inputActive()) {
+            if (ev[i].pressed) vinyl::toggleThru();
+            continue;
+        }
         xQueueSend(s_events, &ev[i], 0);
     }
 }

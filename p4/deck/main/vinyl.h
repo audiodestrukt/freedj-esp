@@ -53,4 +53,6 @@ bool absolute();
 enum class Mode : uint8_t { Abs, Rel, Int, Thru };
 Mode mode();
 void cycleMode();
+// THRU on, or back to the mode it came from (DJ2Go pitch bend -).
+void toggleThru();
 } // namespace vinyl
