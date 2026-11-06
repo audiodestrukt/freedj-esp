@@ -27,6 +27,7 @@ struct State {
     bool  tempoReset = false;
     bool  slip       = false;
     bool  reverse    = false;
+    uint8_t vinyl    = 0;      // timecode record drives the deck: 1 moving, 2 stopped
     size_t slipFrame = 0;      // slip's shadow playhead
     bool  looping    = false;
     size_t loopStart = 0, loopEnd = 0;     // frames (active loop)

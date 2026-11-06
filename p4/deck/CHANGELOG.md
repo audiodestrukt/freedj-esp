@@ -11,6 +11,38 @@ playing (see the README's *Audio health* section). Unless noted, it's
 the panel**, so they read high. From 2026-10-31 on, "screen fps" counts
 frames LVGL actually rendered and flushed.
 
+## 2026-11-05: timecode vinyl over a USB audio interface; looser jog filter
+
+- **Timecode vinyl on the P4.** The USB audio driver now also reads a UAC1 interface's line
+  in (isochronous IN, 16/24/32-bit, first two channels), preferring the output's rate so the
+  interface runs one clock. A decoder task (`vinyl.cpp`, core 0) feeds it to the A1S's
+  timecode decoder, now built without Arduino (a logging/clock shim; the A1S build and the
+  host tests are unchanged). Serato Control Vinyl.
+  - Once it hears 0.3 s of steady carrier at 0.6-1.5x, the record sets speed and direction
+    (tempo fader, nudge and SYNC drop out; keylock gives way to varispeed below 0.5x and in
+    reverse). It never takes over from an interface used only for output.
+  - Absolute mode (default, serial `A`): needle drops seek when the track is 300 ms off the
+    record, at most every 250 ms (the A1S numbers). Untested on a real drop yet.
+  - The 3 MB position table is built at task start (464 ms), not on the first decode; that
+    first decode had dropped ~400 input frames.
+  - Tested with a PCM2902 interface (UCA202 type) and a turntable: carrier in 0.6 s after
+    boot, 1.002-1.012x at 33, bit lock, 0 input errors. At 45 it reads 1.341x.
+  - State chip VINYL (green moving, orange stopped). Serial `V` on/off, `f` decoder flags,
+    `L` status.
+- **Jog filter loosened.** `R` at rest now reads 0 counts of spread (was ~±100), so
+  `kMinCutoff` 1 -> 30 Hz and `kDeadband` 3 -> 1 tick. Simulated: first tick after a start
+  88 -> 38 ms; a 4 Hz ±40° scratch trails by 3.1 ticks at worst (was 10.7). 0 stray ticks in
+  12 s at rest on the deck.
+- Budget, against the previous commit on the same bench (amen-16.wav from SD, USB interface
+  attached, record not spinning, waveform up):
+  - core 0 59-60 % (was 55-56 %; decoding the input), core 1 8 % (unchanged);
+  - internal RAM 56-59 KB free, lowest 43-46 KB (was 59-66, lowest 52): the decoder task's
+    stack and the input transfers;
+  - PSRAM 16,446 KB free (was 19,554): the position table;
+  - image 1,473,184 B (+8,864).
+  - The README budget (2026-10-31) predates the USB interface, which costs core 0 on its own
+    while it streams.
+
 ## 2026-11-04: 2.8" screen option (MSP2834, 320x240)
 
 - CAD: `FREEDJ_SCREEN=2.8` builds the deck around LCDwiki's MSP2834 (Hosyond 2.8" IPS,

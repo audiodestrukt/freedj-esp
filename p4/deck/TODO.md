@@ -56,18 +56,12 @@ In order. Costs: **cheap** = logic only, no per-sample work; **moderate**; **hea
    - [ ] **3D-printed enclosure**, first design in [hardware/](hardware/README.md): a small CDJ
      around the 4" MSP4021, jog on two 608s + AS5600, CUE/PLAY, 45 mm pitch, angled and
      flat-top versions. Next: caliper the screen and the dev board's port heights, print and test the jog module alone, choose jog-touch sensing.
-   - [ ] **Get the jog's feel back on the final hardware.** The AS5600 reads ~±100 counts at
-     rest since the reassembly; the first bring-up read ±1. A filter hides it: 3-tick start
-     deadband, 1 Hz smoothing at rest (`as5600.cpp`, 2026-11-02). It holds still but feels
-     slower than the clean signal did. Once the jog is in its final form (shaft, magnet
-     mount, gap, wiring):
-     - run `R` at rest and aim for ±1–2 counts;
-     - likely causes, found 2026-11-02: **DIR had come off GND** (floating), and the
-       **little speaker sat right next to the sensor** (its magnet, plus its coil field
-       whenever audio plays). Keep DIR tied hard to GND, and keep the speaker well away
-       from the AS5600 in the final layout;
-     - when it's clean, loosen the filter (deadband 1, higher cutoff) or go back to the
-       plain whole-tick path from f6dd05b. Tune offline with `tools/jog_filter_sim.py` on `R` captures.
+   - [x] **Get the jog's feel back.** It read ~±100 counts at rest after the reassembly
+     (2026-11-02: DIR had come off GND, and the speaker sat next to the sensor), so a 1 Hz /
+     3-tick filter hid it but felt slow. 2026-11-05: `R` at rest reads 0 counts of spread, and
+     the filter is loosened to 30 Hz / 1-tick deadband (first tick 88 -> 38 ms in
+     `tools/jog_filter_sim.py`-style simulation). Still to check: `R` with audio playing on the
+     speaker near the sensor (it was muted for the USB interface), and the feel by hand.
    - [ ] **Release 1 with no custom boards**: panel-mount buttons + pot straight to P4 GPIO,
      control board kept as the later build. Plan in [BUILDS.md](BUILDS.md).
    - [ ] **Mixer build**: one platter in the centre, each deck's EQ, filter, CUE/PLAY and PFL down
@@ -169,6 +163,14 @@ In order. Costs: **cheap** = logic only, no per-sample work; **moderate**; **hea
 - [ ] **DSI screen** when it arrives. It has real vsync via ESP-IDF's DPI driver, and the LVGL UI moves over as is.
 - [ ] **Maybe**: cap the waveform at 30 fps to give back ~8 % of core 0, if Link needs it.
 
+## Timecode vinyl (working 2026-11-05, USB interface)
+- [ ] **Start on record motion**: play when the record moves, no PLAY press (Serato relative). Decide what CUE means while the record drives.
+- [ ] **33/45 setting** (or detect it from the carrier): 45 plays 1.35x fast.
+- [ ] **Scratch feel** with a hand on the platter: hand-to-sound latency, `kVinylSmooth`, the keylock handover.
+- [ ] **Needle drop on the bench**: absolute mode is in but untested on a real drop (bit lock and position were seen; no drop yet).
+- [ ] **Screen**: the record's speed in place of the fader's, and a signal / bit-lock mark.
+- [ ] Serato Control CD format, for CDJs playing timecode CDs.
+
 ## Hardware, later
-- [ ] PCM5102A stereo DAC, and a PCM1808 ADC for timecode input on the P4.
+- [ ] PCM5102A stereo DAC. (Timecode input: done over a USB audio interface; a PCM1808 on I2S is only worth it for a build without one.)
 - [ ] I2C control panel to replace the DJ2Go, with a 14-bit pitch control.

@@ -47,6 +47,7 @@
 #include "usb_midi.h"
 #include "usb_stick.h"
 #include "usb_audio.h"
+#include "vinyl.h"
 #include "as5600.h"
 #include "panel_gpio.h"
 #include "wsola.h"
@@ -78,6 +79,17 @@ constexpr float    kSyncGain = 0.3f, kSyncMaxBend = 0.03f;
 // jitter on the network doesn't wobble the speed; the phase loop itself takes
 // ~1.7 s at 120 BPM, so this barely slows it.
 constexpr float    kSyncBendSmooth = 0.02f;
+// Timecode vinyl: per-block smoothing of the record's speed (0.35 at 5.8 ms
+// blocks is ~15 ms, quick enough for a hand on the platter), and below this
+// speed keylock hands over to varispeed.
+constexpr float    kVinylSmooth = 0.35f;
+constexpr float    kVinylKeylockMin = 0.5f;
+// Absolute mode: jump to the record's position when the track is this far
+// off it (a needle drop), at most this often. Steady play stays within a few
+// ms (speed alone keeps it there), and a scratch is followed by speed, so only
+// a real jump seeks. Same numbers as the A1S.
+constexpr int      kVinylSeekMs = 300;
+constexpr int      kVinylSeekGapMs = 250;
 // ──────────────────────────────────────────────────────────────────────────────
 
 constexpr uint8_t  kLinkPlayer = 2;      // our Pro DJ Link player number
@@ -756,9 +768,14 @@ static void onUiSeek(float fraction) { xQueueOverwrite(s_seekReq, &fraction); }
 
 static prolink::Master s_master;     // audio task's copy, refreshed every block
 
+static uint8_t s_vinylUi;          // ui::State::vinyl, set by the audio task
+static volatile uint32_t s_vinylSeeks;   // needle-drop seeks (audio task), for the report
+static volatile int s_vinylDriftMs;      // track vs record before the last seek
+
 static void publishState(const Deck& d, float speed)
 {
     ui::State u;
+    u.vinyl = s_vinylUi;
     u.selected = d.selected;
     u.libGen = d.libGen;
     u.loaded = d.loaded;
@@ -879,6 +896,21 @@ static void topTasks(char* out, size_t n, double wallUs)
     }
 }
 
+static void logVinyl()
+{
+    const vinyl::State v = vinyl::state();
+    if (!v.input) return;
+    const usb_audio::InputStats is = usb_audio::inputStats();
+    char pos[24] = "-";
+    if (v.posMs >= 0) snprintf(pos, sizeof pos, "%d:%04.1f", (int)(v.posMs / 60000), fmodf(v.posMs / 1000.0f, 60));
+    ESP_LOGI(TAG, "  vinyl: %s%s, %s  speed %+.3f  record at %s  seeks %lu (last %d ms off)  peak %d  bit lock %s  flags %lu"
+             "  (%lu Hz, %lu packets, %lu errors, %lu overflows)",
+             !vinyl::enabled() ? "off (V)" : v.armed ? "driving" : "waiting for carrier", v.armed && !v.signal ? ", record stopped" : "",
+             v.absolute ? "absolute" : "relative", v.speed, pos, (unsigned long)s_vinylSeeks, s_vinylDriftMs,
+             v.peak, v.locked ? "yes" : "no", (unsigned long)v.flags, (unsigned long)v.rate,
+             (unsigned long)is.packets, (unsigned long)is.errors, (unsigned long)is.overflows);
+}
+
 static void reporterTask(void*)
 {
     Report r;
@@ -894,7 +926,7 @@ static void reporterTask(void*)
         const double load0 = 100.0 * (1.0 - (uint32_t)(i0 - idle0) / wall);
         const double load1 = 100.0 * (1.0 - (uint32_t)(i1 - idle1) / wall);
         idle0 = i0; idle1 = i1; tIdle = now;
-        if (!r.playing) continue;
+        if (!r.playing) { logVinyl(); continue; }
         const double realtime = 100.0 * r.blocks * kBlock / ((r.t1 - r.t0) * (kRate / 1e6));
         ESP_LOGI(TAG, "%s  %d:%04.1f / %d:%04.1f  %+.2f %%%s  buffered %.0f s  underruns %u",
                  s_stream.name(), (int)r.pos / 60, fmodf(r.pos, 60),
@@ -909,6 +941,7 @@ static void reporterTask(void*)
         if (usb_audio::active())
             ESP_LOGI(TAG, "  usb audio: underruns %u  drift corrections %u",
                      (unsigned)usb_audio::underruns(), (unsigned)usb_audio::corrections());
+        logVinyl();
         ESP_LOGI(TAG, "  cpu: core0 %.0f %%  core1 %.0f %%  (%s)", load0, load1, ui::waveStats());
         ESP_LOGI(TAG, "  mem: internal %u KB free (lowest %u KB, largest block %u KB), PSRAM %u KB free",
                  (unsigned)(heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024),
@@ -1006,9 +1039,35 @@ static void audioTask(void*)
         if (d.nudge < -kNudgeMax) d.nudge = -kNudgeMax;
         prolink::master(s_master);
         float speed = d.tempo + d.nudge;
+        // Timecode vinyl: once armed, the record is the tempo (fader, nudge
+        // and sync don't apply) and its direction; a stopped record is 0.
+        const vinyl::State vs = vinyl::state();
+        const bool vinylOn = d.loaded && vinyl::driving(vs);
+        static float vinylSpeed;
+        if (vinylOn) {
+            vinylSpeed += kVinylSmooth * (vs.speed - vinylSpeed);
+            speed = vinylSpeed;
+            d.nudge = 0;
+        } else {
+            vinylSpeed = 0;
+        }
+        s_vinylUi = !vinylOn ? 0 : vs.signal ? 1 : 2;
+        // Absolute: follow the needle. Not in a loop (the loop wins, as in Serato).
+        if (vinylOn && vs.absolute && vs.posMs >= 0 && d.playing && !d.looping && !d.emergency) {
+            const double target = vs.posMs * (double)s_stream.sampleRate() / 1000.0;
+            const double driftMs = fabs(d.pos - target) * 1000.0 / s_stream.sampleRate();
+            static int64_t lastSeekUs;
+            const int64_t now = esp_timer_get_time();
+            if (driftMs >= kVinylSeekMs && now - lastSeekUs >= kVinylSeekGapMs * 1000 && target < s_stream.frames()) {
+                s_vinylDriftMs = (int)driftMs;
+                seek(d, target);
+                lastSeekUs = now;
+                s_vinylSeeks = s_vinylSeeks + 1;
+            }
+        }
         if (d.keylock) stepWsolaLag(speed);
         bool synced = false;
-        if (d.sync && d.loaded && !d.reverse && !grid().empty() && s_master.present && s_master.bpm > 0) {
+        if (!vinylOn && d.sync && d.loaded && !d.reverse && !grid().empty() && s_master.present && s_master.bpm > 0) {
             const float trackBpm = grid().bpmAt(d.pos * 1000.0 / s_stream.sampleRate());
             const float base = syncSpeed(s_master.bpm, trackBpm);
             d.tempo = base;                           // stays here if sync is switched off
@@ -1056,7 +1115,9 @@ static void audioTask(void*)
         wasSlipping = slipping;
         if (d.playing && d.loaded) {
             // Reverse always plays varispeed: the time-stretcher only runs forwards.
-            const bool fed = d.keylock && !d.reverse ? renderKeylock(d, speed, buf) : renderPitched(d, speed, buf);
+            // Slow or backwards record: varispeed (WSOLA only runs forwards, and smears near 0).
+            const bool stretch = d.keylock && !d.reverse && !(vinylOn && speed < kVinylKeylockMin);
+            const bool fed = stretch ? renderKeylock(d, speed, buf) : renderPitched(d, speed, buf);
             if (slipping) d.slipPos += kBlock * speed * (double)s_stream.sampleRate() / kRate;
             else d.slipPos = d.pos;
             if (!fed) {
@@ -1148,6 +1209,7 @@ static void audioTask(void*)
 //   , . beat jump -/+4   < > call previous/next memory cue   q quantize
 //   t tempo range   T tempo reset   m M memory cue add/delete   z slip   r reverse
 //   Y become tempo master   J jog calibration (ticks since the last J)   e jog encoder readings   E its magnet status   R 4 s of its raw samples   I raw MIDI log   P panel buttons + pitch pot
+//   V timecode vinyl on/off   f cycle its decoder flags (backwards record / swapped channels)   L vinyl status   A absolute / relative
 //   w cycle waveform test mode (normal / no flush / off)
 static void serialKeysTask(void*)
 {
@@ -1223,6 +1285,10 @@ static void serialKeysTask(void*)
                      t * kScrubFrames / (double)kRate);
             continue;
         }
+        case 'V': vinyl::setEnabled(!vinyl::enabled()); ESP_LOGI(TAG, "timecode vinyl %s", vinyl::enabled() ? "on" : "off"); continue;
+        case 'f': ESP_LOGI(TAG, "timecode flags -> %lu", (unsigned long)vinyl::cycleFlags()); continue;
+        case 'L': logVinyl(); continue;
+        case 'A': vinyl::setAbsolute(!vinyl::absolute()); ESP_LOGI(TAG, "timecode vinyl: %s", vinyl::absolute() ? "absolute (needle drops seek)" : "relative"); continue;
         case 'g': s_fakeGridBpm = 120; ESP_LOGI(TAG, "test grid: 120 BPM from the start"); continue;
         case '[': s_syncOffsetMs -= 2; ESP_LOGI(TAG, "sync offset %+d ms", s_syncOffsetMs); continue;
         case ']': s_syncOffsetMs += 2; ESP_LOGI(TAG, "sync offset %+d ms", s_syncOffsetMs); continue;
@@ -1260,6 +1326,7 @@ extern "C" void app_main(void)
     usb_midi::begin(onMidiPacket);
     usb_stick::begin(onStickMounted, onStickRemoved);
     usb_audio::begin(kRate);
+    vinyl::begin();
     usb_midi::powerOn();
     // Network from core 0, so the EMAC interrupt stays off the audio core.
     ui::splashStatus("network");

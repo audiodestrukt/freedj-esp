@@ -4,7 +4,7 @@
 
 A small CDJ-style deck on the **Waveshare ESP32-P4-Module-DEV-KIT**. It plays WAV and MP3 from a rekordbox USB stick or the SD card. You control it with a Numark DJ2Go or a Pioneer XDJ-1000MK2 over USB, the AS5600 jog, the touch screen, or serial keys. It has varispeed and keylock, CDJ-style CUE, a scrolling waveform, and beat sync to other players over Pro DJ Link.
 
-This lives next to the A1S firmware in the repo root and doesn't replace it. The timecode vinyl path is still the A1S build. Both builds share the deck event types, the DJ2Go decoder and WSOLA, all from `../../src`.
+This lives next to the A1S firmware in the repo root and doesn't replace it. Both builds share the deck event types, the DJ2Go decoder, WSOLA and the timecode decoder, all from `../../src`. Timecode vinyl works on both: on the A1S through its codec's line in, on the P4 through a USB audio interface (see *Timecode vinyl*).
 
 ## Hardware
 
@@ -18,6 +18,7 @@ This lives next to the A1S firmware in the repo root and doesn't replace it. The
 | Ethernet | On-board IP101 PHY (RMII). DHCP, or 169.254.x.x link-local on a cable straight to a player |
 | Controller | Numark DJ2Go, or a Pioneer XDJ-1000MK2 in USB-MIDI control mode, in any of the four USB-A ports (USB host, class-compliant MIDI; Pioneer's vendor ID picks the XDJ map) |
 | Screen (stand-in) | LCDwiki **MSP4021**: 4" 480×320, ST7796S over SPI + FT6336U capacitive touch. Or a 2.8" **MSP2834** (320×240 ILI9341V, same wiring; see *Build and flash*). Will be replaced by a MIPI-DSI screen |
+| USB audio interface | Optional. A class-compliant UAC1 interface with 16-bit stereo, e.g. a Behringer UCA202 (TI PCM2902). Its output takes over from the speaker; its line in reads timecode vinyl. Tested: PCM2902 at 44.1 kHz both ways. UAC2-only interfaces don't work: the root port runs at full speed |
 | Serial | USB-C, CH343 → `/dev/ttyACM0`, console UART0 (GPIO 37/38) |
 
 ### Wiring the MSP4021
@@ -149,6 +150,10 @@ LCDwiki's, and may need flipping.
 | `Y` | become tempo master |
 | `J` | jog calibration: ticks since the last `J` (see *Feel parameters*) |
 | `P` | panel: CUE/PLAY state and presses, pitch pot raw/filtered/range/position (GPIO 24/25/22) |
+| `V` | timecode vinyl on / off |
+| `A` | timecode vinyl: absolute (needle drops seek) / relative |
+| `f` | cycle the timecode decoder's flags (record plays backwards, or L/R swapped in the cabling) |
+| `L` | timecode vinyl status (also in the 2 s report) |
 | `w` | cycle the waveform test mode: normal → drawn but not sent to the screen → off |
 
 [`tools/p4_serial.py`](../../tools/p4_serial.py) holds the port open without resetting the board, logs to a file, and sends anything appended to `<log>.cmd`. A whole experiment can be scripted, for example:
@@ -157,6 +162,18 @@ LCDwiki's, and may need flipping.
 tools/p4_serial.py deck.log &
 echo -n 3l >> deck.log.cmd; sleep 3; echo -n p >> deck.log.cmd
 ```
+
+## Timecode vinyl
+
+Plug a USB audio interface (*Hardware*) into a hub port and a turntable with a Serato Control Vinyl record into its line in, through a phono preamp or a mixer's line out. Load a track and press PLAY. Once the deck has heard 0.3 s of steady timecode at 0.6–1.5× (33 or 45), the record drives it:
+
+- **Speed and direction** follow the record. Stopping it stops the audio; backwards plays backwards. Keylock hands over to varispeed below 0.5× and in reverse. The tempo fader, nudge and SYNC don't apply.
+- **Absolute mode** (default, `A` toggles): the track follows the record's position too, with 0:00 at the start of the record. Lift the needle and drop it further in, and the track jumps there. Inside a loop the loop wins.
+- **Relative mode:** speed and direction only.
+- The state chip reads **VINYL**: green while the record moves, orange while it's stopped.
+- An interface used only for its output, or music on its line in, never takes over: it needs the timecode carrier first.
+
+The decoder (`../../src/timecode.cpp`) is the A1S one, a clean-room version of xwax's. The P4 side is `main/vinyl.cpp` (decoder task, core 0) and the input half of `main/usb_audio.cpp`. A 45 rpm record plays 1.35× fast: there's no 33/45 setting yet.
 
 ## How it's put together
 
@@ -251,6 +268,10 @@ How the deck responds to your hands. All in one block at the top of `main/main.c
 | `kRanges` | ±6 / ±10 / ±16 % / WIDE | Pitch fader ranges. Tap the range label to cycle. | The XDJ-1000's ranges (WIDE = ±100 %). |
 | `kSyncGain` | 0.3 | How much of the phase error SYNC corrects. | Not a hand feel, but it decides how sync "feels": higher locks faster but can wobble. |
 | `kSyncMaxBend` | 3 % | The most SYNC bends the tempo while correcting. | Audible as a slight pitch bend on big corrections; CDJs bend similarly. |
+| `kVinylSmooth` | 0.35 per block (~15 ms) | Smoothing on the record's speed. Lower is steadier but lags a hand on the platter. | A turntable through Serato: no audible lag on a scratch. |
+| `kVinylKeylockMin` | 0.5× | Below this, keylock gives way to varispeed (WSOLA smears near 0). | |
+| `kVinylSeekMs` / `kVinylSeekGapMs` | 300 ms / 250 ms | Absolute mode: how far off the record the track must be before it jumps (a needle drop), and how often it may. | Same as the A1S. |
+| `kMinCutoff` / `kDeadband` (as5600.cpp) | 30 Hz / 1 tick | The AS5600 jog's smoothing at rest and the ticks needed to start or reverse. 1 Hz / 3 ticks hid ±100 counts of noise but lagged (first tick 88 ms after a start); the sensor is clean now (0 counts at rest). | Back to 1 Hz / 3 if the noise returns: run `R` at rest. |
 | `kListLingerMs` (ui.cpp) | 3 s | How long the track list stays after browsing, before the waveform returns. | |
 | `kBinsPerPx` (ui.cpp) | 4 (≈5.6 s across) | Waveform zoom. | The XDJ's default zoom. |
 
@@ -310,5 +331,5 @@ Next:
 - Test against a real XDJ, and send beat packets so the deck can be tempo master.
 - Deck B and the crossfader.
 - An overview waveform, with an analysis cache on the SD card.
-- A stereo DAC (PCM5102A) and timecode input (PCM1808).
+- A stereo DAC (PCM5102A). Timecode input is done, over a USB audio interface.
 - The DSI screen.

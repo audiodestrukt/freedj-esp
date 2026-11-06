@@ -892,6 +892,7 @@ static void refresh(lv_timer_t*)
     else if (!s.loaded)     { st = "EMPTY";   sc = kDim; }
     else if (s.emergency)   { st = "E.LOOP";  sc = lv_color_hex(0xE0453A); }
     else if (s.previewing)  { st = "CUE";     sc = kOrange; }
+    else if (s.playing && s.vinyl) { st = "VINYL"; sc = s.vinyl == 1 ? kGreen : kOrange; }
     else if (s.playing)     { st = "PLAYING"; sc = kGreen; }
     else                    { st = "PAUSED";  sc = kOrange; }
     if (s_first || strcmp(lv_label_get_text(s_state), st)) {
