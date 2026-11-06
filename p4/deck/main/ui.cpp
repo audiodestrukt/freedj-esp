@@ -1086,6 +1086,9 @@ void splashStatus(const char* text)
 void setGrid(const rekordbox::Grid* grid) { s_grid.store(grid); }
 static const rekordbox::Grid* overviewGrid() { return s_grid.load(); }
 
+bool listShown() { return !s_waveShown; }
+void listDone() { s_lastListUse = lv_tick_get() - kListLingerMs - 1; }   // BROWSE (touch) stays until BROWSE again
+
 void togglePhaseView()
 {
     lvgl_port_lock(0);

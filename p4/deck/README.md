@@ -123,6 +123,8 @@ LCDwiki's, and may need flipping.
 - Tap the **timecode chip** (ABS / REL / INT / THRU, only with a USB audio input) to cycle the vinyl mode.
 - **Long-press SYNC** to become tempo master. The BPM line shows MASTER in orange; other players can then sync to the deck.
 
+**Browsing without touch:** with the track list on screen (nothing loaded, or a few seconds after browsing), the jog scrolls it (30 rows a turn) and PLAY loads the selected track on release. Anywhere else, hold PLAY and turn the jog to bring the list up; PLAY acts on press, so the first jog tick undoes that press (a split-second blip). Once a track loads, the waveform is back and the jog and PLAY are as before.
+
 **DJ2Go pitch bend − / +:** − toggles key lock (with a USB audio input: THRU on / off, back to the mode it came from; serial `k` is key lock), + switches the beat meter between bar boxes and phase ticks (as tapping it does). The DJ2Go no longer sets manual loops; use the touch screen or serial `i` / `u`.
 
 **Serial keys** (console UART), for hands-off testing:

@@ -99,6 +99,8 @@ constexpr int      kVinylTrimHoldMs = 200;
 // I2S DMA (~33 ms) + USB output ring (~23 ms) + USB input (~5 ms). Aim the
 // playhead this far ahead of the record so the sound lines up with it.
 constexpr int      kVinylLeadMs = 60;
+// Track list on screen: jog ticks per row (AS5600: 180 ticks/rev, so 30 rows a turn).
+constexpr int      kBrowseTicksPerRow = 6;
 // THRU (a real record through the interface): keep this much input queued,
 // enough to ride out its 4 ms bursts (~11.6 ms extra latency). Its clock and
 // ours differ, so when the average strays kThruSlack from it, a block reads
@@ -364,6 +366,39 @@ static void loadCues(Deck& d)
 static void apply(Deck& d, const deck::Event& e)
 {
     using deck::Type;
+    // Browsing without touch. With the track list on screen, the jog scrolls it
+    // and PLAY loads (on release; the list goes and the jog is a jog again).
+    // Anywhere, hold PLAY and turn the jog: it scrolls (and brings up) the list.
+    // PLAY still acts on press, so the first tick undoes that press.
+    static bool playHeld, playBrowsed, playWas, listAtPress;
+    static double playPos;
+    if (e.deck == deck::DeckA && e.type == Type::PlayPause) {
+        if (e.pressed) {
+            playHeld = true; playBrowsed = false; playWas = d.playing; playPos = d.pos;
+            listAtPress = ui::listShown();
+            if (listAtPress) return;               // the list: load on release
+        } else {
+            playHeld = false;
+            if (!playBrowsed && listAtPress)
+                apply(d, deck::Event{.type = Type::Load, .deck = deck::DeckA, .pressed = true});
+            return;
+        }
+    }
+    if (e.deck == deck::DeckA && e.type == Type::Jog && (playHeld || ui::listShown())) {
+        if (playHeld && !playBrowsed) {
+            playBrowsed = true;
+            if (d.playing != playWas) {            // undo the press
+                d.playing = playWas;
+                if (!playWas) seek(d, playPos);
+            }
+        }
+        static int acc;
+        acc += e.delta;
+        const int rows = acc / kBrowseTicksPerRow;
+        acc -= rows * kBrowseTicksPerRow;
+        if (rows) apply(d, deck::Event{.type = Type::Browse, .deck = deck::DeckAny, .delta = (int16_t)rows});
+        return;
+    }
     if (e.type == Type::Browse) {
         const int n = d.lib ? d.lib->size() : 0;
         if (n) { d.selected = ((d.selected + e.delta) % n + n) % n; logSelection(d); }
@@ -380,6 +415,7 @@ static void apply(Deck& d, const deck::Event& e)
         d.loaded = false;
         d.emergency = d.looping = d.loopInSet = false;
         d.loading = true;
+        ui::listDone();
         ESP_LOGI(TAG, "loading…");
         return;
     }

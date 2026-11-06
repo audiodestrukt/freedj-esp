@@ -11,6 +11,13 @@ playing (see the README's *Audio health* section). Unless noted, it's
 the panel**, so they read high. From 2026-10-31 on, "screen fps" counts
 frames LVGL actually rendered and flushed.
 
+## 2026-11-06 (later): browse with the jog and PLAY
+
+- With the track list on screen, the jog scrolls it (`kBrowseTicksPerRow` 6: 30 rows per turn on
+  the AS5600) and PLAY loads on release; the waveform comes back as soon as the track loads.
+  Hold PLAY and turn the jog to bring the list up from anywhere (the first tick undoes the
+  press). For selecting tracks with touch not wired. No budget change: image 1,477,856 B (−96).
+
 ## 2026-11-06: THRU (a real record through the interface); DJ2Go pitch bend − toggles it
 
 - **THRU**, Serato's fourth mode: the timecode chip (or serial `V`) now cycles ABS → REL → INT →

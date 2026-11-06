@@ -98,6 +98,10 @@ void setGrid(const rekordbox::Grid* grid);
 // Switch the phase meter between the beat display and the alignment view
 // (same as tapping it). Safe from any task.
 void togglePhaseView();
+// The track list is on screen (no track, BROWSE, or a few seconds after browsing).
+bool listShown();
+// A track was loaded from the list: back to the waveform now, not after the linger.
+void listDone();
 
 // Short text for the status log, e.g. "waveform 24.1 fps" or "list".
 const char* waveStats();
