@@ -137,6 +137,7 @@ static volatile int s_syncOffsetMs; // serial [ / ]: trim our phase against the 
 static volatile int s_fakeGridBpm;
 static volatile int s_jogTicks;     // jog ticks since the last serial J (calibration)  // serial g: test grid for a track without rekordbox analysis
 
+static bool s_vinylStill;          // the record drives the deck but isn't moving: the jog scratches (audio task)
 static volatile bool s_midiLog;   // serial I: print raw USB-MIDI packets (mapping new controllers)
 
 static void onMidiPacket(const uint8_t p[4])
@@ -523,7 +524,7 @@ static void apply(Deck& d, const deck::Event& e)
         break;
     case Type::Jog:
         s_jogTicks += e.delta;                           // for jog calibration (serial J)
-        if (d.playing) d.nudge += e.delta * kNudgePerTick;
+        if (d.playing && !s_vinylStill) d.nudge += e.delta * kNudgePerTick;
         else if (d.loaded && !d.emergency) {
             if (!d.scratching) { d.scratching = true; d.scratchTarget = d.pos; s_wsola.reset(); }
             d.scratchTarget += e.delta * kScrubFrames;
@@ -1063,6 +1064,8 @@ static void audioTask(void*)
             vinylSpeed = 0;
         }
         s_vinylUi = !vinylOn ? 0 : vs.signal ? 1 : 2;
+        s_vinylStill = vinylOn && !vs.signal && !vs.settling;
+        if (vinylOn && vs.signal) d.scratching = false;   // the record moves again: it has the deck
         // Absolute: follow the needle. Not in a loop (the loop wins, as in Serato).
         static int64_t vinylOffSinceUs;     // small error first seen (0 = none)
         if (vinylOn && vs.absolute && vs.posMs >= 0 && d.playing && !d.looping && !d.emergency) {
@@ -1141,7 +1144,14 @@ static void audioTask(void*)
         const bool slipping = d.slip && d.playing && (((d.looping && !d.emergency)) || d.reverse || d.hotHeld);
         if (wasSlipping && !slipping && d.loaded) seek(d, d.slipPos);
         wasSlipping = slipping;
-        if (d.playing && d.loaded) {
+        if (d.loaded && d.scratching && s_vinylStill) {
+            // Record still, jog moving: scratch, as when paused.
+            if (!renderScratch(d, buf)) { d.scratching = false; d.pos = d.scratchTarget; }
+            s_stream.setPlayhead((size_t)d.pos);
+            const float g = d.gain;
+            for (int i = 0; i < kBlock * 2; i++) buf[i] = (int16_t)(buf[i] * g);
+            s_clicks.reset();
+        } else if (d.playing && d.loaded) {
             // Reverse always plays varispeed: the time-stretcher only runs forwards.
             // Slow or backwards record: varispeed (WSOLA only runs forwards, and smears near 0).
             const bool stretch = d.keylock && !d.reverse && !(vinylOn && speed < kVinylKeylockMin);
