@@ -154,6 +154,7 @@ LCDwiki's, and may need flipping.
 | `A` | timecode vinyl: absolute (needle drops seek) / relative |
 | `f` | cycle the timecode decoder's flags (record plays backwards, or L/R swapped in the cabling) |
 | `L` | timecode vinyl status (also in the 2 s report) |
+| `Z` | timecode vinyl: the needle is on the record's first groove (sets track 0:00) |
 | `w` | cycle the waveform test mode: normal → drawn but not sent to the screen → off |
 
 [`tools/p4_serial.py`](../../tools/p4_serial.py) holds the port open without resetting the board, logs to a file, and sends anything appended to `<log>.cmd`. A whole experiment can be scripted, for example:
@@ -168,7 +169,10 @@ echo -n 3l >> deck.log.cmd; sleep 3; echo -n p >> deck.log.cmd
 Plug a USB audio interface (*Hardware*) into a hub port and a turntable with a Serato Control Vinyl record into its line in, through a phono preamp or a mixer's line out. Load a track and press PLAY. Once the deck has heard 0.3 s of steady timecode at 0.6–1.5× (33 or 45), the record drives it:
 
 - **Speed and direction** follow the record. Stopping it stops the audio; backwards plays backwards. Keylock hands over to varispeed below 0.5× and in reverse. The tempo fader, nudge and SYNC don't apply.
-- **Absolute mode** (default, `A` toggles): the track follows the record's position too, with 0:00 at the start of the record. Lift the needle and drop it further in, and the track jumps there. Inside a loop the loop wins.
+- **Absolute mode** (default, `A` toggles): the track follows the record's position too, with 0:00 at the record's first groove. Lift the needle and drop it further in, and the track jumps there. Inside a loop the loop wins.
+  - **Needle drops:** after a lift, the deck stays silent until the decoder has a position (bit lock), then jumps there: about 0.1–0.5 s, typically 0.2 s, plus any MP3 decode at the new spot. No lock within 1 s: it follows speed only.
+  - **Staying on it:** a jump of 300 ms or more seeks at once; a smaller steady error (after a scratch, or a seek that waited for the decoder) re-syncs after 0.2 s, once that audio is decoded. Steady play stays within ~25 ms.
+  - **Record start:** our Serato Control Vinyl's first groove reads 24.0 s of timecode, so that's track 0:00 (`kStartMs` in `vinyl.cpp`). Another record: drop on the first groove and press `Z`. Before the start, the track waits at 0:00.
 - **Relative mode:** speed and direction only.
 - The state chip reads **VINYL**: green while the record moves, orange while it's stopped.
 - An interface used only for its output, or music on its line in, never takes over: it needs the timecode carrier first.
@@ -271,6 +275,9 @@ How the deck responds to your hands. All in one block at the top of `main/main.c
 | `kVinylSmooth` | 0.35 per block (~15 ms) | Smoothing on the record's speed. Lower is steadier but lags a hand on the platter. | A turntable through Serato: no audible lag on a scratch. |
 | `kVinylKeylockMin` | 0.5× | Below this, keylock gives way to varispeed (WSOLA smears near 0). | |
 | `kVinylSeekMs` / `kVinylSeekGapMs` | 300 ms / 250 ms | Absolute mode: how far off the record the track must be before it jumps (a needle drop), and how often it may. | Same as the A1S. |
+| `kVinylTrimMs` / `kVinylTrimHoldMs` | 25 ms / 200 ms | Smaller errors re-sync once they've held this long (only when the audio there is decoded). | |
+| `kVinylLeadMs` | 60 ms | The playhead runs this far ahead of the record so the sound (I2S + USB out + USB in delay) lines up with it. | Estimated, not measured: a click on the record vs the sound would pin it. |
+| `kLiftMs` / `kSettleMaxMs` (vinyl.cpp) | 150 ms / 1 s | A carrier gap this long is a lift; then hold silent until bit lock, at most this long. | Serato: a needle drop lands on the new spot without scratching the old one. |
 | `kMinCutoff` / `kDeadband` (as5600.cpp) | 30 Hz / 1 tick | The AS5600 jog's smoothing at rest and the ticks needed to start or reverse. 1 Hz / 3 ticks hid ±100 counts of noise but lagged (first tick 88 ms after a start); the sensor is clean now (0 counts at rest). | Back to 1 Hz / 3 if the noise returns: run `R` at rest. |
 | `kListLingerMs` (ui.cpp) | 3 s | How long the track list stays after browsing, before the waveform returns. | |
 | `kBinsPerPx` (ui.cpp) | 4 (≈5.6 s across) | Waveform zoom. | The XDJ's default zoom. |

@@ -24,6 +24,15 @@ constexpr float   kMinSpeed  = 0.02f;
 constexpr int     kArmMs     = 300;       // steady carrier near 1x this long arms it
 constexpr int     kDropMs    = 40;        // no carrier this long = record stopped
 constexpr int     kWindowMs  = 10;
+// Needle drop: carrier back after at least kLiftMs without it. Until bit lock
+// (a position), the speed reading is landing noise, so the deck holds silent
+// for up to kSettleMaxMs instead of scratching the old spot.
+constexpr int     kLiftMs      = 150;
+constexpr int     kSettleMaxMs = 1000;
+// Our Serato Control Vinyl's first groove reads ~24.0-24.3 s of timecode
+// (three needle drops on the bench, 2026-11-05), so that's track 0:00, as in
+// Serato's absolute mode. Serial Z re-measures it for another record.
+constexpr int32_t kStartMs   = 24000;
 
 timecode::Decoder s_dec;
 uint32_t s_rate;
@@ -31,6 +40,7 @@ uint32_t s_flags = 0;            // USB interfaces: L/R as recorded (the A1S cod
 volatile uint32_t s_wantFlags = 0xFFFFFFFF;
 volatile bool s_enabled = true;
 volatile bool s_absolute = true;
+volatile int32_t s_startMs = kStartMs;
 portMUX_TYPE s_mux = portMUX_INITIALIZER_UNLOCKED;
 State s_state;
 
@@ -40,7 +50,8 @@ void task(void*)
     int64_t lastCarrierUs = 0, steadySinceUs = 0, windowUs = 0;
     int16_t windowPeak = 0, shownPeak = 0;
     int peakAgeMs = 0;
-    bool armed = false, signal = false;
+    bool armed = false, signal = false, settling = false;
+    int64_t landedUs = 0;
     // The position table (3 MB in PSRAM): built here, before any input, or
     // the first decode builds it and the input ring overflows meanwhile.
     timecode::prebuildLut(timecode::Format::SeratoControlVinyl);
@@ -80,8 +91,25 @@ void task(void*)
             const float sp = s_dec.speed();
             const float m = fabsf(sp);
             const bool carrier = windowPeak >= kMinPeak && m >= kMinSpeed && m <= kMaxSpeed;
+            const int64_t gapUs = now - lastCarrierUs;   // before this window's carrier
             if (carrier) lastCarrierUs = now;
+            const bool was = signal;
             signal = now - lastCarrierUs < kDropMs * 1000;
+            if (signal && !was && gapUs >= kLiftMs * 1000 && s_absolute) {
+                settling = true;
+                landedUs = now;
+                s_dec.reset();   // or lock and position from before the lift linger for a moment
+            }
+            if (settling) {
+                const int ms = (int)((now - landedUs) / 1000);
+                if (s_dec.locked() && s_dec.position() >= 0) {
+                    settling = false;
+                    ESP_LOGI(TAG, "needle down: bit lock in %d ms", ms);
+                } else if (ms >= kSettleMaxMs || !signal) {
+                    settling = false;
+                    ESP_LOGW(TAG, "needle down: no bit lock in %d ms, following speed only", ms);
+                }
+            }
             // Arm on a steady, roughly normal-speed carrier (a real record, not music).
             if (carrier && m > 0.6f && m < 1.5f) {   // 33 or 45 rpm
                 if (!steadySinceUs) steadySinceUs = now;
@@ -99,13 +127,15 @@ void task(void*)
             s_state.input = true;
             s_state.armed = armed;
             s_state.signal = signal;
-            s_state.speed = signal ? sp : 0.0f;
+            s_state.speed = signal && !settling ? sp : 0.0f;
+            s_state.settling = settling;
             s_state.locked = s_dec.locked();
             s_state.peak = shownPeak;
             s_state.rate = rate;
             s_state.flags = s_flags;
-            s_state.posMs = signal && s_dec.locked() && s_dec.position() >= 0
+            s_state.rawMs = signal && s_dec.locked() && s_dec.position() >= 0
                                 ? (int32_t)((int64_t)s_dec.position() * 1000 / s_dec.resolutionHz()) : -1;
+            s_state.posMs = s_state.rawMs >= s_startMs ? s_state.rawMs - s_startMs : -1;
             portEXIT_CRITICAL(&s_mux);
         }
         if (n < 512) vTaskDelay(pdMS_TO_TICKS(2));
@@ -130,6 +160,13 @@ State state()
 
 void setEnabled(bool on) { s_enabled = on; }
 void setAbsolute(bool on) { s_absolute = on; }
+int32_t startMs() { return s_startMs; }
+void setStartHere()
+{
+    const State s = state();
+    if (s.rawMs >= 0) s_startMs = s.rawMs;
+    ESP_LOGI(TAG, "record start %s: %ld ms of timecode", s.rawMs >= 0 ? "set" : "unchanged (no bit lock)", (long)s_startMs);
+}
 bool absolute() { return s_absolute; }
 bool enabled() { return s_enabled; }
 

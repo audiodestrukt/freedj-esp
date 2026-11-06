@@ -90,6 +90,15 @@ constexpr float    kVinylKeylockMin = 0.5f;
 // a real jump seeks. Same numbers as the A1S.
 constexpr int      kVinylSeekMs = 300;
 constexpr int      kVinylSeekGapMs = 250;
+// ...and smaller steady errors (after a scratch, or a seek that had to wait
+// for the decoder) get re-synced once they've held kVinylTrimHoldMs, and only
+// when the audio there is already decoded, so the fix can't stall.
+constexpr int      kVinylTrimMs = 25;
+constexpr int      kVinylTrimHoldMs = 200;
+// What we hear lags the playhead and the record's position lags the record:
+// I2S DMA (~33 ms) + USB output ring (~23 ms) + USB input (~5 ms). Aim the
+// playhead this far ahead of the record so the sound lines up with it.
+constexpr int      kVinylLeadMs = 60;
 // ──────────────────────────────────────────────────────────────────────────────
 
 constexpr uint8_t  kLinkPlayer = 2;      // our Pro DJ Link player number
@@ -769,7 +778,9 @@ static void onUiSeek(float fraction) { xQueueOverwrite(s_seekReq, &fraction); }
 static prolink::Master s_master;     // audio task's copy, refreshed every block
 
 static uint8_t s_vinylUi;          // ui::State::vinyl, set by the audio task
-static volatile uint32_t s_vinylSeeks;   // needle-drop seeks (audio task), for the report
+static volatile uint32_t s_vinylSeeks;   // seeks to the record (audio task), for the report
+static volatile uint32_t s_vinylTrims;   // ...of which small re-syncs
+static volatile int s_vinylErrMs;        // playhead - (record + lead), latest while locked
 static volatile int s_vinylDriftMs;      // track vs record before the last seek
 
 static void publishState(const Deck& d, float speed)
@@ -902,13 +913,13 @@ static void logVinyl()
     if (!v.input) return;
     const usb_audio::InputStats is = usb_audio::inputStats();
     char pos[24] = "-";
-    if (v.posMs >= 0) snprintf(pos, sizeof pos, "%d:%04.1f", (int)(v.posMs / 60000), fmodf(v.posMs / 1000.0f, 60));
-    ESP_LOGI(TAG, "  vinyl: %s%s, %s  speed %+.3f  record at %s  seeks %lu (last %d ms off)  peak %d  bit lock %s  flags %lu"
-             "  (%lu Hz, %lu packets, %lu errors, %lu overflows)",
+    if (v.rawMs >= 0) snprintf(pos, sizeof pos, "%d:%04.1f", (int)(v.rawMs / 60000), fmodf(v.rawMs / 1000.0f, 60));
+    ESP_LOGI(TAG, "  vinyl: %s%s, %s  speed %+.3f  record at %s (start %ld)  seeks %lu (%lu re-syncs, last %d ms off)  track - record %+d ms  peak %d  bit lock %s  flags %lu"
+             "  (%lu Hz, %lu packets, %lu errors, %lu overflows, %lu restarts)",
              !vinyl::enabled() ? "off (V)" : v.armed ? "driving" : "waiting for carrier", v.armed && !v.signal ? ", record stopped" : "",
-             v.absolute ? "absolute" : "relative", v.speed, pos, (unsigned long)s_vinylSeeks, s_vinylDriftMs,
+             v.absolute ? "absolute" : "relative", v.speed, pos, (long)vinyl::startMs(), (unsigned long)s_vinylSeeks, (unsigned long)s_vinylTrims, s_vinylDriftMs, s_vinylErrMs,
              v.peak, v.locked ? "yes" : "no", (unsigned long)v.flags, (unsigned long)v.rate,
-             (unsigned long)is.packets, (unsigned long)is.errors, (unsigned long)is.overflows);
+             (unsigned long)is.packets, (unsigned long)is.errors, (unsigned long)is.overflows, (unsigned long)is.restarts);
 }
 
 static void reporterTask(void*)
@@ -1053,17 +1064,34 @@ static void audioTask(void*)
         }
         s_vinylUi = !vinylOn ? 0 : vs.signal ? 1 : 2;
         // Absolute: follow the needle. Not in a loop (the loop wins, as in Serato).
+        static int64_t vinylOffSinceUs;     // small error first seen (0 = none)
         if (vinylOn && vs.absolute && vs.posMs >= 0 && d.playing && !d.looping && !d.emergency) {
-            const double target = vs.posMs * (double)s_stream.sampleRate() / 1000.0;
+            const double target = (vs.posMs + kVinylLeadMs * vinylSpeed) * (double)s_stream.sampleRate() / 1000.0;
             const double driftMs = fabs(d.pos - target) * 1000.0 / s_stream.sampleRate();
+            s_vinylErrMs = (int)((d.pos - target) * 1000.0 / s_stream.sampleRate());
             static int64_t lastSeekUs;
             const int64_t now = esp_timer_get_time();
-            if (driftMs >= kVinylSeekMs && now - lastSeekUs >= kVinylSeekGapMs * 1000 && target < s_stream.frames()) {
+            bool go = false;
+            if (driftMs >= kVinylSeekMs) {
+                go = now - lastSeekUs >= kVinylSeekGapMs * 1000;    // needle drop: jump even if it has to wait
+                vinylOffSinceUs = 0;
+            } else if (driftMs >= kVinylTrimMs) {
+                if (!vinylOffSinceUs) vinylOffSinceUs = now;
+                int16_t probe[2];
+                go = now - vinylOffSinceUs >= kVinylTrimHoldMs * 1000 && s_stream.get((size_t)target, probe, 1);
+            } else {
+                vinylOffSinceUs = 0;
+            }
+            if (go && target < s_stream.frames()) {
                 s_vinylDriftMs = (int)driftMs;
                 seek(d, target);
                 lastSeekUs = now;
+                vinylOffSinceUs = 0;
                 s_vinylSeeks = s_vinylSeeks + 1;
+                if (driftMs < kVinylSeekMs) s_vinylTrims = s_vinylTrims + 1;
             }
+        } else {
+            vinylOffSinceUs = 0;
         }
         if (d.keylock) stepWsolaLag(speed);
         bool synced = false;
@@ -1129,6 +1157,7 @@ static void audioTask(void*)
             for (int i = 0; i < kBlock * 2; i++) buf[i] = (int16_t)(buf[i] * g);
             if (!d.playing) ESP_LOGI(TAG, "end of track");
             if (fed && d.playing) s_clicks.feed(buf, kBlock); else s_clicks.reset();
+            if (vinylOn && vs.settling) memset(buf, 0, sizeof buf);   // needle landing: silent until it has a position
         } else if (d.loaded && d.scratching) {
             // Paused, jog moving: play the scratch.
             if (!renderScratch(d, buf)) { d.scratching = false; d.pos = d.scratchTarget; }
@@ -1209,7 +1238,7 @@ static void audioTask(void*)
 //   , . beat jump -/+4   < > call previous/next memory cue   q quantize
 //   t tempo range   T tempo reset   m M memory cue add/delete   z slip   r reverse
 //   Y become tempo master   J jog calibration (ticks since the last J)   e jog encoder readings   E its magnet status   R 4 s of its raw samples   I raw MIDI log   P panel buttons + pitch pot
-//   V timecode vinyl on/off   f cycle its decoder flags (backwards record / swapped channels)   L vinyl status   A absolute / relative
+//   V timecode vinyl on/off   f cycle its decoder flags (backwards record / swapped channels)   L vinyl status   A absolute / relative   Z the needle is at the record's start (track 0:00)
 //   w cycle waveform test mode (normal / no flush / off)
 static void serialKeysTask(void*)
 {
@@ -1288,6 +1317,7 @@ static void serialKeysTask(void*)
         case 'V': vinyl::setEnabled(!vinyl::enabled()); ESP_LOGI(TAG, "timecode vinyl %s", vinyl::enabled() ? "on" : "off"); continue;
         case 'f': ESP_LOGI(TAG, "timecode flags -> %lu", (unsigned long)vinyl::cycleFlags()); continue;
         case 'L': logVinyl(); continue;
+        case 'Z': vinyl::setStartHere(); continue;
         case 'A': vinyl::setAbsolute(!vinyl::absolute()); ESP_LOGI(TAG, "timecode vinyl: %s", vinyl::absolute() ? "absolute (needle drops seek)" : "relative"); continue;
         case 'g': s_fakeGridBpm = 120; ESP_LOGI(TAG, "test grid: 120 BPM from the start"); continue;
         case '[': s_syncOffsetMs -= 2; ESP_LOGI(TAG, "sync offset %+d ms", s_syncOffsetMs); continue;

@@ -23,8 +23,10 @@ struct State {
     int16_t  peak;       // max |sample| over the last ~100 ms
     uint32_t rate;       // input Hz
     uint32_t flags;      // decoder SWITCH_* flags
-    int32_t  posMs = -1; // place on the record (ms at 33 1/3), -1 without bit lock
+    int32_t  posMs = -1; // place in the track (ms at 33 1/3 past the record's start), -1 without bit lock or before the start
+    int32_t  rawMs = -1; // the decoder's position, before the start offset
     bool     absolute;   // follow posMs (needle drops seek)
+    bool     settling;   // needle just landed: hold silent until bit lock gives a position
 };
 
 void begin();
@@ -37,6 +39,10 @@ inline bool driving(const State& s) { return s.input && s.armed; }
 // Cycle the decoder's SWITCH_PHASE / PRIMARY / POLARITY flags (serial f):
 // for a backwards record or channels swapped in the cabling.
 uint32_t cycleFlags();
+// The timecode position the record's first groove carries: track 0:00.
+// Serial Z sets it to where the needle is now.
+void setStartHere();
+int32_t startMs();
 // Absolute / relative (serial A).
 void setAbsolute(bool on);
 bool absolute();

@@ -11,6 +11,26 @@ playing (see the README's *Audio health* section). Unless noted, it's
 the panel**, so they read high. From 2026-10-31 on, "screen fps" counts
 frames LVGL actually rendered and flushed.
 
+## 2026-11-05 (later): needle drops land clean; record start; USB input recovers
+
+- **Needle drops**: a carrier gap of 150 ms or more is a lift. On landing the decoder resets
+  (a lingering lock had seeked back to the old spot) and the deck holds silent until bit lock
+  gives a position, at most 1 s, instead of scratching the old spot on landing noise. 12
+  drops: lock in 104-480 ms (typically ~215); 3 missed (two lifted again within 50-160 ms,
+  one timed out) and followed speed.
+- **Re-sync**: a steady error of 25-300 ms that holds for 200 ms re-syncs, if the audio there
+  is decoded. Before, anything under 300 ms stayed: the track sat ~0.3 s behind after MP3
+  seeks that waited for the decoder, and after scratches. Now within 0-25 ms in steady play
+  (re-syncs fire about once a minute). The playhead aims 60 ms ahead of the record for the
+  output delay (estimated).
+- **Record start**: the first groove of our Serato Control Vinyl reads 24.0-24.3 s of
+  timecode (three drops), so 24.0 s is track 0:00 (Serato's absolute mapping). Serial `Z`
+  sets it for another record.
+- **USB input recovers from a transfer error**: after ~220 s the PCM2902 sent one overflow
+  (status 5), the endpoint halted, and vinyl stopped for good. The last failed transfer now
+  queues a flush/clear/resubmit on the device task; restarts are counted in the vinyl line.
+- Image 1,476,080 B (+2,896). No change to the steady-state budget (no new tasks or buffers).
+
 ## 2026-11-05: timecode vinyl over a USB audio interface; looser jog filter
 
 - **Timecode vinyl on the P4.** The USB audio driver now also reads a UAC1 interface's line

@@ -167,7 +167,10 @@ In order. Costs: **cheap** = logic only, no per-sample work; **moderate**; **hea
 - [ ] **Start on record motion**: play when the record moves, no PLAY press (Serato relative). Decide what CUE means while the record drives.
 - [ ] **33/45 setting** (or detect it from the carrier): 45 plays 1.35x fast.
 - [ ] **Scratch feel** with a hand on the platter: hand-to-sound latency, `kVinylSmooth`, the keylock handover.
-- [ ] **Needle drop on the bench**: absolute mode is in but untested on a real drop (bit lock and position were seen; no drop yet).
+- [x] **Needle drops** (2026-11-05): hold silent until bit lock (0.1-0.5 s), track 0:00 = the first groove (24.0 s of timecode), small errors re-synced; within ~25 ms in steady play.
+- [ ] **The screen catches up after a needle drop**: the audio lands right, but the waveform/time visibly re-sync a moment later. Look at what the UI does on a big seek.
+- [ ] **CPU when nothing's playing in**: gate the decoder on input level (noise floor ~19 vs carrier threshold 600), build the 3 MB table on first carrier, and a `CONFIG_FREEDJ_VINYL` build option.
+- [ ] Lock misses: 3 of 12 drops got no bit lock (two lifted again within 50-160 ms, one ran out 1 s).
 - [ ] **Screen**: the record's speed in place of the fader's, and a signal / bit-lock mark.
 - [ ] Serato Control CD format, for CDJs playing timecode CDs.
 
