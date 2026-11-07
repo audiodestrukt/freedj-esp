@@ -288,6 +288,8 @@ static void followLibrary(Deck& d)
     d.selected = sel;
 }
 
+static bool s_jumped;   // seek() moved the playhead (audio task): the next block is declicked
+
 static void seek(Deck& d, double frame)
 {
     if (frame < 0) frame = 0;
@@ -296,6 +298,7 @@ static void seek(Deck& d, double frame)
     s_stream.setPlayhead((size_t)frame);
     s_wsola.reset();
     d.scratching = false;
+    s_jumped = true;           // the next block won't continue this one: declick it
 }
 
 // ── Performance: cues, loops, beat jump, quantize ───────────────────────────
@@ -677,6 +680,9 @@ static void renderThru(int16_t* out)
 // arrived (nothing more to play).
 static bool renderScratch(Deck& d, int16_t* out)
 {
+    // When the playhead comes to rest it holds the last sample rather than
+    // dropping to 0 mid-block (a click); the declick takes it down to silence.
+    static int16_t holdL, holdR;
     bool moving = false;
     for (int i = 0; i < kBlock; i++) {
         double step = (d.scratchTarget - d.pos) / kScratchChase;
@@ -686,10 +692,10 @@ static bool renderScratch(Deck& d, int16_t* out)
         if (step != 0) moving = true;
         const size_t i0 = (size_t)d.pos;
         int16_t two[4];
-        if (step == 0 || !s_stream.get(i0, two, 2)) { out[2 * i] = out[2 * i + 1] = 0; continue; }
+        if (step == 0 || !s_stream.get(i0, two, 2)) { out[2 * i] = holdL; out[2 * i + 1] = holdR; continue; }
         const float fr = (float)(d.pos - i0);
-        out[2 * i]     = (int16_t)(two[0] + fr * (two[2] - two[0]));
-        out[2 * i + 1] = (int16_t)(two[1] + fr * (two[3] - two[1]));
+        out[2 * i]     = holdL = (int16_t)(two[0] + fr * (two[2] - two[0]));
+        out[2 * i + 1] = holdR = (int16_t)(two[1] + fr * (two[3] - two[1]));
         d.pos += step;
         if (d.pos < 0) d.pos = 0;
     }
@@ -823,6 +829,48 @@ static float syncSpeed(float masterBpm, float trackBpm)
 struct SyncStats { double errSumMs = 0, errMaxMs = 0; int n = 0; };
 static SyncStats s_syncStats;
 static float s_syncBend;           // smoothed phase bend (audio task only)
+
+// Declick, on every block on its way to the DAC. The channel gain ramps across
+// the block instead of stepping (the DJ2Go fader moves in 128 steps: each step
+// was a tick). And when the sound jumps (play/stop, a seek, a scratch coming to
+// rest, THRU on/off, an underrun's silence) the step from the last sample out
+// to the new signal is spread over kDeclickFrames (~3 ms), so it can't click.
+// A block that just continues the last one passes untouched.
+constexpr int kDeclickFrames = 128;
+enum class Source : uint8_t { Silence, Thru, Scratch, Play };
+struct Declick {
+    float  gain = -1;          // gain at the end of the last block (-1: none yet)
+    float  lastL = 0, lastR = 0;
+    Source source = Source::Silence;
+
+    void run(int16_t* b, float target, Source src, bool jump)
+    {
+        if (gain < 0) gain = target;
+        const float g0 = gain, dg = (target - g0) / kBlock;
+        float offL = 0, offR = 0;
+        if (jump || src != source) { offL = lastL - b[0] * g0; offR = lastR - b[1] * g0; }
+        const bool blend = offL != 0 || offR != 0;
+        float l = 0, r = 0;
+        for (int i = 0; i < kBlock; i++) {
+            const float g = g0 + dg * (i + 1);
+            l = b[2 * i] * g;
+            r = b[2 * i + 1] * g;
+            if (blend && i < kDeclickFrames) {
+                const float w = 1.0f - (float)i / kDeclickFrames;
+                l += offL * w;
+                r += offR * w;
+            }
+            b[2 * i]     = (int16_t)(l > 32767 ? 32767 : l < -32768 ? -32768 : l);
+            b[2 * i + 1] = (int16_t)(r > 32767 ? 32767 : r < -32768 ? -32768 : r);
+        }
+        lastL = b[2 * (kBlock - 1)];
+        lastR = b[2 * (kBlock - 1) + 1];
+        gain = target;
+        source = src;
+    }
+};
+static Declick s_declick;
+static bool s_lastUnderran;     // the last block came up short (it ends in silence)
 
 // Click detector on what actually goes to the DAC. A clean signal changes
 // slope smoothly; a dropout, a missed block or a bad splice makes the second
@@ -1255,19 +1303,18 @@ static void audioTask(void*)
         wasSlipping = slipping;
         const bool thru = vinyl::mode() == vinyl::Mode::Thru && usb_audio::inputActive() && usb_audio::inputRate() == kRate;
         if (!thru) s_thruPrimed = false;
+        Source src = Source::Silence;
+        bool measure = false;        // feed the click detector (continuous play only)
+        bool underran = false;
         if (thru) {
             // THRU: the record on the turntable, not the track (the deck holds its place).
             renderThru(buf);
-            const float g = d.gain;
-            for (int i = 0; i < kBlock * 2; i++) buf[i] = (int16_t)(buf[i] * g);
-            s_clicks.reset();
+            src = Source::Thru;
         } else if (d.loaded && d.scratching && s_vinylStill) {
             // Record still, jog moving: scratch, as when paused.
             if (!renderScratch(d, buf)) { d.scratching = false; d.pos = d.scratchTarget; }
             s_stream.setPlayhead((size_t)d.pos);
-            const float g = d.gain;
-            for (int i = 0; i < kBlock * 2; i++) buf[i] = (int16_t)(buf[i] * g);
-            s_clicks.reset();
+            src = Source::Scratch;
         } else if (d.playing && d.loaded) {
             // Reverse always plays varispeed: the time-stretcher only runs forwards.
             // Slow or backwards record: varispeed (WSOLA only runs forwards, and smears near 0).
@@ -1277,25 +1324,34 @@ static void audioTask(void*)
             else d.slipPos = d.pos;
             if (!fed) {
                 underruns++;
+                underran = true;
                 if (d.sync) d.alignNext = true;   // we stalled; the master didn't: re-snap
             }
             s_stream.setPlayhead((size_t)d.pos);
-            const float g = d.gain;
-            for (int i = 0; i < kBlock * 2; i++) buf[i] = (int16_t)(buf[i] * g);
             if (!d.playing) ESP_LOGI(TAG, "end of track");
-            if (fed && d.playing) s_clicks.feed(buf, kBlock); else s_clicks.reset();
-            if (vinylOn && vs.settling) memset(buf, 0, sizeof buf);   // needle landing: silent until it has a position
+            src = Source::Play;
+            measure = fed && d.playing;
+            if (vinylOn && vs.settling) { memset(buf, 0, sizeof buf); src = Source::Silence; measure = false; }   // needle landing: silent until it has a position
         } else if (d.loaded && d.scratching) {
             // Paused, jog moving: play the scratch.
             if (!renderScratch(d, buf)) { d.scratching = false; d.pos = d.scratchTarget; }
             s_stream.setPlayhead((size_t)d.pos);
-            const float g = d.gain;
-            for (int i = 0; i < kBlock * 2; i++) buf[i] = (int16_t)(buf[i] * g);
-            s_clicks.reset();
+            src = Source::Scratch;
         } else {
             memset(buf, 0, sizeof buf);
-            s_clicks.reset();
         }
+        s_declick.run(buf, d.gain, src, s_jumped || underran || s_lastUnderran);
+#if CONFIG_IDF_TARGET_ESP32
+        // The A1S's ES8388 mutes its output after ~300 ms of exact digital zeros and
+        // unmutes on the next non-zero sample, and each switch clicks (with the output's
+        // hiss in between). Silence goes out as 1 LSB of DC instead (-90 dBFS, inaudible),
+        // so it never switches. Heard on headphones 2026-11-07; gone with this.
+        if (src == Source::Silence)
+            for (int i = 0; i < kBlock * 2; i++) if (buf[i] == 0) buf[i] = 1;
+#endif
+        s_jumped = false;
+        s_lastUnderran = underran;
+        if (measure && !underran) s_clicks.feed(buf, kBlock); else s_clicks.reset();
         // Measure, but never print from here: a log line over the UART takes
         // longer than an audio block. The reporter task prints instead.
         const int64_t workUs = esp_timer_get_time() - tWrote;

@@ -11,6 +11,15 @@ playing (see the README's *Audio health* section). Unless noted, it's
 the panel**, so they read high. From 2026-10-31 on, "screen fps" counts
 frames LVGL actually rendered and flushed.
 
+## 2026-11-07 (later): declick (both boards); the ES8388's auto-mute (A1S)
+
+- **Clicks heard on headphones** (the P4's small speaker hid them):
+  - The channel gain stepped once per block: the DJ2Go's fader has 128 steps, so a slow fade ticked. It now ramps across each block.
+  - The sound jumped from mid-waveform to zero on stop and pause, and when a scratch came to rest. That step is now spread over about 3 ms (128 frames), on any change of source (silence, THRU, scratch, play), after a seek and around an underrun. A block that just continues the last one is untouched.
+  - A scratch at rest holds its last sample instead of dropping to 0 mid-block.
+- **A1S:** the ES8388 mutes itself after about 300 ms of exact zeros and unmutes on the next sample. Each switch clicked (a tiny jog nudge gave click, hiss, about 300 ms, click), and it wasn't the screen (the click stayed with the waveform off). Silence now goes out as 1 LSB of DC (-90 dBFS), so the codec never switches; the clicks are gone.
+- Cost: a multiply and an add per sample; block time not measured since. P4 1,478,912 B (+1,008); A1S 1,052,288 B.
+
 ## 2026-11-07 (later): A1S bring-up on the board: screen, audio, console; DJ2Go over serial
 
 - **Runs on the A1S.** The 2.8" draws, the SD card mounts, the DJ2Go (through the bridge) loads and plays, and the headphones play.
