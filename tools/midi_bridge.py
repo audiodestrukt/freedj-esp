@@ -10,7 +10,8 @@ host would deliver; the deck (serialKeysTask in p4/deck/main/main.cpp) hands it
 to onMidiPacket(), so the DJ2Go decoder sees exactly what it sees over USB.
 
 Also a monitor: prints the deck's log, and single keypresses go to the deck as
-console keys (p play, c cue, l load, ...). Ctrl-C quits.
+console keys (p play, c cue, l load, ...). Ctrl-C quits. Run in the background,
+`--keys FILE` sends whatever is appended to FILE: `printf w >> FILE` types w.
 
   python3 tools/midi_bridge.py                      # DJ2Go -> /dev/ttyUSB0
   python3 tools/midi_bridge.py --midi DJ2Go --port /dev/ttyACM0 -v
@@ -97,6 +98,7 @@ def main():
     ap.add_argument("--baud", type=int, default=115200)
     ap.add_argument("--reset", action="store_true", help="reset the board when connecting")
     ap.add_argument("-v", "--verbose", action="store_true", help="print each forwarded packet")
+    ap.add_argument("--keys", metavar="FILE", help="also send bytes appended to FILE (for running in the background)")
     a = ap.parse_args()
 
     dev, card = find_midi(a.midi)
@@ -133,8 +135,22 @@ def main():
                 sys.stdout.write(data.decode(errors="replace").replace("\n", "\r\n"))
                 sys.stdout.flush()
 
+    def keyfile(path):
+        open(path, "a").close()
+        with open(path, "rb") as f:
+            f.seek(0, os.SEEK_END)
+            while True:
+                data = f.read()
+                if data:
+                    with lock:
+                        ser.write(data.replace(b"\x01", b""))
+                else:
+                    time.sleep(0.05)
+
     threading.Thread(target=forward, daemon=True).start()
     threading.Thread(target=monitor, daemon=True).start()
+    if a.keys:
+        threading.Thread(target=keyfile, args=(a.keys,), daemon=True).start()
 
     old = None
     if sys.stdin.isatty():
@@ -142,7 +158,10 @@ def main():
         tty.setcbreak(sys.stdin.fileno())    # single keypresses, Ctrl-C still quits
     try:
         while True:
-            ch = sys.stdin.read(1) if old else (time.sleep(1) or "")
+            ch = sys.stdin.read(1) if old else ""
+            if not ch:                       # no terminal: just bridge
+                time.sleep(1)
+                continue
             if ch and ch != "\x01":          # 0x01 is the packet marker
                 with lock:
                     ser.write(ch.encode())
