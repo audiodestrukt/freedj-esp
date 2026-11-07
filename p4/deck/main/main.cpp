@@ -1367,6 +1367,8 @@ static void audioTask(void*)
 //   Y become tempo master   J jog calibration (ticks since the last J)   e jog encoder readings   E its magnet status   R 4 s of its raw samples   I raw MIDI log   P panel buttons + pitch pot
 //   V timecode vinyl mode ABS / REL / INT   f cycle its decoder flags (backwards record / swapped channels)   L vinyl status   A absolute / relative   Z the needle is at the record's start (track 0:00)
 //   w cycle waveform test mode (normal / no flush / off)
+//   0x01 + 4 bytes: a USB-MIDI packet, as if from the USB host (tools/midi_bridge.py
+//   forwards a controller plugged into the workstation)
 static void serialKeysTask(void*)
 {
     uart_driver_install(UART_NUM_0, 256, 0, 0, nullptr, 0);
@@ -1382,6 +1384,11 @@ static void serialKeysTask(void*)
         e.deck = deck::DeckA;
         e.pressed = true;
         switch (ch) {
+        case 0x01: {   // a USB-MIDI packet from the host (tools/midi_bridge.py): 0x01 + 4 bytes
+            uint8_t p[4];
+            if (uart_read_bytes(UART_NUM_0, p, 4, pdMS_TO_TICKS(20)) == 4) onMidiPacket(p);
+            continue;
+        }
         case '1' ... '9': onUiSelect(ch - '1', library::generation()); continue;
         case 'l': e.type = deck::Type::Load; break;
         case 'p': e.type = deck::Type::PlayPause; break;

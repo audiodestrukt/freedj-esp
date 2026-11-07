@@ -11,6 +11,15 @@ playing (see the README's *Audio health* section). Unless noted, it's
 the panel**, so they read high. From 2026-10-31 on, "screen fps" counts
 frames LVGL actually rendered and flushed.
 
+## 2026-11-07 (later): A1S bring-up on the board: screen, audio, console; DJ2Go over serial
+
+- **Runs on the A1S.** The 2.8" draws, the SD card mounts, the DJ2Go (through the bridge) loads and plays, and the headphones play.
+- **Screen:** 2 MHz SPI for now. A full-screen colour sweep drew cleanly up to about 2 MHz and broke from 4–6 MHz, with SCK on GPIO 18 or 21 alike; weaker pad drive was worse (strongest drive is set). The UI redraws about twice a second. The panel stayed white until it got 150 ms between reset and setup.
+- **Audio:** the ES8388 driver left LOUT2/ROUT2 near mute (DACCONTROL26/27 = 0); all four outputs are now 0 dB. `house.mp3` (256 kbps): realtime 100 %, 0 underruns, block work 0.7 ms avg / 4–5 ms max (budget 5.8), minimp3 decode about 18 % of core 0, core 0 25 %, core 1 13 %; 94 KB internal free (lowest 82), PSRAM 970 KB free. A few pops heard; not traced yet.
+- **Console:** on the ESP32, GPIO 3 came up without UART0's RX on it, so typed keys never arrived; the key task routes it now.
+- **DJ2Go over serial:** `tools/midi_bridge.py` reads a controller on the workstation (raw ALSA MIDI) and sends each message to the console as 0x01 + the 4-byte USB-MIDI packet; the key task hands it to `onMidiPacket()`, as the USB host would. On both boards.
+- P4: 1,477,904 B (+32, the console's packet key); 2.8" 1,481,808 B. A1S 1,051,552 B.
+
 ## 2026-11-07: firmware on the ESP32-A1S (bring-up build)
 
 - The deck firmware builds for the A1S Audio Kit (ES8388) with the 2.8" screen and AS5600:
