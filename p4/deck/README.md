@@ -106,10 +106,10 @@ Read from the boot log (`This chip is ESP32-D0WD`, `chip revision: v3.0`, `Found
 
 **Wiring:**
 
-| Screen (MSP2834) | A1S | Notes |
+| Screen (MSP2834 or a 3.2" ILI9341V) | A1S | Notes |
 |---|---|---|
 | VCC / GND | 3V3 / GND | 3V3 only |
-| SCK | GPIO 21 | (moved from 18 in bring-up; the speaker amp enable is off meanwhile) |
+| SCK | GPIO 21 | Takes the speaker amp enable, so the speakers are off; headphones work |
 | SDI (MOSI) | GPIO 23 | |
 | CS | GPIO 5 | |
 | DC/RS | GPIO 19 | |
@@ -119,15 +119,17 @@ Read from the boot log (`This chip is ESP32-D0WD`, `chip revision: v3.0`, `Found
 | CTP_RST | 3V3 | |
 | CTP_INT, SDO, SD_CS | not connected | |
 
-**Screen speed:** on 15 cm Duponts this wiring draws cleanly only up to about 2 MHz (a
-colour sweep, 2026-11-07), with SCK on GPIO 18 or 21 alike and worse with weaker pad drive,
-so the screen updates about twice a second. The 4" ran at 40 MHz on the P4 on the same
-jumpers. Not solved yet: next, a second GND wire next to SCK and shorter leads.
+**Screen speed: 4 MHz, about 7 fps with the waveform up.** A colour sweep (2026-11-07)
+showed the clean clock rising with pad drive: 0.5 MHz at the weakest, 2 MHz at the
+strongest on SCK and MOSI, 4 MHz with CS and DC at the strongest too. So the header lines
+are load-limited (each one is shared with a key, an LED or the amp enable), not the
+jumpers: the same ones ran 40 MHz on the P4. MOSI on GPIO 18 or 22 drew nothing.
+A 40-row waveform band reached 12.5 fps but galloped, so the layout stays as on the P4.
 The panel also needed 150 ms between reset and its setup commands (white screen without).
 
 - **AS5600:** VCC 3V3, GND, SDA 33, SCL 32, DIR to GND. It shares the I2C bus with the codec (0x10) and touch (0x38).
 - **PLAY / CUE:** the board's KEY1 (GPIO 36) and KEY2 (GPIO 13). KEY2 goes through the DIP switch.
-- **Don't press KEY3 to KEY6** with the screen wired: they share GPIO 19, 23, 18 and 5 with it.
+- **Don't press KEY3, KEY4 or KEY6** with the screen wired: they share GPIO 19, 23 and 5 with it.
 - The old rotary encoder and button wiring on 18/19/21/22/23/5 has to come off.
 - **Output:** the headphone jack. The speaker amps (GPIO 21) are off while 21 carries SCK.
   The ES8388 driver leaves LOUT2/ROUT2 near mute; `audio_out.cpp` sets all four outputs to 0 dB.
@@ -158,13 +160,13 @@ After the first build, drop `set-target esp32`. To go back to the timecode firmw
 | Core 0 (UI, loader) | 27–29 % | 28–30 % | 39–42 % | 38–42 % |
 | Loader (MP3 decode, minimp3) | 17–18 % | 17–18 % | 8 % | 8 % |
 | LVGL | 8–9 % | 8–9 % | 25–29 % | 25–29 % |
-| Screen | 3.5–4 fps (10.5 with the waveform off) | same | 40–42 fps | 40–42 fps |
+| Screen | 7 fps at 4 MHz SPI (was 3.5–4 at 2 MHz) | same | 40–42 fps | 40–42 fps |
 | Internal RAM free (lowest) | 94 KB (82) | 94 KB (82) | 102–106 KB (80) | |
 | PSRAM free | 970 KB of 4 MB | | 19.4 MB of 32 MB | |
 
 - **Audio costs about 1.4× the P4 in varispeed and 2.1× in keylock.** Decoding costs about 2.2×.
 - **Keylock overruns the block deadline.** Its worst blocks take 6–10 ms against 5.8 ms, and min slack hits 0. The DMA queue (~33 ms) absorbs that, so playback stays at 100 % realtime with no underruns. A longer spike would drop out.
-- **The UI numbers can't be compared.** The A1S screen runs at 2 MHz SPI, so LVGL draws a tenth of the frames the P4 does. Its core 0 load would rise once the SPI speed is fixed.
+- **The UI numbers can't be compared.** The A1S screen runs at 4 MHz SPI against 40 on the P4, so LVGL draws about a sixth of the frames. The core 0 and LVGL rows are from the 2 MHz run.
 - **Memory:** the track window is 2 MB, about 12 s (4 s behind the playhead, 8 s ahead), against 70 s on the P4.
 
 ## Controls

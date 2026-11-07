@@ -23,11 +23,14 @@ constexpr gpio_num_t PA_EN    = GPIO_NUM_NC;
 // microSD, 1-bit SDMMC (slot 1's IOMUX pins). D1-D3 left to the DIP switches/keys.
 constexpr gpio_num_t SD_CLK = GPIO_NUM_14, SD_CMD = GPIO_NUM_15, SD_D0 = GPIO_NUM_2;
 
-// 2.8" screen (MSP2834, ILI9341V + FT6336 touch) on the header. 23/5/19 are also
-// KEY4/KEY6/KEY3: don't press those on-board keys with the screen wired.
+// ILI9341V screen (2.8" MSP2834 or a 3.2" module, both 320x240) on the header.
 // Screen LED and CTP_RST go to 3V3; CTP_INT and SDO are not used.
-// Bring-up (2026-11-07): this wiring only draws cleanly up to ~2 MHz (display.cpp), with
-// SCK on 18 or on 21 alike, so it's not one pin; 18 is free again. Not solved yet.
+// The header lines are shared with the board (keys on 5/19/23, LEDs on 19/22,
+// the amp enable on 21), and the clean SPI clock scales with pad drive: 0.5 MHz
+// at the weakest (3.2"), 2 at the strongest on SCK/MOSI (2.8"), 4 with CS and DC
+// too (3.2"; colour sweep, 2026-11-07). So the lines are load-limited, not the jumpers (the
+// same ones ran 40 MHz on the P4). MOSI on 18 or 22 drew nothing at all.
+// 5 and 19 are also KEY6/KEY3: don't press those keys with the screen wired.
 constexpr gpio_num_t LCD_SCK  = GPIO_NUM_21;
 constexpr gpio_num_t LCD_MOSI = GPIO_NUM_23;
 constexpr gpio_num_t LCD_CS   = GPIO_NUM_5;

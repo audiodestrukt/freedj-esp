@@ -30,7 +30,7 @@ static esp_lcd_touch_handle_t s_touch;
 static lv_display_t* s_disp;
 static constexpr int kStripRows = 40;  // LVGL draw buffer height (x2, internal DMA RAM)
 #if CONFIG_IDF_TARGET_ESP32
-static constexpr int kSpiHz = 2 * 1000 * 1000;    // A1S: clean up to ~2 MHz on this wiring (sweep 2026-11-07)
+static constexpr int kSpiHz = 4 * 1000 * 1000;    // A1S: clean at 4, not 8 (colour sweep, 2026-11-07)
 #else
 static constexpr int kSpiHz = 40 * 1000 * 1000;
 #endif
@@ -125,11 +125,7 @@ lv_display_t* begin()
     if (spi_bus_initialize(kHost, &bus, SPI_DMA_CH_AUTO) != ESP_OK) return nullptr;
 #if CONFIG_IDF_TARGET_ESP32
     if (board::LCD_MISO != GPIO_NUM_NC) gpio_pullup_en(board::LCD_MISO);   // an undriven SDO reads FF, not 00
-    // Strongest pad drive on the clock and data: the A1S header lines switch slowly.
-    for (gpio_num_t p : {board::LCD_SCK, board::LCD_MOSI})
-        gpio_set_drive_capability(p, GPIO_DRIVE_CAP_3);
 #endif
-
     esp_lcd_panel_io_handle_t io = nullptr;
     esp_lcd_panel_io_spi_config_t ioc = {};
     ioc.cs_gpio_num = board::LCD_CS;
@@ -140,6 +136,12 @@ lv_display_t* begin()
     ioc.lcd_cmd_bits = 8;
     ioc.lcd_param_bits = 8;
     if (esp_lcd_new_panel_io_spi((esp_lcd_spi_bus_handle_t)kHost, &ioc, &io) != ESP_OK) return nullptr;
+#if CONFIG_IDF_TARGET_ESP32
+    // The A1S header lines are load-limited: the clean clock scales with pad
+    // drive (weakest: 0.5 MHz, strongest on SCK/MOSI only: 2, on all four: 4).
+    for (gpio_num_t p : {board::LCD_SCK, board::LCD_MOSI, board::LCD_CS, board::LCD_DC})
+        gpio_set_drive_capability(p, GPIO_DRIVE_CAP_3);
+#endif
 
     esp_lcd_panel_dev_config_t pc = {};
     pc.reset_gpio_num = board::LCD_RST;

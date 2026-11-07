@@ -11,6 +11,14 @@ playing (see the README's *Audio health* section). Unless noted, it's
 the panel**, so they read high. From 2026-10-31 on, "screen fps" counts
 frames LVGL actually rendered and flushed.
 
+## 2026-11-07 (evening): A1S screen at 4 MHz
+
+- **The A1S screen's SPI clock is load-limited, not the jumpers.** A colour sweep (one full-screen colour per clock, 0.5 to 40 MHz) showed the clean clock rising with pad drive: 0.5 MHz at the weakest, 2 MHz at the strongest on SCK and MOSI, **4 MHz with CS and DC at the strongest too**. Every free header line is shared with a key, an LED or the amp enable; the same jumpers ran 40 MHz on the P4. MOSI on GPIO 18 or 22 drew nothing at all, so the pins stay as they were (SCK 21, MOSI 23, RST 22).
+- `kSpiHz` 2 to 4 MHz on the A1S; strongest drive on all four screen lines. Also runs a 3.2" ILI9341V module (same 320x240, same driver).
+- Tried and dropped: a 40-row waveform band and time labels at 4 Hz on the A1S (12.5 fps, but the waveform galloped).
+
+**Budget (A1S, waveform up):** screen **7.0 fps** while playing (was 3.5-4), 9-10 while loading. Not the house.mp3 run (a short SD track): core 0 16-18 %, core 1 12-13 %. P4 unchanged (1,478,912 B); A1S 1,052,304 B (+16).
+
 ## 2026-11-07 (later): declick (both boards); the ES8388's auto-mute (A1S)
 
 - **Clicks heard on headphones** (the P4's small speaker hid them):

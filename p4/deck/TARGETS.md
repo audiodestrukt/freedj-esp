@@ -100,7 +100,7 @@ serial bridge. Measured with `house.mp3`, waveform up:
 
 - **Varispeed is comfortable.**
 - **Keylock overruns its blocks.** The ~33 ms DMA queue covers it today, with no underruns, but a longer spike would drop out.
-- **The A1S's screen runs at only 2 MHz.** That's the wiring on the Audio Kit, not the chip, so its UI load isn't comparable.
+- **The A1S's screen runs at only 4 MHz.** Its header lines are shared with the board's keys, LEDs and amp enable (a board limit, not the chip), so its UI load isn't comparable.
 - **Missing:** USB host (so the DJ2Go goes through `tools/midi_bridge.py`), Ethernet, and timecode vinyl (its lookup table wants the whole 4 MB).
 - **Bare classic-ESP32 WROVER devkits** cost about $5–6 (from memory) and have more free pins than the Audio Kit.
 
@@ -118,7 +118,7 @@ Single-core chips are out: the C3, C5, C6 and H2, and the S2 too, though varispe
 |---|---|---|
 | Classic ESP32 WROVER devkit + PCM5102A DAC | $5–6 + $2–3 | **Cheapest that runs it.** The A1S proves the chip, with the limits above |
 | ESP32-S3 N16R8 devkit + PCM5102A | $6–8 + $2–3 | **The one to buy.** A dollar or two more than the classic ESP32 for keylock headroom, twice the PSRAM, a USB host and free pins. Needs a port |
-| AI-Thinker A1S Audio Kit | ~$12–15 | Codec and jacks included, but the board's own parts use up the pins (the screen tops out at 2 MHz on it so far) |
+| AI-Thinker A1S Audio Kit | ~$12–15 | Codec and jacks included, but the board's own parts use up the pins (the screen tops out at 4 MHz, about 7 fps, on its header pins) |
 
 The screen ($8–12) and the AS5600 ($2) cost the same everywhere. A deck's electronics come to roughly $20–25 on an S3, against about $50 on the P4 route.
 
