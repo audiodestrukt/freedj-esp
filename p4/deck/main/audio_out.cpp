@@ -117,6 +117,24 @@ bool begin(uint32_t rate, int volume)
     si.sample_rate = rate;
     if (esp_codec_dev_open(s_codec, &si) != ESP_CODEC_DEV_OK) { ESP_LOGE(TAG, "codec open failed"); return false; }
     esp_codec_dev_set_out_vol(s_codec, volume);
+#if CONFIG_IDF_TARGET_ESP32
+    // The driver leaves LOUT2/ROUT2 at its lowest level (DACCONTROL26/27 = 0) and only
+    // LOUT1/ROUT1 at 0 dB. The Audio Kit's jacks and amps use both pairs: set all four to 0 dB.
+    {
+        i2c_master_dev_handle_t dev = nullptr;
+        i2c_device_config_t dc8 = {};
+        dc8.dev_addr_length = I2C_ADDR_BIT_LEN_7;
+        dc8.device_address = ES8388_CODEC_DEFAULT_ADDR >> 1;
+        dc8.scl_speed_hz = 100000;
+        if (i2c_master_bus_add_device(s_bus, &dc8, &dev) == ESP_OK) {
+            for (uint8_t reg = 0x2E; reg <= 0x31; reg++) {     // DACCONTROL24..27
+                const uint8_t w[2] = {reg, 0x1E};
+                i2c_master_transmit(dev, w, 2, 50);
+            }
+            i2c_master_bus_rm_device(dev);
+        }
+    }
+#endif
     ESP_LOGI(TAG, "%s up: %lu Hz, codec volume %d", kCodec, (unsigned long)rate, volume);
     return true;
 }

@@ -17,20 +17,23 @@ constexpr gpio_num_t I2S_BCLK = GPIO_NUM_27;
 constexpr gpio_num_t I2S_WS   = GPIO_NUM_25;
 constexpr gpio_num_t I2S_DOUT = GPIO_NUM_26;   // ESP32 -> codec DSDIN
 constexpr gpio_num_t I2S_DIN  = GPIO_NUM_35;   // codec ASDOUT -> ESP32 (timecode, later)
-// Speaker amps (NS4150 x2) enable. The headphone jack plays without it.
-constexpr gpio_num_t PA_EN    = GPIO_NUM_21;
+// Speaker amps (NS4150 x2) enable, normally GPIO 21. Off for now: 21 is the screen's SCK
+// (see below). The headphone jack plays without it.
+constexpr gpio_num_t PA_EN    = GPIO_NUM_NC;
 // microSD, 1-bit SDMMC (slot 1's IOMUX pins). D1-D3 left to the DIP switches/keys.
 constexpr gpio_num_t SD_CLK = GPIO_NUM_14, SD_CMD = GPIO_NUM_15, SD_D0 = GPIO_NUM_2;
 
-// 2.8" screen (MSP2834, ILI9341V + FT6336 touch) on the header. 18/23/5 are
-// VSPI's IOMUX pins, so SPI runs at 40 MHz. These are also KEY5/KEY4/KEY6 (and
-// 19 KEY3): don't press those on-board keys with the screen wired.
-// Screen LED and CTP_RST go to 3V3; CTP_INT is not used.
-constexpr gpio_num_t LCD_SCK  = GPIO_NUM_18;
+// 2.8" screen (MSP2834, ILI9341V + FT6336 touch) on the header. 23/5/19 are also
+// KEY4/KEY6/KEY3: don't press those on-board keys with the screen wired.
+// Screen LED and CTP_RST go to 3V3; CTP_INT and SDO are not used.
+// Bring-up (2026-11-07): this wiring only draws cleanly up to ~2 MHz (display.cpp), with
+// SCK on 18 or on 21 alike, so it's not one pin; 18 is free again. Not solved yet.
+constexpr gpio_num_t LCD_SCK  = GPIO_NUM_21;
 constexpr gpio_num_t LCD_MOSI = GPIO_NUM_23;
 constexpr gpio_num_t LCD_CS   = GPIO_NUM_5;
 constexpr gpio_num_t LCD_DC   = GPIO_NUM_19;
 constexpr gpio_num_t LCD_RST  = GPIO_NUM_22;
+constexpr gpio_num_t LCD_MISO = GPIO_NUM_NC;   // SDO: set a pin to read the panel back
 constexpr gpio_num_t LCD_BL   = GPIO_NUM_NC;   // LED to 3V3: always on
 constexpr gpio_num_t TP_RST   = GPIO_NUM_NC;   // CTP_RST to 3V3
 

@@ -3,6 +3,7 @@
 #include "display.h"
 
 #include <string.h>
+#include <initializer_list>
 #include "driver/gpio.h"
 #include "driver/spi_master.h"
 #include "esp_heap_caps.h"
@@ -28,9 +29,13 @@ static esp_lcd_panel_handle_t s_panel;
 static esp_lcd_touch_handle_t s_touch;
 static lv_display_t* s_disp;
 static constexpr int kStripRows = 40;  // LVGL draw buffer height (x2, internal DMA RAM)
-static constexpr int kSpiHz = 40 * 1000 * 1000;
 #if CONFIG_IDF_TARGET_ESP32
-static constexpr spi_host_device_t kHost = SPI3_HOST;   // VSPI: its IOMUX pins 18/23/5 take 40 MHz
+static constexpr int kSpiHz = 2 * 1000 * 1000;    // A1S: clean up to ~2 MHz on this wiring (sweep 2026-11-07)
+#else
+static constexpr int kSpiHz = 40 * 1000 * 1000;
+#endif
+#if CONFIG_IDF_TARGET_ESP32
+static constexpr spi_host_device_t kHost = SPI3_HOST;   // VSPI
 #else
 static constexpr spi_host_device_t kHost = SPI2_HOST;
 #endif  // fine on ~15 cm jumpers; drop to 20 if the image corrupts
@@ -109,11 +114,21 @@ lv_display_t* begin()
     spi_bus_config_t bus = {};
     bus.sclk_io_num = board::LCD_SCK;
     bus.mosi_io_num = board::LCD_MOSI;
+#if CONFIG_IDF_TARGET_ESP32
+    bus.miso_io_num = board::LCD_MISO;
+#else
     bus.miso_io_num = -1;
+#endif
     bus.quadwp_io_num = -1;
     bus.quadhd_io_num = -1;
     bus.max_transfer_sz = PANEL_W * kStripRows * 2;
     if (spi_bus_initialize(kHost, &bus, SPI_DMA_CH_AUTO) != ESP_OK) return nullptr;
+#if CONFIG_IDF_TARGET_ESP32
+    if (board::LCD_MISO != GPIO_NUM_NC) gpio_pullup_en(board::LCD_MISO);   // an undriven SDO reads FF, not 00
+    // Strongest pad drive on the clock and data: the A1S header lines switch slowly.
+    for (gpio_num_t p : {board::LCD_SCK, board::LCD_MOSI})
+        gpio_set_drive_capability(p, GPIO_DRIVE_CAP_3);
+#endif
 
     esp_lcd_panel_io_handle_t io = nullptr;
     esp_lcd_panel_io_spi_config_t ioc = {};
@@ -141,6 +156,9 @@ lv_display_t* begin()
     constexpr const char* kChip = "ST7796S";
 #endif
     esp_lcd_panel_reset(s_panel);
+#if CONFIG_IDF_TARGET_ESP32
+    vTaskDelay(pdMS_TO_TICKS(150));   // A1S: setup straight after reset left the panel white
+#endif
     esp_lcd_panel_init(s_panel);
     esp_lcd_panel_invert_color(s_panel, kInvert);
     esp_lcd_panel_disp_on_off(s_panel, true);

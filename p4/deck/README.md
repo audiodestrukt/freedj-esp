@@ -93,7 +93,7 @@ directory and lock file), so the P4 builds don't change. Pins are in `main/board
 | Screen (MSP2834) | A1S | Notes |
 |---|---|---|
 | VCC / GND | 3V3 / GND | 3V3 only |
-| SCK | GPIO 18 | VSPI's own pins, so 40 MHz SPI |
+| SCK | GPIO 21 | (moved from 18 in bring-up; the speaker amp enable is off meanwhile) |
 | SDI (MOSI) | GPIO 23 | |
 | CS | GPIO 5 | |
 | DC/RS | GPIO 19 | |
@@ -103,11 +103,19 @@ directory and lock file), so the P4 builds don't change. Pins are in `main/board
 | CTP_RST | 3V3 | |
 | CTP_INT, SDO, SD_CS | not connected | |
 
+**Screen speed:** on 15 cm Duponts this wiring draws cleanly only up to about 2 MHz (a
+colour sweep, 2026-11-07), with SCK on GPIO 18 or 21 alike and worse with weaker pad drive,
+so the screen updates about twice a second. The 4" ran at 40 MHz on the P4 on the same
+jumpers. Not solved yet: next, a second GND wire next to SCK and shorter leads.
+The panel also needed 150 ms between reset and its setup commands (white screen without).
+
 - **AS5600:** VCC 3V3, GND, SDA 33, SCL 32, DIR to GND. It shares the I2C bus with the codec (0x10) and touch (0x38).
 - **PLAY / CUE:** the board's KEY1 (GPIO 36) and KEY2 (GPIO 13). KEY2 goes through the DIP switch.
 - **Don't press KEY3 to KEY6** with the screen wired: they share GPIO 19, 23, 18 and 5 with it.
 - The old rotary encoder and button wiring on 18/19/21/22/23/5 has to come off.
-- **Output:** the headphone jack. The speaker amps are on GPIO 21.
+- **Output:** the headphone jack. The speaker amps (GPIO 21) are off while 21 carries SCK.
+  The ES8388 driver leaves LOUT2/ROUT2 near mute; `audio_out.cpp` sets all four outputs to 0 dB.
+- **Console keys:** GPIO 3 comes up without UART0's RX on it, so the key task routes it.
 
 **Build and flash** (the board on the CH340's port, monitor closed):
 

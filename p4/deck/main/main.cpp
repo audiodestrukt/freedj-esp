@@ -1370,6 +1370,11 @@ static void audioTask(void*)
 static void serialKeysTask(void*)
 {
     uart_driver_install(UART_NUM_0, 256, 0, 0, nullptr, 0);
+#if CONFIG_IDF_TARGET_ESP32
+    // On the A1S, GPIO 3 comes up as a plain GPIO with UART0's RX not connected to it,
+    // so nothing typed arrived. Route the console pins to UART0 explicitly.
+    uart_set_pin(UART_NUM_0, 1, 3, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
+#endif
     for (;;) {
         uint8_t ch;
         if (uart_read_bytes(UART_NUM_0, &ch, 1, portMAX_DELAY) != 1) continue;
