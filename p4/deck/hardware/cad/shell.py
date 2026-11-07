@@ -50,7 +50,7 @@ def part():
         adds.append(Pos(x, y, M.BASE_T + CORNER_POST_H - 0.01) * Cone(r, 0.3, r - 0.3, align=(Align.CENTER, Align.CENTER, Align.MIN)))
     # CUE / PLAY: plain holes; the light rings' skirts reach down to the control board
     # control board bosses: down from the top's underside to the board's top face
-    for x, y in M.CTRL_HOLES:
+    for x, y in ([] if M.PANEL else M.CTRL_HOLES):
         adds.append(Pos(x, y, M.CTRL_Z) * Cylinder(M.CTRL_BOSS_D / 2, M.H - M.TOP_T - M.CTRL_Z + 0.5,
                                                    align=(Align.CENTER, Align.CENTER, Align.MIN)))
     # pitch pot pads: the frame's top face sits on these, POT_PAD under the top
@@ -74,15 +74,18 @@ def part():
     cuts.append(Pos(jx, jy, floor - b_w) * Cylinder(b_od / 2 + 0.05, b_w + 1, align=(Align.CENTER, Align.CENTER, Align.MIN)))
     cuts.append(Pos(jx, jy, M.BOSS_BOTTOM - 1) * Cylinder(b_od / 2 + 0.05, b_w + 1, align=(Align.CENTER, Align.CENTER, Align.MIN)))
     cuts.append(Pos(jx, jy, 0) * Cylinder(6.0, 40, align=(Align.CENTER, Align.CENTER, Align.MIN)))
+    hole_r = M.PANEL_HOLE / 2 if M.PANEL else M.RING_D / 2 + 0.2
     for c in (M.PLAY_C, M.CUE_C):
-        cuts.append(Pos(*c, M.H - 15) * Cylinder(M.RING_D / 2 + 0.2, 20, align=(Align.CENTER, Align.CENTER, Align.MIN)))
+        cuts.append(Pos(*c, M.H - 15) * Cylinder(hole_r, 20, align=(Align.CENTER, Align.CENTER, Align.MIN)))
+        if M.PANEL and M.PANEL_MAX_T and M.PANEL_MAX_T < M.TOP_T:   # thin the top round the nut
+            cuts.append(Pos(*c, M.H - 15) * Cylinder(M.PANEL_NUT[0] / 2 + 1.0, 15 - M.PANEL_MAX_T, align=(Align.CENTER, Align.CENTER, Align.MIN)))
     y0, y1 = M.SLIDER_Y
     cuts.append(Pos(M.SLIDER_X, (y0 + y1) / 2, M.H - 10) * Box(M.SLOT_W, y1 - y0, 20, align=(Align.CENTER, Align.CENTER, Align.MIN)))
     for s_ in (-1, 1):   # pot screws: M2 clearance, 90 degree countersink for a flush head
         y = M.SLIDER_C + s_ * M.POT_HOLES / 2
         cuts.append(Pos(M.SLIDER_X, y, M.H - M.TOP_T - M.POT_PAD - 1) * Cylinder(1.2, M.TOP_T + M.POT_PAD + 2, align=(Align.CENTER, Align.CENTER, Align.MIN)))
         cuts.append(Pos(M.SLIDER_X, y, M.H - 1.0) * Cone(1.0, 2.0, 1.01, align=(Align.CENTER, Align.CENTER, Align.MIN)))
-    for x, y in M.CTRL_HOLES:   # control board: pilots up from the board face
+    for x, y in ([] if M.PANEL else M.CTRL_HOLES):   # control board: pilots up from the board face
         pd, pdepth = M.CTRL_PILOT
         cuts.append(Pos(x, y, M.CTRL_Z - 1) * Cylinder(pd / 2, pdepth + 1, align=(Align.CENTER, Align.CENTER, Align.MIN)))
     for k in range(-4, 5):   # tempo scale ticks over the lever's travel, engraved 0.6 deep
@@ -148,7 +151,7 @@ MATES = {   # world frame (the shell is the datum); +z points out of the contact
 if __name__ == "__main__":
     os.makedirs("build", exist_ok=True)
     p = part()
-    out = f"build/shell{M.SUFFIX}.stl"
+    out = f"build/shell{M.SHELL_SUFFIX}.stl"
     export_stl(p, out, tolerance=0.05, angular_tolerance=0.1)
     import trimesh; m = trimesh.load(out)
     print(out, (m.bounds[1] - m.bounds[0]).round(1),

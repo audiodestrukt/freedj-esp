@@ -172,10 +172,24 @@ PLAIN_D = RING_D             # in the RING_D + 0.4 hole
 PLAIN_FLANGE = (SKIRT_D, 1.2)   # as wide as fits: the buttons are 24 apart
 PLATTER = os.environ.get("FREEDJ_PLATTER", "knurled")  # assembly: "knurled" (jog.py) or "pioneer" (pioneer_platter.py)
 assert PLATTER in ("knurled", "pioneer"), PLATTER
-BUTTONS = os.environ.get("FREEDJ_BUTTONS", "lit")   # assembly/clash check: "lit" or "plain"
-assert BUTTONS in ("lit", "plain"), BUTTONS
-PLAY_C = (16.0, 16.0)
-CUE_C = (16.0, 40.0)         # ~4 mm clear of the jog well
+BUTTONS = os.environ.get("FREEDJ_BUTTONS", "lit")   # "lit", "plain" or "panel"
+assert BUTTONS in ("lit", "plain", "panel"), BUTTONS
+# Panel-mount buttons (FREEDJ_BUTTONS=panel): bought 16 mm panel-hole momentary pushbuttons
+# (0.75" across the top), held by their own nut under the top. Their bodies take the control
+# board's space, so the board and its bosses go: buttons (and the fader) wire straight to the
+# main board. Hole and top diameter are the listing's; body, nut and heights are typical
+# guesses: measure the body depth (it must stay above the base plate, 25 mm under the top).
+PANEL = BUTTONS == "panel"
+PANEL_HOLE = 16.0 + 0.25           # listed panel hole + print allowance (printed holes come out small)
+PANEL_BEZEL = (0.75 * 25.4, 2.5)   # 19.05 dia (listing), height above the top (guess)
+PANEL_BODY = (16.0, 22.0)          # dia, depth below the top's underside (incl. lugs)
+PANEL_NUT = (22.0, 3.0)            # across the corners, thickness
+PANEL_MAX_T = None                 # the button's max panel thickness, if under TOP_T: the top is thinned to it locally from below
+SHELL_SUFFIX = SUFFIX + ("_panel" if PANEL else "")   # only the shell (and the assembly) differ
+NAME = "freedj_esp" + SHELL_SUFFIX
+_BX = 17.5 if PANEL else 16.0   # panel: 1.5 mm right, so PLAY's body clears the front-left corner post
+PLAY_C = (_BX, 16.0)
+CUE_C = (_BX, 40.0)          # ~4 mm clear of the jog well
 
 # Pitch slider: Bourns PTA6043-2015DPB103 (60 mm travel, no centre detent, 15 mm metal
 # DP lever, 10k linear). Datasheet: 75 x 9 mm frame, two M2 tapped holes 71 apart in the
@@ -205,6 +219,8 @@ KNOB_Y = SLIDER_C - 4.0      # rendered at +1.25 % (pitch range is firmware's bu
 TICKS_X = 6.0                # tick scale starts this far right of the slot; long 3.5, short 2
 TEMPO_LED_X = 11.0           # tempo-zero LED, right of the slot: clear of the 2 mm edge round
 assert SLIDER_C - POT_HOLES / 2 + 1.9 < SLIDER_Y[0] - 1.0, "M2 countersink too close to the slot end"
+
+assert not PANEL or PANEL_BODY[1] < H - TOP_T - BASE_T - 1.0, "panel button body reaches the base plate"
 
 # Control board: one PCB under CUE / PLAY with the two tact switches, the light-ring LEDs
 # and the I2C chip (CH32V003); the pot and the AS5600 wire to it, one cable to the dev board.

@@ -11,6 +11,14 @@ playing (see the README's *Audio health* section). Unless noted, it's
 the panel**, so they read high. From 2026-10-31 on, "screen fps" counts
 frames LVGL actually rendered and flushed.
 
+## 2026-11-06 (later): CAD: panel-mount buttons (`FREEDJ_BUTTONS=panel`)
+
+- Bought 16 mm panel-hole pushbuttons (0.75" top) in plain 16.25 mm holes, nut under the top.
+  No control board or bosses in this mode (the button bodies take its space); buttons and fader
+  wire to the main board. Buttons at x 17.5 (16 otherwise): PLAY's body clears the corner post
+  by 0.6 mm. Shell only, `*_panel.stl`; no clashes with the shell, base or A1S in any of the
+  four shells. Lit and plain shells unchanged.
+
 ## 2026-11-06 (later): CAD: compact A1S deck (`FREEDJ_BOARD=a1s`)
 
 - A deck variant for the ESP32-A1S Audio Kit and the 2.8": **140 × 154.1 × 32 mm** angled

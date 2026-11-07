@@ -114,7 +114,8 @@ def clashes():
               ("lcd_pcb", seat_on(stock.lcd_pcb(), "screen")),
               ("lcd_header", seat_on(stock.lcd_header(), "screen")),
               ("pot", M.place(controls.pot(M.KNOB_Y - M.SLIDER_C), controls.MATES["seat"], S["pot"])),
-              ("ctrl_board", ctrlboard.board())]
+              ] + ([(f"{w}_panel", M.place(controls.panel_button(), controls.MATES["seat"], S[w])) for w in ("play", "cue")]
+                   if M.PANEL else [("ctrl_board", ctrlboard.board())])
     others += [(f"screen_screw{i}", seat_on(stock.screw_m3(), f"screen_screw{i}")) for i in range(4)]
     mine = [("board", LOC * board())] + [(n, LOC * s) for n, s in ports() + parts()]
     hits = []

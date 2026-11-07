@@ -74,6 +74,9 @@ def scene_parts():
     # buttons
     for which in ("play", "cue"):
         at = S[which]; P = lambda s: place(s, controls.MATES["seat"], at)
+        if M.PANEL:
+            add(f"{which}_panel", P(controls.panel_button()), "btn")
+            continue
         plain = M.BUTTONS == "plain"
         if not plain:
             add(f"{which}_ring", P(controls.light_ring()), f"ring_{which}")
@@ -85,9 +88,10 @@ def scene_parts():
     add("slider_line", P(controls.knob_line()), "white")
     add("slider_pot", place(controls.pot(M.KNOB_Y - M.SLIDER_C), controls.MATES["seat"], S["pot"]), "steel")
     # control board under CUE / PLAY
-    add("ctrl_board", ctrlboard.board(), "pcb")
-    for n, s_, lk in ctrlboard.parts():
-        add(n, s_, lk)
+    if not M.PANEL:
+        add("ctrl_board", ctrlboard.board(), "pcb")
+        for n, s_, lk in ctrlboard.parts():
+            add(n, s_, lk)
     add("tempo_led", place(controls.led(), controls.MATES["seat"], S["slider_led"]), "led_green")
     if M.USB_STICK:
         add("usb_led", place(controls.led(), controls.MATES["seat"], S["usb_led"]), "led_blue")

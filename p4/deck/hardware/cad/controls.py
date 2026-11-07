@@ -97,6 +97,19 @@ def pot(lever_y=0.0):
             for px, py in ((-1.75, -c), (1.75, -c), (0, c))]
     return frame.fuse(lever, *pins)
 
+def panel_button():
+    """Stand-in for a 5/8" panel-mount pushbutton (FREEDJ_BUTTONS=panel): bezel and plunger
+    on top, body through the hole, nut under the top. Local z = 0 on the top surface."""
+    bd, bh = M.PANEL_BEZEL
+    body_d, depth = M.PANEL_BODY
+    nut_d, nut_t = M.PANEL_NUT
+    top_t = min(M.TOP_T, M.PANEL_MAX_T or M.TOP_T)
+    bezel = Cylinder(bd / 2, bh, align=C)
+    plunger = Pos(0, 0, bh) * Cylinder(bd / 2 - 3.0, 1.0, align=C)
+    body = Pos(0, 0, -M.TOP_T - depth) * Cylinder(body_d / 2, M.TOP_T + depth, align=C)
+    nut = Pos(0, 0, -top_t - nut_t) * Cylinder(nut_d / 2, nut_t, align=C)
+    return bezel.fuse(plunger, body, nut)
+
 def led():          # 3 mm indicator, flush
     return Pos(0, 0, -0.6) * Cylinder(1.0, 0.7, align=C)
 
