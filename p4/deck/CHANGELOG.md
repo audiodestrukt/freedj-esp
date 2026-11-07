@@ -18,7 +18,13 @@ frames LVGL actually rendered and flushed.
   - The sound jumped from mid-waveform to zero on stop and pause, and when a scratch came to rest. That step is now spread over about 3 ms (128 frames), on any change of source (silence, THRU, scratch, play), after a seek and around an underrun. A block that just continues the last one is untouched.
   - A scratch at rest holds its last sample instead of dropping to 0 mid-block.
 - **A1S:** the ES8388 mutes itself after about 300 ms of exact zeros and unmutes on the next sample. Each switch clicked (a tiny jog nudge gave click, hiss, about 300 ms, click), and it wasn't the screen (the click stayed with the waveform off). Silence now goes out as 1 LSB of DC (-90 dBFS), so the codec never switches; the clicks are gone.
-- Cost: a multiply and an add per sample; block time not measured since. P4 1,478,912 B (+1,008); A1S 1,052,288 B.
+- Cost: a multiply and an add per sample. On the A1S, `house.mp3` in varispeed: block avg 0.71–0.77 ms, core 1 13–14 %, against 0.70–0.73 ms and 13 % before, so nothing measurable. P4 1,478,912 B (+1,008); A1S 1,052,288 B.
+- **A1S budget (first full measurement, `house.mp3`, waveform up):**
+  - Varispeed: core 1 13–14 %, worst block 2.0–4.3 ms.
+  - Keylock: core 1 57–59 %, worst block 6.2–10.2 ms against the 5.8 ms budget (min slack 0, no underruns: the ~33 ms DMA queue covers it).
+  - Core 0 27–30 %: loader (minimp3) 17–18 %, LVGL 8–9 % at 3.5–4 fps.
+  - Internal RAM 94 KB free (82 lowest), PSRAM 970 KB free.
+  - Against the P4: audio about 1.4× in varispeed and 2.1× in keylock, decode about 2.2×. Table in the README's A1S section.
 
 ## 2026-11-07 (later): A1S bring-up on the board: screen, audio, console; DJ2Go over serial
 

@@ -149,10 +149,23 @@ After the first build, drop `set-target esp32`. To go back to the timecode firmw
 - Timecode vinyl: its lookup table wants about 4 MB of PSRAM.
 - No pitch pot yet: no ADC pin has been picked for it.
 
-**Memory:** the track window is 2 MB, about 12 s (4 s behind the playhead, 8 s ahead), against 70 s on the P4.
+**Resource budget** (measured 2026-11-07: `house.mp3`, 256 kbps, from SD, waveform up, no sync; P4 figures from the table under *Resource budget*, measured 2026-10-31 synced to Link):
 
-**Unmeasured on the board:** MP3 decode load (minimp3, on core 0), keylock CPU, and internal RAM headroom.
-The 2 s report prints all three.
+| | A1S varispeed | A1S keylock | P4 varispeed | P4 keylock |
+|---|---|---|---|---|
+| Core 1 (audio) | 13–14 % | 57–59 % | 9 % | 27–28 % |
+| Audio block avg / worst (budget 5.8 ms) | 0.71–0.77 / 2.0–4.3 ms | 3.2–3.4 / 6.2–10.2 ms | — / 1.25 ms | — / 3.4 ms |
+| Core 0 (UI, loader) | 27–29 % | 28–30 % | 39–42 % | 38–42 % |
+| Loader (MP3 decode, minimp3) | 17–18 % | 17–18 % | 8 % | 8 % |
+| LVGL | 8–9 % | 8–9 % | 25–29 % | 25–29 % |
+| Screen | 3.5–4 fps (10.5 with the waveform off) | same | 40–42 fps | 40–42 fps |
+| Internal RAM free (lowest) | 94 KB (82) | 94 KB (82) | 102–106 KB (80) | |
+| PSRAM free | 970 KB of 4 MB | | 19.4 MB of 32 MB | |
+
+- **Audio costs about 1.4× the P4 in varispeed and 2.1× in keylock.** Decoding costs about 2.2×.
+- **Keylock overruns the block deadline.** Its worst blocks take 6–10 ms against 5.8 ms, and min slack hits 0. The DMA queue (~33 ms) absorbs that, so playback stays at 100 % realtime with no underruns. A longer spike would drop out.
+- **The UI numbers can't be compared.** The A1S screen runs at 2 MHz SPI, so LVGL draws a tenth of the frames the P4 does. Its core 0 load would rise once the SPI speed is fixed.
+- **Memory:** the track window is 2 MB, about 12 s (4 s behind the playhead, 8 s ahead), against 70 s on the P4.
 
 ## Controls
 
