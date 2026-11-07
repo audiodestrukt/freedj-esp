@@ -88,6 +88,22 @@ The same firmware on the AI-Thinker ESP32-A1S Audio Kit (ES8388) with the 2.8" s
 the AS5600 jog. It's a separate target of this project (`IDF_TARGET=esp32`, its own build
 directory and lock file), so the P4 builds don't change. Pins are in `main/board_a1s.h`.
 
+**The chip:**
+
+| | |
+|---|---|
+| Module | AI-Thinker ESP32-A1S (Audio Kit V2.2/V2.3, ES8388 codec) |
+| Chip | **ESP32-D0WD**, silicon revision v3.0: the original ESP32, not an S2/S3/C/P part |
+| CPU | 2 x Xtensa LX6 at 240 MHz, single-precision FPU, no vector instructions |
+| Internal RAM | 520 KB SRAM (the deck firmware leaves about 100 KB free) |
+| PSRAM | 8 MB quad-SPI at 80 MHz, but the ESP32 maps only **4 MB** of it |
+| Flash | 4 MB, QIO at 80 MHz |
+| USB | None on the chip: the board's micro-USB is a CH340 serial bridge (console and flashing) |
+| Radio | Wi-Fi 4 and Bluetooth Classic/BLE; no Ethernet MAC wired on this board |
+
+Read from the boot log (`This chip is ESP32-D0WD`, `chip revision: v3.0`, `Found 8MB PSRAM device`,
+`4MB is mapped`, `SPI Flash Size : 4MB`), 2026-11-07.
+
 **Wiring:**
 
 | Screen (MSP2834) | A1S | Notes |

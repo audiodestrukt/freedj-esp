@@ -84,6 +84,8 @@ buffer and maybe no keylock with the waveform.
 
 ### Classic ESP32 (the ESP32-A1S build): no
 
+The A1S module is an ESP32-D0WD rev v3.0: 2 x Xtensa LX6 at 240 MHz, 520 KB SRAM, 8 MB PSRAM of which 4 MB is mapped, 4 MB flash.
+
 No USB host, 4–8 MB PSRAM, not enough CPU for this UI. It stays the
 timecode-vinyl build in the repo root.
 

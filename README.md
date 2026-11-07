@@ -37,6 +37,7 @@ Scaffold-complete. Untested on hardware — awaiting a board.
 
 ## Hardware
 
+- **Chip:** ESP32-D0WD rev v3.0, the original dual-core Xtensa LX6 ESP32 at 240 MHz, with 520 KB SRAM, 8 MB PSRAM (4 MB mapped), 4 MB flash, and no native USB (a CH340 serial bridge). Details in [p4/deck/README.md](p4/deck/README.md#the-esp32-a1s-build-bring-up).
 - **Board:** AI-Thinker ESP32-A1S Audio Kit. Two revisions ship with
   different codecs (ES8388 or AC101) with no PCB silkscreen difference —
   check the IC marking near the 3.5 mm jacks. Both are supported by
