@@ -135,7 +135,8 @@ void begin(EventFn onEvent)
         gpio_config_t c = {};
         c.pin_bit_mask = 1ULL << p;
         c.mode = GPIO_MODE_INPUT;
-        c.pull_up_en = GPIO_PULLUP_ENABLE;
+        // 34-39 (the A1S keys) have no pull-ups; the board has its own.
+        c.pull_up_en = GPIO_IS_VALID_OUTPUT_GPIO(p) ? GPIO_PULLUP_ENABLE : GPIO_PULLUP_DISABLE;
         gpio_config(&c);
     }
     adc_unit_t unit = ADC_UNIT_1;

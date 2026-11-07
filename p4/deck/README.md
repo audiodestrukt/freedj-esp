@@ -82,6 +82,54 @@ PERFORM pads are 6 × 4 instead of 8 × 3 (about 7 mm wide) and cover the time r
 open. Not tried on the panel yet: the landscape rotation flags and colour inversion are
 LCDwiki's, and may need flipping.
 
+## The ESP32-A1S build (bring-up)
+
+The same firmware on the AI-Thinker ESP32-A1S Audio Kit (ES8388) with the 2.8" screen and
+the AS5600 jog. It's a separate target of this project (`IDF_TARGET=esp32`, its own build
+directory and lock file), so the P4 builds don't change. Pins are in `main/board_a1s.h`.
+
+**Wiring:**
+
+| Screen (MSP2834) | A1S | Notes |
+|---|---|---|
+| VCC / GND | 3V3 / GND | 3V3 only |
+| SCK | GPIO 18 | VSPI's own pins, so 40 MHz SPI |
+| SDI (MOSI) | GPIO 23 | |
+| CS | GPIO 5 | |
+| DC/RS | GPIO 19 | |
+| RESET | GPIO 22 | |
+| LED | 3V3 | Always on |
+| CTP_SDA / CTP_SCL | GPIO 33 / 32 | The codec's I2C bus |
+| CTP_RST | 3V3 | |
+| CTP_INT, SDO, SD_CS | not connected | |
+
+- **AS5600:** VCC 3V3, GND, SDA 33, SCL 32, DIR to GND. It shares the I2C bus with the codec (0x10) and touch (0x38).
+- **PLAY / CUE:** the board's KEY1 (GPIO 36) and KEY2 (GPIO 13). KEY2 goes through the DIP switch.
+- **Don't press KEY3 to KEY6** with the screen wired: they share GPIO 19, 23, 18 and 5 with it.
+- The old rotary encoder and button wiring on 18/19/21/22/23/5 has to come off.
+- **Output:** the headphone jack. The speaker amps are on GPIO 21.
+
+**Build and flash** (the board on the CH340's port, monitor closed):
+
+```
+docker run --rm -v $PWD:/repo -w /repo/p4/deck espressif/idf:release-v5.5 idf.py -B build_a1s \
+  -D SDKCONFIG=build_a1s/sdkconfig -D SDKCONFIG_DEFAULTS=sdkconfig.defaults.a1s set-target esp32 build
+cd p4/deck/build_a1s && esptool --chip esp32 --port /dev/ttyUSB0 -b 921600 write-flash @flash_args
+```
+
+After the first build, drop `set-target esp32`. To go back to the timecode firmware, use
+`pio run -e esp32-a1s-es8388 -t upload` from the repo root.
+
+**Not on the A1S:**
+- USB (the DJ2Go, the stick, USB audio), Ethernet and Pro DJ Link: the stubs are in `main/a1s_stubs.cpp`.
+- Timecode vinyl: its lookup table wants about 4 MB of PSRAM.
+- No pitch pot yet: no ADC pin has been picked for it.
+
+**Memory:** the track window is 2 MB, about 12 s (4 s behind the playhead, 8 s ahead), against 70 s on the P4.
+
+**Unmeasured on the board:** MP3 decode load (minimp3, on core 0), keylock CPU, and internal RAM headroom.
+The 2 s report prints all three.
+
 ## Controls
 
 **DJ2Go (deck A):**

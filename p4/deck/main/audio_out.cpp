@@ -3,6 +3,7 @@
 #include "audio_out.h"
 #include "board.h"
 #include "usb_audio.h"
+#include "sdkconfig.h"
 #include "driver/i2c_master.h"
 #include "driver/i2s_std.h"
 #include "esp_codec_dev.h"
@@ -60,7 +61,11 @@ bool begin(uint32_t rate, int volume)
 
     audio_codec_i2c_cfg_t ic = {};
     ic.port = I2C_NUM_0;
+#if CONFIG_IDF_TARGET_ESP32
+    ic.addr = ES8388_CODEC_DEFAULT_ADDR;
+#else
     ic.addr = ES8311_CODEC_DEFAULT_ADDR;
+#endif
     ic.bus_handle = s_bus;
     const audio_codec_ctrl_if_t* ctrl = audio_codec_new_i2c_ctrl(&ic);
 
@@ -69,6 +74,20 @@ bool begin(uint32_t rate, int volume)
     dc.tx_handle = tx;
     const audio_codec_data_if_t* data = audio_codec_new_i2s_data(&dc);
 
+#if CONFIG_IDF_TARGET_ESP32
+    // A1S Audio Kit: ES8388, headphone out on LOUT1/ROUT1, speaker amps on LOUT2/ROUT2.
+    es8388_codec_cfg_t ec = {};
+    ec.ctrl_if = ctrl;
+    ec.gpio_if = audio_codec_new_gpio();
+    ec.codec_mode = ESP_CODEC_DEV_WORK_MODE_DAC;
+    ec.master_mode = false;
+    ec.pa_pin = board::PA_EN;
+    ec.pa_reverted = false;
+    ec.hw_gain.pa_voltage = 5.0;
+    ec.hw_gain.codec_dac_voltage = 3.3;
+    const audio_codec_if_t* codec = es8388_codec_new(&ec);
+    constexpr const char* kCodec = "ES8388";
+#else
     es8311_codec_cfg_t ec = {};
     ec.ctrl_if = ctrl;
     ec.gpio_if = audio_codec_new_gpio();
@@ -80,12 +99,14 @@ bool begin(uint32_t rate, int volume)
     ec.hw_gain.pa_voltage = 5.0;
     ec.hw_gain.codec_dac_voltage = 3.3;
     ec.mclk_div = I2S_MCLK_MULTIPLE_256;
-    const audio_codec_if_t* es8311 = es8311_codec_new(&ec);
-    if (!ctrl || !data || !es8311) { ESP_LOGE(TAG, "codec interface setup failed"); return false; }
+    const audio_codec_if_t* codec = es8311_codec_new(&ec);
+    constexpr const char* kCodec = "ES8311";
+#endif
+    if (!ctrl || !data || !codec) { ESP_LOGE(TAG, "codec interface setup failed"); return false; }
 
     esp_codec_dev_cfg_t dv = {};
     dv.dev_type = ESP_CODEC_DEV_TYPE_OUT;
-    dv.codec_if = es8311;
+    dv.codec_if = codec;
     dv.data_if = data;
     s_codec = esp_codec_dev_new(&dv);
 
@@ -96,7 +117,7 @@ bool begin(uint32_t rate, int volume)
     si.sample_rate = rate;
     if (esp_codec_dev_open(s_codec, &si) != ESP_CODEC_DEV_OK) { ESP_LOGE(TAG, "codec open failed"); return false; }
     esp_codec_dev_set_out_vol(s_codec, volume);
-    ESP_LOGI(TAG, "ES8311 up: %lu Hz, codec volume %d", (unsigned long)rate, volume);
+    ESP_LOGI(TAG, "%s up: %lu Hz, codec volume %d", kCodec, (unsigned long)rate, volume);
     return true;
 }
 

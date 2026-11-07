@@ -87,6 +87,10 @@ buffer and maybe no keylock with the waveform.
 No USB host, 4–8 MB PSRAM, not enough CPU for this UI. It stays the
 timecode-vinyl build in the repo root.
 
+2026-11-07: a cut-down bring-up build exists anyway (README, *The ESP32-A1S build*): SD, the
+2.8" screen with touch, the AS5600 jog, no USB/Ethernet/Link/timecode, a 12 s track window. Its
+CPU and RAM headroom aren't measured yet.
+
 ## Recommendation
 
 Stay on the **ESP32-P4**. It's the only option where everything already built

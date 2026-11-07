@@ -113,6 +113,13 @@ constexpr uint8_t  kLinkPlayer = 2;      // our Pro DJ Link player number
 // Audio queued between the audio task and the speaker: the I2S driver's
 // default 6 DMA buffers x 240 frames, plus about half a block in flight.
 constexpr int      kOutLatencyFrames = 6 * 240 + kBlock / 2;
+// Track window in PSRAM: 12 MB (~70 s) on the P4's 32 MB. The A1S has 4 MB
+// for everything, so 2 MB (~12 s: ~4 s behind the playhead, ~8 s ahead).
+#if CONFIG_IDF_TARGET_ESP32
+constexpr size_t   kWindowBytes = 2 * 1024 * 1024;
+#else
+constexpr size_t   kWindowBytes = 12 * 1024 * 1024;
+#endif
 
 static QueueHandle_t s_events;      // deck::Event, USB task → audio task
 // Load (or eject) request, audio task / USB task → loader. Carries the
@@ -1468,7 +1475,7 @@ extern "C" void app_main(void)
     ui::splashStatus("SD card");
     const bool sdOk = sd::begin();
     if (!sdOk) ESP_LOGW(TAG, "no SD card");
-    s_stream.begin(12 * 1024 * 1024);
+    s_stream.begin(kWindowBytes);
     // The SD list now; a stick's tracks join in the background when it mounts
     // (and leave when it's pulled), so boot doesn't wait for USB.
     library::begin(sdOk ? sd::kMount : nullptr);
@@ -1476,7 +1483,9 @@ extern "C" void app_main(void)
     usb_midi::begin(onMidiPacket);
     usb_stick::begin(onStickMounted, onStickRemoved);
     usb_audio::begin(kRate);
-    vinyl::begin();
+#if !CONFIG_IDF_TARGET_ESP32
+    vinyl::begin();   // its lookup table wants ~4 MB of PSRAM: not on the A1S (yet)
+#endif
     usb_midi::powerOn();
     // Network from core 0, so the EMAC interrupt stays off the audio core.
     ui::splashStatus("network");

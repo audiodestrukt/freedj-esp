@@ -28,7 +28,12 @@ static esp_lcd_panel_handle_t s_panel;
 static esp_lcd_touch_handle_t s_touch;
 static lv_display_t* s_disp;
 static constexpr int kStripRows = 40;  // LVGL draw buffer height (x2, internal DMA RAM)
-static constexpr int kSpiHz = 40 * 1000 * 1000;  // fine on ~15 cm jumpers; drop to 20 if the image corrupts
+static constexpr int kSpiHz = 40 * 1000 * 1000;
+#if CONFIG_IDF_TARGET_ESP32
+static constexpr spi_host_device_t kHost = SPI3_HOST;   // VSPI: its IOMUX pins 18/23/5 take 40 MHz
+#else
+static constexpr spi_host_device_t kHost = SPI2_HOST;
+#endif  // fine on ~15 cm jumpers; drop to 20 if the image corrupts
 
 // LVGL's default wait for a finished SPI transfer is `while (flushing);`,
 // which kept core 0 at ~100 % while the waveform scrolled. Instead the
@@ -93,11 +98,13 @@ static void beginTouch()
 
 lv_display_t* begin()
 {
-    gpio_config_t bl = {};
-    bl.pin_bit_mask = 1ULL << board::LCD_BL;
-    bl.mode = GPIO_MODE_OUTPUT;
-    gpio_config(&bl);
-    gpio_set_level(board::LCD_BL, 0);
+    if constexpr (board::LCD_BL != GPIO_NUM_NC) {     // the A1S ties the LED to 3V3
+        gpio_config_t bl = {};
+        bl.pin_bit_mask = 1ULL << (board::LCD_BL < 0 ? 0 : board::LCD_BL);
+        bl.mode = GPIO_MODE_OUTPUT;
+        gpio_config(&bl);
+        gpio_set_level(board::LCD_BL, 0);
+    }
 
     spi_bus_config_t bus = {};
     bus.sclk_io_num = board::LCD_SCK;
@@ -106,7 +113,7 @@ lv_display_t* begin()
     bus.quadwp_io_num = -1;
     bus.quadhd_io_num = -1;
     bus.max_transfer_sz = PANEL_W * kStripRows * 2;
-    if (spi_bus_initialize(SPI2_HOST, &bus, SPI_DMA_CH_AUTO) != ESP_OK) return nullptr;
+    if (spi_bus_initialize(kHost, &bus, SPI_DMA_CH_AUTO) != ESP_OK) return nullptr;
 
     esp_lcd_panel_io_handle_t io = nullptr;
     esp_lcd_panel_io_spi_config_t ioc = {};
@@ -117,7 +124,7 @@ lv_display_t* begin()
     ioc.trans_queue_depth = 4;
     ioc.lcd_cmd_bits = 8;
     ioc.lcd_param_bits = 8;
-    if (esp_lcd_new_panel_io_spi((esp_lcd_spi_bus_handle_t)SPI2_HOST, &ioc, &io) != ESP_OK) return nullptr;
+    if (esp_lcd_new_panel_io_spi((esp_lcd_spi_bus_handle_t)kHost, &ioc, &io) != ESP_OK) return nullptr;
 
     esp_lcd_panel_dev_config_t pc = {};
     pc.reset_gpio_num = board::LCD_RST;
@@ -206,6 +213,6 @@ void addTouch()
     }
 }
 
-void backlight(bool on) { gpio_set_level(board::LCD_BL, on); }
+void backlight(bool on) { if constexpr (board::LCD_BL != GPIO_NUM_NC) gpio_set_level(board::LCD_BL, on); }
 
 } // namespace display

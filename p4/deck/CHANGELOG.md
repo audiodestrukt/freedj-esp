@@ -11,6 +11,18 @@ playing (see the README's *Audio health* section). Unless noted, it's
 the panel**, so they read high. From 2026-10-31 on, "screen fps" counts
 frames LVGL actually rendered and flushed.
 
+## 2026-11-07: firmware on the ESP32-A1S (bring-up build)
+
+- The deck firmware builds for the A1S Audio Kit (ES8388) with the 2.8" screen and AS5600:
+  `IDF_TARGET=esp32`, `sdkconfig.defaults.a1s`, `build_a1s/`, its own lock file. Pin map in
+  `board_a1s.h`. ES8388 through `esp_codec_dev` (headphones + speaker amp on 21), SD on slot 1
+  1-bit, screen on VSPI (18/23/5, DC 19, RST 22), touch and jog on the codec's I2C (33/32),
+  PLAY/CUE on KEY1/KEY2 (36/13). USB, Ethernet and Link are stubbed (`a1s_stubs.cpp`);
+  timecode vinyl is off. Track window 2 MB (~12 s).
+- Image 1,048,448 B (4 MB flash, 3.9 MB app partition). Static DRAM 83.6 KB used, 97 KB left;
+  IRAM 88 KB. Not run on the board yet: no CPU or heap numbers.
+- P4: no behaviour change. Image 1,477,872 B (+16: the codec name in a log line, source order).
+
 ## 2026-11-06 (later): CAD: SC6080GH pitch fader (`FREEDJ_POT=sc6080`, A1S default)
 
 - SC6080GH B10K 15C from its drawing: same 75 × 9 frame, M2 holes 71 apart and 60 mm travel as

@@ -10,7 +10,10 @@
 #include "driver/sdmmc_host.h"
 #include "esp_log.h"
 #include "esp_vfs_fat.h"
+#include "sdkconfig.h"
+#if !CONFIG_IDF_TARGET_ESP32
 #include "sd_pwr_ctrl_by_on_chip_ldo.h"
+#endif
 #include "sdmmc_cmd.h"
 
 namespace sd {
@@ -20,8 +23,15 @@ static const char* TAG = "sd";
 bool begin()
 {
     sdmmc_host_t host = SDMMC_HOST_DEFAULT();
-    host.slot = SDMMC_HOST_SLOT_0;
     host.max_freq_khz = SDMMC_FREQ_HIGHSPEED;  // 40 MHz
+#if CONFIG_IDF_TARGET_ESP32
+    // A1S Audio Kit: slot 1 on its fixed pins (CLK 14, CMD 15, D0 2), 1-bit,
+    // as the A1S firmware runs it (D1-D3 are shared with keys/JTAG there).
+    host.slot = SDMMC_HOST_SLOT_1;
+    sdmmc_slot_config_t slot = SDMMC_SLOT_CONFIG_DEFAULT();
+    slot.width = 1;
+#else
+    host.slot = SDMMC_HOST_SLOT_0;
 
     // The slot's IO is powered by the P4's on-chip LDO channel 4.
     sd_pwr_ctrl_ldo_config_t ldo = {};
@@ -38,6 +48,7 @@ bool begin()
 #ifdef SOC_SDMMC_USE_GPIO_MATRIX
     slot.clk = board::SD_CLK; slot.cmd = board::SD_CMD;
     slot.d0 = board::SD_D0; slot.d1 = board::SD_D1; slot.d2 = board::SD_D2; slot.d3 = board::SD_D3;
+#endif
 #endif
     slot.flags |= SDMMC_SLOT_FLAG_INTERNAL_PULLUP;
 

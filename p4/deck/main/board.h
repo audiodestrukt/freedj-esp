@@ -1,6 +1,10 @@
 // SPDX-FileCopyrightText: 2026 Dan Newcome
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
+#include "sdkconfig.h"
+#if CONFIG_IDF_TARGET_ESP32
+#include "board_a1s.h"     // the ESP32-A1S Audio Kit build
+#else
 // Waveshare ESP32-P4-Module-DEV-KIT pin map (from the espp BSP,
 // components/esp32-p4-module-dev-kit/include/esp32-p4-module-dev-kit.hpp).
 #include "driver/gpio.h"
@@ -50,3 +54,4 @@ constexpr gpio_num_t PANEL_PITCH = GPIO_NUM_22;  // ADC1
 constexpr gpio_num_t ETH_PHY_RST = GPIO_NUM_51;
 constexpr int        ETH_PHY_ADDR = 1;
 } // namespace board
+#endif
