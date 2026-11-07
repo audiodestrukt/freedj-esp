@@ -84,7 +84,7 @@ def knob_line():
     return Pos(0, 0, M.KNOB_LIFT + M.KNOB[2] - 0.4) * Box(M.KNOB_TOP[0] - 2.5, 0.9, 0.6, align=C)
 
 def pot(lever_y=0.0):
-    """PTA6043 stand-in on the "pot" mate (slot centre, top surface): frame, lever at
+    """PTA6043 / SC6080GH stand-in on the "pot" mate (slot centre, top surface): frame, lever at
     lever_y along the travel, three PC pins."""
     fx, fy, fh = M.POT_FRAME
     top = -M.TOP_T - M.POT_PAD
@@ -92,9 +92,17 @@ def pot(lever_y=0.0):
     frame -= [Pos(0, s * M.POT_HOLES / 2, top - 1.5) * Cylinder(1.0, 2, align=C) for s in (-1, 1)]
     la, ll, lh = M.LEVER
     lever = Pos(0, lever_y, top) * Box(la, ll, lh, align=C)
+    bw, bh = M.LEVER_BASE
+    if bh:
+        lever = lever.fuse(Pos(0, lever_y, top) * Box(la, bw, bh, align=C))
     c = M.POT_PINS / 2
-    pins = [Pos(px, py, top - fh - 3.5) * Box(0.5, 0.8, 3.5, align=C)
-            for px, py in ((-1.75, -c), (1.75, -c), (0, c))]
+    if M.POT == "pta6043":
+        pts = ((-1.75, -c), (1.75, -c), (0, c))
+    else:   # dual gang: 1/2/1'/2' in a row across one end, 3/3' at the other
+        pts = [(x, -c) for x in (-3.75, -1.25, 1.25, 3.75)] + [(x, c) for x in (-1.25, 1.25)]
+    pins = [Pos(px, py, top - fh - 3.5) * Box(0.6, 0.8, 3.5, align=C) for px, py in pts]
+    if M.POT != "pta6043":
+        pins += [Pos(0, ly, top - fh - 3.5) * Cylinder(1.0, 3.5, align=C) for ly in M.POT_LEGS]
     return frame.fuse(lever, *pins)
 
 def panel_button():
@@ -121,7 +129,7 @@ if __name__ == "__main__":
     for name, s in (("play_cap", button_cap("play")), ("cue_cap", button_cap("cue")),
                     ("light_ring", light_ring()),
                     ("play_cap_plain", button_cap("play", plain=True)), ("cue_cap_plain", button_cap("cue", plain=True)),
-                    ("slider_knob", slider_knob())):
+                    ("slider_knob" + M.KNOB_SUFFIX, slider_knob())):
         export_stl(s, f"build/{name}.stl", tolerance=0.02, angular_tolerance=0.1)
         m = trimesh.load(f"build/{name}.stl")
         print(name, (m.bounds[1] - m.bounds[0]).round(1),

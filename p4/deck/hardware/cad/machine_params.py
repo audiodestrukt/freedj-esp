@@ -201,12 +201,36 @@ W = SLIDER_X + 14.0          # the ticks and tempo LED need 14 to the right edge
 WINDOW_X = W / 2             # the visible window is centred on the deck
 SCREEN_X = WINDOW_X - LCD_AA_DX   # glass centre: the active area is off-centre on the glass
 SLIDER_C = JOG_C[1]          # slot centred on the jog
+# Pot, picked by FREEDJ_POT (default sc6080 on the A1S deck, pta6043 on the P4). Both have
+# the 75 x 9 frame with M2 tapped holes 71 apart and 60 mm travel, so the shell's mount is
+# the same; the lever (knob socket) and body depth differ.
+POT = os.environ.get("FREEDJ_POT", "sc6080" if A1S else "pta6043")
+assert POT in ("pta6043", "sc6080"), POT
 POT_TRAVEL = 60.0
-POT_FRAME = (9.0, 75.0, 6.5) # x (across), y (along the travel), z (frame top -> body bottom)
 POT_HOLES = 71.0             # M2 tapped, on the centre line
-POT_PINS = 62.8              # pin 1/2 end to pin 3 end
-LEVER = (1.0, 4.0, 15.0)     # DP lever: across, along the travel, above the frame top
-POT_PAD = 3.0                # pads under the top: frame top at H - TOP_T - POT_PAD
+if POT == "pta6043":
+    POT_FRAME = (9.0, 75.0, 6.5) # x (across), y (along the travel), z (frame top -> body bottom)
+    POT_PINS = 62.8              # pin 1/2 end to pin 3 end
+    LEVER = (1.0, 4.0, 15.0)     # DP lever: across, along the travel, above the frame top
+    LEVER_BASE = (4.0, 0.0)      # wider foot of the lever: along the travel, height above the frame top
+else:
+    # SC6080GH B10K 15C (dual gang, 10k linear): its drawing gives the 75 x 9 frame, M2 x 0.4
+    # holes 71 apart, body 7.0 deep, a 1.2 x 4.0 lever L = 15 above the frame top (F = 10 of
+    # it straight, 5.0 wide below that), 6 pins (1/2/1'/2' at one end, 3/3' 70 apart at the
+    # other) and two 2.0 mm PCB legs 25 and 22.5 either side of the centre, all 3.5 long.
+    POT_FRAME = (9.0, 75.0, 7.0)
+    POT_PINS = 70.0
+    LEVER = (1.2, 4.0, 15.0)
+    LEVER_BASE = (5.0, 5.0)
+    POT_LEGS = (-25.0, 22.5)
+# Pads under the top: frame top at H - TOP_T - POT_PAD. The SC6080 hangs lower so its
+# lever's 5 mm foot stays 0.2 under the top plate (on 3 mm pads it rose 2 mm into the plate and
+# caught the slot ends; a longer slot would bring them within 0.8 of the countersinks).
+POT_PAD = max(3.0, LEVER_BASE[1] + 0.2)                  # 3.0 PTA, 5.2 SC6080
+# M2 countersunk screws go through the top and the pad (TOP_T + POT_PAD) into the frame:
+# M2 x 8 on the PTA (1.0 into the frame), M2 x 10 on the SC6080 (0.8; x 12 gives 2.8 if its tapped holes are that deep)
+# The pads stop 0.5 short of the lever's foot at the end of its travel
+POT_PAD_L = 2 * (POT_HOLES / 2 - (POT_TRAVEL / 2 + max(LEVER[1], LEVER_BASE[0]) / 2 + 0.5))
 SLOT_W = 2.6
 SLOT_L = POT_TRAVEL + LEVER[1] + 0.6                    # 64.6
 SLIDER_Y = (SLIDER_C - SLOT_L / 2, SLIDER_C + SLOT_L / 2)
@@ -214,11 +238,15 @@ KNOB = (14.0, 11.0, 10.0)    # base x (across the slot), base y (along it), heig
 KNOB_TOP = (12.0, 5.5)       # flat top: x, y. Tapers from the base, CDJ tempo-knob style
 KNOB_SCOOP = (14.0, 1.3)     # finger scoops in the front and back faces: radius, depth
 KNOB_LIFT = 1.0              # knob underside above the top
-KNOB_SOCKET = (1.4, 4.3, 7.2)   # lever socket: across, along, depth (the lever goes in 7.0)
+KNOB_SOCKET = (LEVER[0] + 0.4, 4.3, 7.2)   # lever socket: across, along, depth (the lever goes in 7.0)
+KNOB_SUFFIX = "" if POT == "pta6043" else "_" + POT   # slider_knob{_sc6080}.stl
 KNOB_Y = SLIDER_C - 4.0      # rendered at +1.25 % (pitch range is firmware's business)
 TICKS_X = 6.0                # tick scale starts this far right of the slot; long 3.5, short 2
 TEMPO_LED_X = 11.0           # tempo-zero LED, right of the slot: clear of the 2 mm edge round
 assert SLIDER_C - POT_HOLES / 2 + 1.9 < SLIDER_Y[0] - 1.0, "M2 countersink too close to the slot end"
+assert POT_PAD_L >= 4.0, ("pot pads too short for the M2 screws", POT_PAD_L)
+LEVER_IN_KNOB = LEVER[2] - TOP_T - POT_PAD - KNOB_LIFT  # 7.0 PTA, 4.8 SC6080
+assert LEVER_IN_KNOB >= 4.0, ("lever too short to hold the knob", LEVER_IN_KNOB)
 
 assert not PANEL or PANEL_BODY[1] < H - TOP_T - BASE_T - 1.0, "panel button body reaches the base plate"
 

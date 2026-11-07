@@ -56,7 +56,7 @@ def part():
     # pitch pot pads: the frame's top face sits on these, POT_PAD under the top
     for s_ in (-1, 1):
         adds.append(Pos(M.SLIDER_X, M.SLIDER_C + s_ * M.POT_HOLES / 2, M.H - M.TOP_T - M.POT_PAD)
-                    * Box(M.POT_FRAME[0] - 1, 6.0, M.POT_PAD + 0.5, align=(Align.CENTER, Align.CENTER, Align.MIN)))
+                    * Box(M.POT_FRAME[0] - 1, M.POT_PAD_L, M.POT_PAD + 0.5, align=(Align.CENTER, Align.CENTER, Align.MIN)))
     # screen bosses on the module's 4 mounting holes: they come down from the top past the
     # glass and gasket and stop on the board, which then holds the glass up against the gasket
     F = face_loc()

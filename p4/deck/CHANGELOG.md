@@ -11,6 +11,15 @@ playing (see the README's *Audio health* section). Unless noted, it's
 the panel**, so they read high. From 2026-10-31 on, "screen fps" counts
 frames LVGL actually rendered and flushed.
 
+## 2026-11-06 (later): CAD: SC6080GH pitch fader (`FREEDJ_POT=sc6080`, A1S default)
+
+- SC6080GH B10K 15C from its drawing: same 75 × 9 frame, M2 holes 71 apart and 60 mm travel as
+  the PTA6043, so the slot (64.6) and countersinks stay. Its lever's 5 mm-wide foot (5 above the
+  frame) rose 2 mm into the top plate and hit the slot ends at full travel, so it hangs on 5.2 mm
+  pads (3 for the PTA): no contact at either end of travel. M2 × 10 screws. Knob socket follows
+  the lever (1.6 for its 1.2 lever): `slider_knob_sc6080.stl`; 4.8 mm of lever in the knob.
+  Pads stop 0.5 short of the lever foot. P4 shell unchanged.
+
 ## 2026-11-06 (later): CAD: panel-mount buttons (`FREEDJ_BUTTONS=panel`)
 
 - Bought 16 mm panel-hole pushbuttons (0.75" top) in plain 16.25 mm holes, nut under the top.
