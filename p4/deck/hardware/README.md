@@ -94,8 +94,8 @@ stack and the dev board's USB-A stacks set the height. Files get a `_28` suffix
 the other parts are the same. The dev board moves 10.6 mm forward with the back wall, further
 under the jog, and still clears everything: no clashes with the shell, the pot or the screen
 module in either version, and the screen's board is at least 1.6 mm over the USB-A stacks.
-A noticeably smaller deck needs a smaller jog (an 80 mm platter would make it roughly
-136 × 150), which is a separate choice.
+A noticeably smaller deck needs a smaller jog: see the A1S compact deck below (80 mm
+platter, 140 × 154.1).
 
 The 3.5" window shrinks the deck by about 6 mm in depth (glass 55.5 vs 60.9 mm tall in
 landscape). Width doesn't change, because the jog and slider set it.
@@ -106,6 +106,34 @@ Two firmware catches with the ILI9488 over SPI:
   27 fps where the 4" does 41). LVGL needs a convert-to-RGB666 step in the flush.
 - **Resistive touch** needs an XPT2046 driver and calibration. It works with the stylus
   or a fingernail, but finger swipes aren't as smooth as on the capacitive 4".
+
+## The A1S compact deck (`FREEDJ_BOARD=a1s`)
+
+A smaller deck for the **AI-Thinker ESP32-A1S Audio Kit** and the **2.8"** screen:
+**140 × 154.1 mm angled** (155.4 flat), **32 mm tall** at the front (44.3 at the back of the
+bezel). The P4 2.8" deck is 160 × 174.1 × 34. `FREEDJ_BOARD=a1s` implies the 2.8"; files get an
+`_a1s` suffix (`shell_a1s.stl`, `base_a1s.stl`, `platter_a1s.stl`, `_flat_a1s` for flat).
+
+![A1S compact deck](cad/renders/freedj_esp/0036-a1s-compact-hero.jpg)
+
+| | |
+|---|---|
+| Jog | **80 mm platter** in an 84 mm well (58 knurls, 60 mm touch plate, inertia ring r 28–36 × 5). The same shaft, 608s, e-clip, magnet and AS5600 |
+| Layout | Jog at (72, 50); CUE / PLAY and the control board unchanged (CUE 3.7 mm clear of the well); slider 12 mm right of the well (14 on the P4) |
+| Height | Set by the jog's bearing stack: 32 mm leaves 2.1 mm between the two 608s (the params assert ≥ 1.5). It can't go lower without moving the encoder stack. The A1S has no tall USB-A stacks, so the flat version is 32 mm too (not 38) |
+| Board | Back-right under the screen, on four 3 mm standoffs with small M3 inserts; headphone and line-in jacks out the rear wall, both micro-USBs out the right wall (deep openings for the plug overmould, as on the P4) |
+| Dropped | The USB-A stick slot and the RCA jacks: the A1S has no USB host, and its own jacks are the outputs |
+
+**The A1S geometry is a placeholder.** Ai-Thinker publishes no dimensioned drawing, so the
+outline (90 × 60), holes, jack and USB positions and part heights in `a1s_board.py` are
+guesses. Measure the board, edit the one table at the top of `a1s_board.py`, rebuild, and run
+`FREEDJ_BOARD=a1s python3 a1s_board.py`: it prints the board's placement, its tallest part
+against the screen module's lowest point, and any clashes with the shell, the screen, the pot
+and the control board (0 with the placeholder, both versions). The SD slot isn't reachable
+from outside yet; where it goes depends on which edge it's on.
+
+The A1S firmware drives a 128 × 64 SSD1306 OLED today, not the 2.8" ILI9341V, so the screen
+needs a driver on that side before this deck is useful.
 
 ## Open questions
 
@@ -173,7 +201,9 @@ that depends on it.
 | `ctrlboard.py` | Control board: outline (DXF), holes, switch/LED/connector positions, stand-ins |
 | `ctrl_fit.py` | The **populated** control board (tscircuit GLB, real part models) placed in the deck: test-fit STLs (`build/ctrl_board_pop{,_flat}.stl` in the deck frame, `build/ctrl_board_pop_local.stl` alone; `build/ctrl_board_print.stl` is a printable stand-in, one solid without the connectors, printed flat), a clash check against the shell, rings, caps and base, and render scenes |
 | `stock.py` | Bought parts as stand-ins: LCD (touch glass, TFT, board, header), screws, connectors |
-| `devboard.py` | The Waveshare dev board stand-in (board, ports, header, module) and its placement in the deck |
+| `devboard.py` | The Waveshare dev board stand-in (board, ports, header, module), its placement in the deck and its wall openings |
+| `a1s_board.py` | The ESP32-A1S Audio Kit stand-in for `FREEDJ_BOARD=a1s` (same interface as `devboard.py`; placeholder dimensions), plus its clash check |
+| `screen_adapter_32.py` | Adapter that holds a 3.2" MSP3223 in the 4" shell's window, for trying screen sizes |
 | `machine.py` | The assembly, exported as GLB (plus a cutaway through the jog) |
 | `machine_flat.py` | The same assembly in the flat-top configuration |
 | `screen_mock.py` | A picture of the play screen for the render, laid out from `main/ui.cpp`. The waveform is synthetic |
@@ -183,6 +213,7 @@ that depends on it.
 cd p4/deck/hardware/cad
 python3 shell.py; python3 base.py; python3 jog.py; python3 controls.py   # printable STLs in build/, each checked watertight
 FREEDJ_CONFIG=flat python3 shell.py; FREEDJ_CONFIG=flat python3 base.py; FREEDJ_CONFIG=flat python3 jog.py   # the flat set
+FREEDJ_BOARD=a1s python3 shell.py; FREEDJ_BOARD=a1s python3 base.py; FREEDJ_BOARD=a1s python3 jog.py   # the A1S compact set
 python3 screen_mock.py && python3 machine.py                            # build/freedj_esp.glb, build/freedj_esp_cut.glb
 LC_ALL=C LANG=C blender -b -P deck_render.py -- build/freedj_esp.glb build/hero.png --dist 3.4
 LC_ALL=C LANG=C blender -b -P deck_render.py -- build/freedj_esp_cut.glb build/cut.png \

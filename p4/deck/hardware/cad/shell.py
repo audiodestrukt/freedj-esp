@@ -103,26 +103,15 @@ def part():
     pd, pdepth = M.SCREEN_PILOT
     for L in screen_holes():   # blind pilots up from the board face
         cuts.append(L * Pos(0, 0, -1) * Cylinder(pd / 2, pdepth + 1, align=(Align.CENTER, Align.CENTER, Align.MIN)))
-    ux, uw, uh = M.USBA_FACE
-    cuts.append(F * Pos(ux - M.W / 2, M.USBA_V, 0) * Box(uw, uh, 20))
-    cuts.append(F * Pos(ux - M.W / 2, M.USBA_V - 9, -0.6) * Cylinder(1.0, 2))   # stick activity LED
+    if M.USB_STICK:
+        ux, uw, uh = M.USBA_FACE
+        cuts.append(F * Pos(ux - M.W / 2, M.USBA_V, 0) * Box(uw, uh, 20))
+        cuts.append(F * Pos(ux - M.W / 2, M.USBA_V - 9, -0.6) * Cylinder(1.0, 2))   # stick activity LED
     # rear panel
     for x in M.RCA_X:
         cuts.append(Pos(x, M.D, M.RCA_Z) * Rot(90, 0, 0) * Cylinder(M.RCA_HOLE / 2, 10))
-    # dev board ports: Ethernet + 2 x dual USB-A through the rear wall, 2 x USB-C through the
-    # right wall (opening sized for the plug's overmould so it seats fully)
-    import devboard as B
-    top = B.Z0 + B.T_
-    for w, wd, h in B.USBA:
-        x, _ = B.deck_xy(0, w)
-        # 0.75 per side across: the shells flare at the mouth (0.5 had to be filed out)
-        cuts.append(Pos(x, M.D, top - 0.5) * Box(wd + 1.5, 10, h + 1.0, align=(Align.CENTER, Align.CENTER, Align.MIN)))
-    w, wd, h, _ = B.RJ45
-    x, _ = B.deck_xy(0, w)
-    cuts.append(Pos(x, M.D, top - 0.5) * Box(wd + 1.0, 10, h + 1.0, align=(Align.CENTER, Align.CENTER, Align.MIN)))
-    for u in B.USBC:
-        _, y = B.deck_xy(u, 0)
-        cuts.append(Pos(M.W, y, top + B.USBC_SIZE[2] / 2) * Box(30, 13.0, 7.5))   # deep: the plug reaches in past the wall
+    # main board ports through the walls (devboard.py / a1s_board.py)
+    cuts += M.board_module().shell_cuts()
     # brand, engraved on the bezel left of the screen, below the USB-A slot
     try:
         win_l = M.WINDOW_X - M.LCD_ACTIVE[0] / 2 - M.WINDOW_MARGIN - (M.TOP_T_PERP - M.WINDOW_LIP)
@@ -152,8 +141,7 @@ MATES = {   # world frame (the shell is the datum); +z points out of the contact
     **{f"screen_screw{i}": L * Pos(0, 0, -M.LCD_PCB[2]) for i, L in enumerate(screen_holes())},   # under the board, +z up into the boss
     "usb_a":  F * Pos(M.USBA_FACE[0] - M.W / 2, M.USBA_V, 0),
     "usb_led": F * Pos(M.USBA_FACE[0] - M.W / 2, M.USBA_V - 9, 0),
-    "rca_l":  Pos(M.RCA_X[0], M.D, M.RCA_Z) * Rot(-90, 0, 0),
-    "rca_r":  Pos(M.RCA_X[1], M.D, M.RCA_Z) * Rot(-90, 0, 0),
+    **{k: Pos(x, M.D, M.RCA_Z) * Rot(-90, 0, 0) for k, x in zip(("rca_l", "rca_r"), M.RCA_X)},
     "base":   Pos(0, 0, 0),
 }
 

@@ -61,4 +61,25 @@ LOC = Pos(X0, YB, Z0) * Rot(0, 0, 90)               # board frame -> deck: (u, -
 def deck_xy(u, w):
     return (X0 + w, YB + u)
 
+def shell_cuts():
+    """Openings in the shell's walls for the ports (world frame)."""
+    cuts = []
+    top = Z0 + T_
+    # Ethernet + 2 x dual USB-A through the rear wall
+    for w, wd, h in USBA:
+        x, _ = deck_xy(0, w)
+        # 0.75 per side across: the shells flare at the mouth (0.5 had to be filed out)
+        cuts.append(Pos(x, M.D, top - 0.5) * Box(wd + 1.5, 10, h + 1.0, align=C))
+    w, wd, h, _ = RJ45
+    x, _ = deck_xy(0, w)
+    cuts.append(Pos(x, M.D, top - 0.5) * Box(wd + 1.0, 10, h + 1.0, align=C))
+    # 2 x USB-C through the right wall, sized for the plug's overmould so it seats fully
+    for u in USBC:
+        _, y = deck_xy(u, 0)
+        cuts.append(Pos(M.W, y, top + USBC_SIZE[2] / 2) * Box(30, 13.0, 7.5))   # deep: the plug reaches in past the wall
+    return cuts
+
+# Base plate vents, left of the standoffs: (x, y, length along y)
+VENTS = [(55 + (i - 3) * 9, 150, 30) for i in range(7)]
+
 MATES = {"seat": Pos(0, 0, 0)}

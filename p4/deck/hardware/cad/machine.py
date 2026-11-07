@@ -14,7 +14,7 @@ from PIL import Image
 from build123d import *
 import machine_params as M
 from machine_params import place
-import shell, base, jog, controls, stock, devboard, ctrlboard
+import shell, base, jog, controls, stock, ctrlboard
 
 # name: (rgba, metallic, roughness, emissive rgb or None)
 LOOK = {
@@ -89,7 +89,8 @@ def scene_parts():
     for n, s_, lk in ctrlboard.parts():
         add(n, s_, lk)
     add("tempo_led", place(controls.led(), controls.MATES["seat"], S["slider_led"]), "led_green")
-    add("usb_led", place(controls.led(), controls.MATES["seat"], S["usb_led"]), "led_blue")
+    if M.USB_STICK:
+        add("usb_led", place(controls.led(), controls.MATES["seat"], S["usb_led"]), "led_blue")
     # screen + connectors
     seat_on = lambda s, m: place(s, stock.MATES["seat"], S[m])
     add("gasket", seat_on(stock.gasket(), "screen"), "feet")
@@ -99,15 +100,17 @@ def scene_parts():
     add("lcd_header", seat_on(stock.lcd_header(), "screen"), "chip")
     for i in range(4):
         add(f"screen_screw{i}", seat_on(stock.screw_m3(), f"screen_screw{i}"), "steel")
-    add("usb_a", seat_on(stock.usb_a(), "usb_a"), "steel")
-    add("usb_a_tongue", seat_on(stock.usb_a_tongue(), "usb_a"), "usb_blue")
-    # Waveshare dev board on the base plate's standoffs
-    add("devboard", devboard.LOC * devboard.board(), "pcb_black")
-    for n, s in devboard.ports():
-        add(n, devboard.LOC * s, "steel")
-    for n, s in devboard.parts():
-        add(n, devboard.LOC * s, "chip")
-    for side, look in (("rca_l", "rca_white"), ("rca_r", "rca_red")):
+    if M.USB_STICK:
+        add("usb_a", seat_on(stock.usb_a(), "usb_a"), "steel")
+        add("usb_a_tongue", seat_on(stock.usb_a_tongue(), "usb_a"), "usb_blue")
+    # main board (P4 dev kit or A1S) on the base plate's standoffs
+    B = M.board_module()
+    add("devboard", B.LOC * B.board(), "pcb_black")
+    for n, s in B.ports():
+        add(n, B.LOC * s, "steel")
+    for n, s in B.parts():
+        add(n, B.LOC * s, "chip")
+    for side, look in (("rca_l", "rca_white"), ("rca_r", "rca_red"))[:len(M.RCA_X)]:
         add(side, seat_on(stock.rca(), side), "gold")
         add(side + "_ring", seat_on(stock.rca_ring(), side), look)
     return out

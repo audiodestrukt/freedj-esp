@@ -24,10 +24,10 @@ def part():
     for x, y in posts():
         cuts.append(Pos(x, y, -1) * Cylinder(1.7, M.BASE_T + 2, align=C))
         cuts.append(Pos(x, y, -0.01) * Cone(3.2, 1.6, 1.6, align=C))
-    for i in range(7):   # vents, left of the dev board's standoffs
-        cuts.append(Pos(55 + (i - 3) * 9, 150, -1) * Box(3, 30, M.BASE_T + 2, align=C))
-    # dev board standoffs (Pi B+ pattern), M2.5 heat-set inserts from the top
-    import devboard as B
+    B = M.board_module()
+    for x, y, ln in B.VENTS:   # vents near the main board
+        cuts.append(Pos(x, y, -1) * Box(3, ln, M.BASE_T + 2, align=C))
+    # main board standoffs, small M3 heat-set inserts from the top
     standoffs = []
     for u, w in B.HOLES:
         x, y = B.deck_xy(u, w)

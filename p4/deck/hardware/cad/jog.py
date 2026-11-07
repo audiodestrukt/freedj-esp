@@ -18,7 +18,7 @@ from build123d import *
 import machine_params as M
 
 C = (Align.CENTER, Align.CENTER, Align.MIN)
-KNURL_N, KNURL_D = 72, 2.4
+KNURL_N, KNURL_D = round(72 * M.JOG_D / 100), 2.4   # 72 on the 100 mm platter
 TOUCH_T, TOUCH_RECESS = 1.5, 1.2
 CAP_H = 2.5
 B_ID, B_OD, B_W = M.B608

@@ -17,16 +17,24 @@ CONFIG = os.environ.get("FREEDJ_CONFIG", "angled")
 assert CONFIG in ("angled", "flat"), CONFIG
 # Screen, picked by FREEDJ_SCREEN: "4" (MSP4031, 480x320) or "2.8" (MSP2834, 320x240).
 # The 2.8" only changes the depth (the bezel is shorter); width and height come from the jog.
-SCREEN = os.environ.get("FREEDJ_SCREEN", "4")
+# Main board, picked by FREEDJ_BOARD: "p4" (Waveshare ESP32-P4 dev kit, devboard.py) or
+# "a1s" (AI-Thinker ESP32-A1S Audio Kit, a1s_board.py): the compact deck, always with the
+# 2.8", an 80 mm platter and no USB-A stick slot or RCA jacks (the A1S has its own jacks).
+BOARD = os.environ.get("FREEDJ_BOARD", "p4")
+assert BOARD in ("p4", "a1s"), BOARD
+A1S = BOARD == "a1s"
+SCREEN = os.environ.get("FREEDJ_SCREEN", "2.8" if A1S else "4")
 assert SCREEN in ("4", "2.8"), SCREEN
-SUFFIX = ("" if CONFIG == "angled" else "_flat") + ("" if SCREEN == "4" else "_28")
+assert not A1S or SCREEN == "2.8", "the A1S deck is built around the 2.8\""
+SUFFIX = ("" if CONFIG == "angled" else "_flat") + ("_a1s" if A1S else "" if SCREEN == "4" else "_28")
 NAME = "freedj_esp" + SUFFIX   # output file stem
 
 # Body
-W = 160.0                    # width; the depth D is derived below from the jog + screen layout
-# Height of the top (jog area). Flat is 4 mm taller: the dev board's USB-A stacks sit under
-# the screen, and without the angled bezel's rise they'd hit the screen's board.
-H = 34.0 if CONFIG == "angled" else 38.0
+# Width and depth are derived below from the jog, buttons, slider and screen layout.
+# Height of the top (jog area). P4 flat is 4 mm taller: the dev board's USB-A stacks sit
+# under the screen, and without the angled bezel's rise they'd hit the screen's board.
+# The A1S has nothing that tall, so its height is set by the jog's bearing stack (see JOG_H_MIN).
+H = 32.0 if A1S else 34.0 if CONFIG == "angled" else 38.0
 CORNER_R = 10.0              # plan-view corner radius
 WALL = 2.5                   # side walls
 TOP_T = 4.0                  # top plate (stiff: the jog boss hangs off it)
@@ -72,8 +80,6 @@ else:
     SCREEN_PILOT = (2.2, 5.0)    # M2.5 thread-forming, as the control board uses
     SCREEN_SCREW = 2.5
 STACK = CTP_T + CTP_TAPE + TFT_T + TAPE_T
-WINDOW_X = W / 2             # the visible window is centred on the deck
-SCREEN_X = WINDOW_X - LCD_AA_DX   # glass centre: the active area is off-centre on the glass
 def _boss_to_glass():
     """Clear gap between a screen boss and the glass edge (the nearest of the 4)."""
     gaps = []
@@ -88,15 +94,15 @@ WINDOW_MARGIN = 0.5          # window = active area + this all round
 WINDOW_LIP = 1.0             # straight part of the window wall; above it a 45 degree chamfer for fingers
 
 # Jog
-JOG_C = (80.0, 60.0)
-JOG_D = 100.0                # platter
-WELL_D = 104.0               # recess around it
+JOG_C = (72.0, 50.0) if A1S else (80.0, 60.0)   # A1S: CUE stays 3.7 mm clear of the smaller well
+JOG_D = 80.0 if A1S else 100.0                  # platter
+WELL_D = JOG_D + 4.0         # recess around it
 WELL_DEPTH = 2.0
 PLATTER_H = 10.0
 PLATTER_GAP = 1.5            # platter underside above the well floor (0.5 scraped at the rim when pressed)
-TOUCH_D = 80.0               # aluminium top plate = capacitive touch electrode
+TOUCH_D = JOG_D - 20.0       # aluminium top plate = capacitive touch electrode
 CAP_D = 24.0                 # centre cap
-INERTIA = (38.0, 46.0, 5.0)  # steel ring in the platter underside: r_in, r_out, h
+INERTIA = (JOG_D / 2 - 12, JOG_D / 2 - 4, 5.0)  # steel ring in the platter underside: r_in, r_out, h
 
 # Two 608 skateboard bearings, 8 x 22 x 7
 B608 = (8.0, 22.0, 7.0)
@@ -141,6 +147,9 @@ ENC_STANDOFF = ENC_Z - BASE_T                               # boss height above 
 assert ENC_STANDOFF >= 2.0, ENC_STANDOFF
 assert 0.5 <= AIR_GAP <= 3.0, AIR_GAP     # AS5600 working range
 assert ECLIP[3] < 12.0                     # clip on the inner race only
+# Both 608s fit between the boss underside and the well floor, with a gap between them
+BEARING_GAP = (H - WELL_DEPTH - B608[2]) - (BOSS_BOTTOM + B608[2])
+assert BEARING_GAP >= 1.5, ("bearings too close: raise H", BEARING_GAP)
 
 # CUE / PLAY, bottom-left as on a CDJ. Each button is a cap and a light ring, put in from
 # below and held by the control board (no glue):
@@ -173,7 +182,10 @@ CUE_C = (16.0, 40.0)         # ~4 mm clear of the jog well
 # frame top, 3 PC pins down (62.8 apart end to end). It hangs under the top on two pads,
 # held by two M2 x 8 countersunk screws from above (flush: a pan head would catch the knob
 # at the travel ends). Wired to the control board; its PC pins aren't used as board pins.
-SLIDER_X = 146.0
+SLIDER_X = JOG_C[0] + WELL_D / 2 + (12.0 if A1S else 14.0)   # 146 on the P4
+W = SLIDER_X + 14.0          # the ticks and tempo LED need 14 to the right edge: 160 on the P4
+WINDOW_X = W / 2             # the visible window is centred on the deck
+SCREEN_X = WINDOW_X - LCD_AA_DX   # glass centre: the active area is off-centre on the glass
 SLIDER_C = JOG_C[1]          # slot centred on the jog
 POT_TRAVEL = 60.0
 POT_FRAME = (9.0, 75.0, 6.5) # x (across), y (along the travel), z (frame top -> body bottom)
@@ -208,7 +220,8 @@ CTRL_BOSS_D = 6.0
 CTRL_PILOT = (2.2, 5.0)      # M2.5 thread-forming screws up from below: pilot dia, depth
 
 # Rear panel (y = D)
-RCA_X, RCA_Z, RCA_HOLE = (64.0, 80.0), 15.0, 8.6   # left of the dev board's ports
+RCA_X, RCA_Z, RCA_HOLE = (() if A1S else (64.0, 80.0)), 15.0, 8.6   # left of the dev board's ports
+USB_STICK = not A1S          # USB-A stick slot on the bezel (the A1S has no USB host)
 USBA_FACE = (14.5, 13.6, 6.2)     # on the bezel: x, opening w, h (stick goes in from the top)
 
 # Screen bezel. Depth follows from the parts: jog well, a gap, the glass with a
@@ -225,6 +238,14 @@ TOP_T_PERP = TOP_T * math.cos(math.radians(TILT))   # top thickness measured squ
 GLASS_Z = -(TOP_T_PERP + GASKET)                    # glass top, face-local: behind the top plate
 USBA_V = SCREEN_V + 18.0     # USB-A slot sits up the slope, clear of the screen bosses
 BRAND_V = 9.0                # "FREEDJ", left of the screen near the bend
+
+def board_module():
+    """The main board's module: devboard (P4) or a1s_board, same interface."""
+    if A1S:
+        import a1s_board as b
+    else:
+        import devboard as b
+    return b
 
 def face_loc():
     """Location of the tilted bezel face: origin on the bend line at x = W/2,

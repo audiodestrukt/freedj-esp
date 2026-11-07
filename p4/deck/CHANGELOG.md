@@ -11,6 +11,20 @@ playing (see the README's *Audio health* section). Unless noted, it's
 the panel**, so they read high. From 2026-10-31 on, "screen fps" counts
 frames LVGL actually rendered and flushed.
 
+## 2026-11-06 (later): CAD: compact A1S deck (`FREEDJ_BOARD=a1s`)
+
+- A deck variant for the ESP32-A1S Audio Kit and the 2.8": **140 × 154.1 × 32 mm** angled
+  (155.4 deep flat), against 160 × 174.1 × 34 for the P4 2.8". 80 mm platter (84 mm well),
+  same shaft, bearings, encoder, buttons, control board and slider. Height is set by the
+  bearing stack (2.1 mm between the 608s). No USB-A stick slot or RCA; the A1S's jacks go out
+  the rear wall and its micro-USBs out the right.
+- **A1S dimensions are placeholders** (no published drawing): one table in `a1s_board.py`,
+  which also prints a clash check (0 with the placeholders, both versions).
+- Width now derives from the jog and slider (`W = SLIDER_X + 14`); the P4's port cutouts and
+  vents moved from `shell.py` / `base.py` into `devboard.py`. P4 shell, base and platter are
+  unchanged in all four configurations (volumes and bounding boxes identical). No firmware
+  change.
+
 ## 2026-11-06 (later): browse with the jog and PLAY
 
 - With the track list on screen, the jog scrolls it (`kBrowseTicksPerRow` 6: 30 rows per turn on

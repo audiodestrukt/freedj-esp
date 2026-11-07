@@ -35,3 +35,6 @@
 - 0033-cdj-style-knob.jpg: 2026-11-01: CDJ-style tempo knob: tapered body, concave finger scoops front and back, flat top with a white index line
 - 0034-populated-ctrl-board.jpg: 2026-11-01: the populated control board from tscircuit's GLB (real JLCPCB/EasyEDA part models), switches corrected to their 7.5 mm height
 - 0035-populated-board-in-deck-section.jpg: 2026-11-01: section through PLAY and CUE (flat shell): cap nubs on the real switches, ring skirts on the board over the LEDs, boss on the board; ctrl_fit.py found no clashes in either config with lit or plain buttons
+- 0036-a1s-compact-hero.jpg: 2026-11-06: FREEDJ_BOARD=a1s: the compact deck for the ESP32-A1S Audio Kit and the 2.8": 80 mm platter, 140 x 154.1 x 32 mm (OpenSCAD preview; Blender segfaulted)
+- 0037-a1s-compact-rear.jpg: 2026-11-06: A1S deck from the back: the two 3.5 mm jacks through the rear wall (placeholder positions until the board is measured)
+- 0038-a1s-compact-inside.jpg: 2026-11-06: A1S deck without the shell: the A1S (placeholder outline) back-right under the 2.8" module, micro-USBs toward the right wall
