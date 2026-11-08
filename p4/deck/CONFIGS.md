@@ -14,7 +14,7 @@ track loading and the deck logic don't care about the screen or where events com
 |---|---|
 | Board | ESP32-P4 dev kit · ESP32-A1S Audio Kit · ESP32-S3 (planned) |
 | Screen | see *Screens* below, from 4" colour to 0.96" mono, or none |
-| Controls | DJ2Go over USB MIDI · DJ2Go over the serial bridge (`tools/midi_bridge.py`) · AS5600 jog · panel buttons and pitch pot (`panel_gpio`) · rotary encoder (planned) · control board on I2C 0x42 (planned) · touch |
+| Controls | DJ2Go over USB MIDI · DJ2Go over the serial bridge (`tools/midi_bridge.py`) · AS5600 jog · panel buttons and pitch pot (`panel_gpio`) · quadrature encoders on PCNT, browse and jog (planned, see *Encoders*) · control board on I2C 0x42 (planned) · touch |
 | Audio out | the board's codec (ES8311 on the P4, ES8388 on the A1S) · an I2S DAC such as a PCM5102 (planned) · USB audio interface (P4) |
 | Tracks from | SD card · USB stick (needs USB host) · Pro DJ Link (needs a network; Ethernet on the P4) |
 | Timecode in | off · codec line in (A1S, needs ~4 MB PSRAM for its table) · USB audio interface (P4) |
@@ -60,6 +60,39 @@ Three layouts, picked by the screen class, not one per panel:
 | **Minimal** | 128×64 and 128×32 mono | track name, time, 1-bit waveform strip | encoder for browse |
 | **Headless** | none | | encoder, LEDs for play/cue |
 
+## Encoders (for the small builds)
+
+Below the Full tier there's no touch, so browsing needs a knob. The jog can come off I2C too.
+
+**How they connect:** a quadrature encoder's A and B lines go to two GPIOs (plus one for a
+push switch). The ESP32's hardware pulse counter (PCNT, on every ESP32 including the A1S's,
+the S3 and the P4) decodes the quadrature and has a glitch filter. That means no I2C, no
+interrupts and no CPU cost. The old A1S firmware read its EC11 with pin interrupts
+(`src/controls.cpp`); PCNT replaces that.
+
+| Encoder | Counts per turn | Good for | Cost | Notes |
+|---|---|---|---|---|
+| **EC11** mechanical, with push | 20–24 detents (×4 edges decoded, used per detent) | browse, load (push), nudge, menus | ~$1 | Contacts bounce: PCNT's glitch filter (up to ~12 µs) handles most of it; add 10 nF per line if it still skips |
+| **Optical**, 100–600 PPR | 400–2400 decoded | **jog and scratch** (the AS5600 gives 4096) | ~$10–20 | Often 5 V open-collector: power per the part, pull A/B up to 3V3 only (never 5 V into a GPIO) |
+| AS5600 (today) | 4096 | jog and scratch | ~$2 | On I2C: shares the bus with the codec, touch and an I2C OLED |
+
+**Recommended for the Minimal and Compact builds:** an EC11 for browse and push, plus an
+optical encoder for the jog, both on PCNT. Taking the jog off I2C means an OLED's ~23 ms
+frames on the same bus can't delay it. If cost matters most, keep the AS5600 and measure
+its update rate while the OLED draws.
+
+**Pins on the A1S.** With an I2C OLED instead of the SPI screen, the screen's header pins are
+free again. The old firmware's map works as it is: **EC11 A 19, B 23, push 18**. An optical jog
+takes two more, for example **21 and 22** (the amp enable on 21 stays off, as with the SPI
+screen). PLAY and CUE stay on KEY1/KEY2 (36/13). The header pins' board load doesn't matter
+here: an encoder switches thousands of times slower than SPI.
+
+**Firmware:**
+- One `encoder.cpp`: a PCNT unit per encoder, in quadrature (×4) mode, with the glitch filter. The jog task polls the counts at 1 kHz, as it reads the AS5600 today.
+- The EC11 sends `deck::Event`s: turn → list up/down, push → load, long push → back. Same events the DJ2Go's browse knob sends.
+- The optical jog feeds the same jog path as the AS5600 (ticks per turn from its PPR), so scratch and nudge feel the same. Its counts per turn go in `board_*.h` next to the pins.
+- At boot: if the AS5600 answers on I2C, use it for the jog. Otherwise use the optical encoder if pins are set.
+
 ## How the firmware would carry them
 
 - **Layered sdkconfig fragments**, as `build28/` already does (`sdkconfig.defaults;sdkconfig.defaults.screen28`). One fragment per board (`sdkconfig.defaults.a1s`, later `.s3`) and one per screen. A configuration is a board fragment plus a screen fragment, built into its own directory.
@@ -71,7 +104,7 @@ Three layouts, picked by the screen class, not one per panel:
 
 ## Order of work
 
-1. **Encoder input** (an EC11 on two GPIOs plus its push, or the AS5600 in a "browse" mode). Every tier below Full needs it.
+1. **Encoders on PCNT** (see *Encoders*): an EC11 for browse first, since every tier below Full needs it. Then an optical jog, measured against the AS5600.
 2. **0.96" SSD1306 on the A1S**, on the codec's I2C bus: the Minimal tier and the mono display path. It's the cheapest screen and needs no new pins.
 3. **0.96" ST7735 160×80 on the A1S** (SPI, same pins as today): the Compact tier.
 4. **1.54" ST7789 240×240**, to check that Compact scales to a square screen.
@@ -83,4 +116,5 @@ Three layouts, picked by the screen class, not one per panel:
 - Is the P4 2.8" frame rate worth measuring to fill in the table? (Probably same as the 4", less the pixels.)
 - Does a Compact layout want the overview bar (track position), or does the time cover it?
 - On the Minimal tier, which matters more in 128×64: the waveform strip or a larger time readout?
+- Which optical encoder: PPR, shaft and body size against the jog's bearing stack, and whether it runs at 3.3 V.
 - I2C OLED speed: many SSD1306 modules run at 1 MHz despite the 400 kHz rating, but the codec and the AS5600 on the same bus may not.
