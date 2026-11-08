@@ -12,7 +12,7 @@ track loading and the deck logic don't care about the screen or where events com
 
 | Axis | Options |
 |---|---|
-| Board | ESP32-P4 dev kit · ESP32-A1S Audio Kit · ESP32-S3, incl. the XIAO keychain (planned) · NodeMCU-32S, no PSRAM (planned, see *Boards*) |
+| Board | ESP32-P4 dev kit · ESP32-A1S Audio Kit · ESP32-S3, incl. the XIAO keychain (planned) · a custom board ([MAINBOARD.md](MAINBOARD.md)) |
 | Screen | see *Screens* below, from 4" colour to 0.96" mono, or none |
 | Controls | DJ2Go over USB MIDI · DJ2Go over the serial bridge (`tools/midi_bridge.py`) · AS5600 jog · panel buttons and pitch pot (`panel_gpio`) · quadrature encoders on PCNT, browse and jog (planned, see *Encoders*) · control board on I2C 0x42 (planned) · touch |
 | Audio out | the board's codec (ES8311 on the P4, ES8388 on the A1S) · an I2S DAC such as a PCM5102 (planned) · USB audio interface (P4) |
@@ -37,17 +37,19 @@ What each board can carry. RAM decides the track window, which decides scratch a
 | Waveshare P4 dev kit | ESP32-P4, 2× RISC-V 360 MHz | 32 MB | everything, any tier | main build |
 | AI-Thinker A1S Audio Kit | ESP32 (D0WD v3.0) | 4 MB mapped | Full tier cut down (2 MB window, ~12 s); Minimal on an I2C OLED | runs |
 | **Seeed XIAO ESP32S3**: the keychain | ESP32-S3, 2× LX7 240 MHz, FPU | 8 MB (check the board) | Minimal or Compact tier with an I2S DAC; USB host for the DJ2Go; LiPo charger on board. About 21 × 18 mm | planned, after the S3 port; **not on hand** (the XIAO here is a C6) |
-| NodeMCU-32S | ESP32 (D0WDQ6 **v1.0**) | **none** (probe, 2026-11-08) | Minimal tier only: SD playback with pitch, cue and hot cues (cue jumps re-read the card), OLED, EC11, PCM5102. No long loops, no real back-scratch; keylock unknown. Clean header pins, so SPI screens should run fast | planned |
+| NodeMCU-32S | ESP32 (D0WDQ6 **v1.0**) | **none** (probe, 2026-11-08) | Minimal tier only: SD playback with pitch, cue and hot cues (cue jumps re-read the card), OLED, EC11, PCM5102. No long loops, no real back-scratch; keylock unknown. Clean header pins, so SPI screens should run fast | **dead end**: the A1S's chip without its DAC or PSRAM |
 
 NodeMCU-32S, measured with a probe image: 4 MB flash, PSRAM not found (`PSRAM ID read error:
 0xffffffff`), **358 KB internal RAM free with an empty program, largest block 168 KB**. That's
 under a second of 44.1 kHz stereo, before the deck's own tasks, I2S DMA and the SD driver.
+Not pursued (2026-11-08): it's the A1S's chip without the codec or the PSRAM, so it adds nothing.
+A board with both, built for the deck, is [MAINBOARD.md](MAINBOARD.md).
 
-**Not in this firmware: the C6.** An ESP32-C6 keychain (single 160 MHz RISC-V core, no FPU, no
-PSRAM support, no USB host) would need a fixed-point audio path (libhelix or uncompressed
-files, a fixed-point resampler, no keylock) and single-core scheduling. If it's built, it's a
-separate firmware, a sibling of `p4/deck` sharing `src/` (deck events, the DJ2Go decoder), to see
-how small a deck can go. Parked for now (2026-11-08): the S3 comes first. On hand for it: a Seeed XIAO ESP32C6 and a DFRobot Beetle ESP32-C6.
+**Out of scope: freedj-nano.** The smallest decks (an ESP32-C6, or a chip even smaller, with PWM
+or bit-banged audio) belong to a separate project, freedj-nano, not yet started. They need a
+fixed-point audio path (no FPU), single-core scheduling and no PSRAM, so they wouldn't share
+this firmware's audio core; at most the deck events and the DJ2Go decoder from `src/`. Boards
+on hand for it: a Seeed XIAO ESP32C6 and a DFRobot Beetle ESP32-C6.
 
 ## Screens
 
@@ -131,7 +133,6 @@ here: an encoder switches thousands of times slower than SPI.
 4. **1.54" ST7789 240×240**, to check that Compact scales to a square screen.
 5. **Build-all script**, once there are four or more configurations.
 6. **ESP32-S3** board fragment ([TARGETS.md](TARGETS.md)), with every screen above. Then the XIAO ESP32S3 keychain: Minimal tier, EC11, a small I2S DAC, battery.
-7. **NodeMCU-32S** no-PSRAM build, if the small window turns out playable.
 
 ## Open questions
 

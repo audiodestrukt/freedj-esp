@@ -407,7 +407,7 @@ Measured 2026-10-31: `house.mp3` from SD, synced to a Pro DJ Link master, with t
 
 ## Status and next
 
-The working list for the next session is in [TODO.md](TODO.md). What changed when: [CHANGELOG.md](CHANGELOG.md). Other chips and boards it could run on: [TARGETS.md](TARGETS.md). Board, screen and control combinations, down to 0.96" OLEDs: [CONFIGS.md](CONFIGS.md). The 3D-printed enclosure: [hardware/](hardware/README.md).
+The working list for the next session is in [TODO.md](TODO.md). What changed when: [CHANGELOG.md](CHANGELOG.md). Other chips and boards it could run on: [TARGETS.md](TARGETS.md). Board, screen and control combinations, down to 0.96" OLEDs: [CONFIGS.md](CONFIGS.md). A custom main board with a DAC and PSRAM: [MAINBOARD.md](MAINBOARD.md). The 3D-printed enclosure: [hardware/](hardware/README.md).
 
 ## Pro DJ Link and SYNC
 
