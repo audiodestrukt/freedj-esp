@@ -10,8 +10,8 @@ only the 1.2 mm touch-plate recess needs support (build plate only).
 
 Each part's local frame: axis = z, z = 0 at its own underside, so "seat" = Pos(0,0,0).
 The assembly places everything off the shell's "jog" mate (the well floor at the axis).
-python3 jog.py -> build/platter.stl, build/fit_gauge.stl + the stack numbers
-(FREEDJ_CONFIG=flat -> build/platter_flat.stl: the shaft is 4 mm longer)
+python3 jog.py -> build/<variant>/platter.stl and jog_test_*.stl (the shaft length and platter
+size depend on the variant), build/common/fit_gauge.stl and magnet_gauge.stl, + the stack numbers
 """
 import math, os
 from build123d import *
@@ -163,14 +163,14 @@ STACK = {
 MATES = {"seat": Pos(0, 0, 0)}   # every jog part: its underside on the axis
 
 if __name__ == "__main__":
-    os.makedirs("build", exist_ok=True)
-    print(f"config {M.CONFIG}: shaft {M.SHAFT_D} mm x {SHAFT_L:.2f} mm below the platter, "
+    print(f"{M.VARIANT}: shaft {M.SHAFT_D} mm x {SHAFT_L:.2f} mm below the platter, "
           f"tip at z {M.SHAFT_BOTTOM:.2f}, board on {M.ENC_STANDOFF:.2f} mm bosses, "
           f"magnet {M.MAGNET[1]} mm, air gap {M.AIR_GAP:.2f} mm")
     import trimesh
-    tests = [(f"jog_test_{g:.1f}{M.SUFFIX}".replace(".", "_", 1), test_shaft(g)) for g in TEST_GAPS]
-    for name, solid in [(f"platter{M.SUFFIX}", platter()), ("fit_gauge", fit_gauge()), ("magnet_gauge", magnet_gauge())] + tests:
-        f = f"build/{name}.stl"
+    tests = [(M.out(f"jog_test_{g:.1f}".replace(".", "_") + ".stl"), test_shaft(g)) for g in TEST_GAPS]
+    for f, solid in [(M.out("platter.stl"), platter()), (M.out("fit_gauge.stl", common=True), fit_gauge()),
+                     (M.out("magnet_gauge.stl", common=True), magnet_gauge())] + tests:
+        name = f
         export_stl(solid, f, tolerance=0.02, angular_tolerance=0.1)
         m = trimesh.load(f)
         print(f"{name}:", (m.bounds[1] - m.bounds[0]).round(2),

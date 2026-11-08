@@ -4,7 +4,7 @@
 
 Laid out from the constants in main/ui.cpp (name, time, overview y=94, phase meter
 y=120, colour waveform y=156, key row y=272). The waveform is synthetic, not a track.
-python3 screen_mock.py -> build/screen.png
+python3 screen_mock.py -> build/common/screen.png
 """
 import math, os, random
 from PIL import Image, ImageDraw, ImageFont
@@ -78,7 +78,7 @@ def main():
         tw = d.textlength(t, font=f(13)); d.text((x + (kw - tw) / 2, 280 if cap else 287), t, font=f(13), fill=TEXT if on else KEYFAINT)
         if cap:
             cw = d.textlength(cap, font=f(10)); d.text((x + (kw - cw) / 2, 299), cap, font=f(10), fill=DIM if on else KEYFAINT)
-    os.makedirs("build", exist_ok=True); im.save("build/screen.png"); print("wrote build/screen.png")
+    os.makedirs("build/common", exist_ok=True); im.save("build/common/screen.png"); print("wrote build/common/screen.png")
 
 if __name__ == "__main__":
     main()

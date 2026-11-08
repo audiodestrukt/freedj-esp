@@ -5,7 +5,7 @@
 Carries the jog bearing boss, CUE/PLAY holes, the control board's bosses, the pitch slot
 with the pot's pads and countersunk M2 holes, the tilted LCD bezel with the
 USB-A stick slot beside it, and the rear-panel cutouts. Open underneath; base.py closes it.
-python3 shell.py -> build/shell.stl   (FREEDJ_CONFIG=flat -> build/shell_flat.stl)
+python3 shell.py -> build/<variant>/shell.stl, or shell_panel.stl with FREEDJ_BUTTONS=panel
 """
 import math, os
 from build123d import *
@@ -149,9 +149,8 @@ MATES = {   # world frame (the shell is the datum); +z points out of the contact
 }
 
 if __name__ == "__main__":
-    os.makedirs("build", exist_ok=True)
     p = part()
-    out = f"build/shell{M.SHELL_SUFFIX}.stl"
+    out = M.out(M.SHELL_NAME + ".stl")
     export_stl(p, out, tolerance=0.05, angular_tolerance=0.1)
     import trimesh; m = trimesh.load(out)
     print(out, (m.bounds[1] - m.bounds[0]).round(1),

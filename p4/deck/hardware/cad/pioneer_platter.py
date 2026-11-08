@@ -20,7 +20,7 @@ is 45 degrees then rounds into the band, so it needs no support; only the centre
 does (build plate only).
 
     FREEDJ_PLATTER=pioneer python3 machine.py   assembly + render with this platter
-    python3 pioneer_platter.py -> build/platter_pioneer.stl   (FREEDJ_CONFIG=flat -> _flat)
+    python3 pioneer_platter.py -> build/<variant>/platter_pioneer.stl
 """
 import math, os
 from build123d import *
@@ -89,11 +89,10 @@ def platter():
 
 
 if __name__ == "__main__":
-    os.makedirs("build", exist_ok=True)
-    f = f"build/platter_pioneer{M.SUFFIX}.stl"
+    f = M.out("platter_pioneer.stl")
     export_stl(platter(), f, tolerance=0.02, angular_tolerance=0.1)
     import trimesh
     m = trimesh.load(f)
-    print(f"platter_pioneer{M.SUFFIX}:", (m.bounds[1] - m.bounds[0]).round(2), "bodies:",
+    print(f, (m.bounds[1] - m.bounds[0]).round(2), "bodies:",
           len(m.split(only_watertight=False)), "watertight:", m.is_watertight,
           f"top edge r {TOP_R:.1f}, wall {WALL:.2f}, {m.volume / 1000:.1f} cm3")

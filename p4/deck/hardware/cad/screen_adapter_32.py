@@ -23,7 +23,7 @@ within 0.1 mm, and the 3.2" is simply centred on the adapter.
 Print face down (the face on the bed): every pocket opens upward, no supports.
 Frame: x along the long side, header end at -x, z = 0 at the 4" board face (the bosses'
 ends), +z up toward the top plate.
-python3 screen_adapter_32.py -> build/screen_adapter_32.stl
+python3 screen_adapter_32.py -> build/common/screen_adapter_32.stl (fits either 4" shell)
 """
 import os
 from build123d import *
@@ -111,10 +111,10 @@ def check():
 
 if __name__ == "__main__":
     check()
-    os.makedirs("build", exist_ok=True)
     s = adapter()
     assert s.is_valid, "invalid solid"
     print(f"volume {s.volume / 1000:.1f} cm3, {len(s.solids())} solid(s)")
     # face down for printing
-    export_stl(Rot(180, 0, 0) * s, "build/screen_adapter_32.stl", tolerance=0.02, angular_tolerance=0.1)
-    print("wrote build/screen_adapter_32.stl")
+    f = M.out("screen_adapter_32.stl", common=True)
+    export_stl(Rot(180, 0, 0) * s, f, tolerance=0.02, angular_tolerance=0.1)
+    print("wrote", f)

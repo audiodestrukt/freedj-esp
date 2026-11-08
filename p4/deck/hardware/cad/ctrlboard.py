@@ -12,7 +12,7 @@ board (5: 3V3, GND, SDA, SCL, INT) on the back edge. The PCB itself is ../ctrl-p
 Three M2.5 thread-forming screws from below into bosses that come down from the top.
 
 World frame (deck): the board's top face is at z = CTRL_Z.
-python3 ctrlboard.py -> build/ctrl_board_outline.dxf, prints the hole and part positions
+python3 ctrlboard.py -> build/common/ctrl_board_outline.dxf, prints the hole and part positions
 """
 import math, os
 from build123d import *
@@ -83,7 +83,6 @@ def parts():
     return out
 
 if __name__ == "__main__":
-    os.makedirs("build", exist_ok=True)
     x0, y0, x1, y1 = M.CTRL_XY
     print(f"config {M.CONFIG}: board {x1 - x0:.1f} x {y1 - y0:.1f} mm, corner r {M.CTRL_CORNER_R}, "
           f"top face at z {M.CTRL_Z:.1f}, {M.CTRL_T} thick")
@@ -99,6 +98,6 @@ if __name__ == "__main__":
         exporter = ExportDXF(); exporter.add_shape(Pos(-x0, -y0) * outline())
         for x, y in M.CTRL_HOLES:
             exporter.add_shape(Pos(x - x0, y - y0) * Circle(HOLE_D / 2))
-        exporter.write("build/ctrl_board_outline.dxf"); print("wrote build/ctrl_board_outline.dxf")
+        f = M.out("ctrl_board_outline.dxf", common=True); exporter.write(f); print("wrote", f)
     except Exception as e:
         print("  (DXF skipped:", e, ")")

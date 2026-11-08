@@ -4,7 +4,7 @@
 corner posts (M3 countersunk into heat-set inserts). Vent slots under the electronics.
 Small M3 heat-set inserts (M3 x 3) hold the dev board (on standoffs) and the AS5600
 jog encoder (on four short bosses).
-python3 base.py -> build/base.stl   (FREEDJ_CONFIG=flat -> build/base_flat.stl)
+python3 base.py -> build/<variant>/base.stl   (FREEDJ_VARIANT picks it; see machine_params.py)
 """
 import os
 from build123d import *
@@ -53,8 +53,8 @@ def feet():
 MATES = {"to_shell": Pos(0, 0, 0)}
 
 if __name__ == "__main__":
-    os.makedirs("build", exist_ok=True)
-    export_stl(part(), f"build/base{M.SUFFIX}.stl", tolerance=0.05, angular_tolerance=0.1)
-    import trimesh; m = trimesh.load(f"build/base{M.SUFFIX}.stl")
-    print("base:", (m.bounds[1] - m.bounds[0]).round(1),
+    f = M.out("base.stl")
+    export_stl(part(), f, tolerance=0.05, angular_tolerance=0.1)
+    import trimesh; m = trimesh.load(f)
+    print(f, (m.bounds[1] - m.bounds[0]).round(1),
           "bodies:", len(m.split(only_watertight=False)), "watertight:", m.is_watertight)

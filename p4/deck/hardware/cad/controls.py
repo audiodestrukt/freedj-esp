@@ -3,7 +3,8 @@
 """controls.py: CUE/PLAY buttons with light rings, the pitch-slider knob and pot,
 indicator LEDs. Local frame: z = 0 on the deck's top surface, +z up; MATES["seat"]
 sits on the shell's "play" / "cue" / "slider" mates.
-python3 controls.py -> build/play_cap.stl, cue_cap.stl, light_ring.stl (print 2, translucent), slider_knob.stl
+python3 controls.py -> build/common/: play_cap.stl, cue_cap.stl, light_ring.stl (print 2, translucent),
+_plain caps, slider_knob_<pot>.stl (FREEDJ_POT picks the pot; build_all.py builds both)
   and play_cap_plain.stl, cue_cap_plain.stl: the same buttons without light rings
 """
 import os
@@ -125,12 +126,15 @@ MATES = {"seat": Pos(0, 0, 0)}
 
 if __name__ == "__main__":
     import trimesh
-    os.makedirs("build", exist_ok=True)
-    for name, s in (("play_cap", button_cap("play")), ("cue_cap", button_cap("cue")),
-                    ("light_ring", light_ring()),
-                    ("play_cap_plain", button_cap("play", plain=True)), ("cue_cap_plain", button_cap("cue", plain=True)),
-                    ("slider_knob" + M.KNOB_SUFFIX, slider_knob())):
-        export_stl(s, f"build/{name}.stl", tolerance=0.02, angular_tolerance=0.1)
-        m = trimesh.load(f"build/{name}.stl")
+    import sys
+    parts = [("slider_knob_" + M.POT, slider_knob())]
+    if "--knob" not in sys.argv:   # --knob: only the knob (build_all.py builds one per pot)
+        parts = [("play_cap", button_cap("play")), ("cue_cap", button_cap("cue")), ("light_ring", light_ring()),
+                 ("play_cap_plain", button_cap("play", plain=True)),
+                 ("cue_cap_plain", button_cap("cue", plain=True))] + parts
+    for name, s in parts:
+        f = M.out(name + ".stl", common=True)
+        export_stl(s, f, tolerance=0.02, angular_tolerance=0.1)
+        m = trimesh.load(f)
         print(name, (m.bounds[1] - m.bounds[0]).round(1),
               "bodies:", len(m.split(only_watertight=False)), "watertight:", m.is_watertight)

@@ -9,10 +9,26 @@ capacitive touch) the deck runs on today, or a 2.8" (FREEDJ_SCREEN=2.8).
 Two configurations, picked by FREEDJ_CONFIG before this module is imported:
   angled (default)  the CDJ look: screen bezel tilted 12 degrees
   flat              the whole top flat, so the shell prints top-down with no supports
+
+Variants: FREEDJ_VARIANT picks board, screen and config in one go, and names the output
+folder, build/<variant>/. Parts that are the same in every variant (caps, rings, knobs,
+gauges) go to build/common/. build_all.py builds them all.
+  p4-4in-angled (default), p4-4in-flat, p4-2.8in-angled, p4-2.8in-flat, a1s-angled, a1s-flat
+FREEDJ_BOARD / FREEDJ_SCREEN / FREEDJ_CONFIG still work on their own.
 """
 import math, os
 from build123d import Location, Pos, Rot
 
+VARIANTS = {   # name: (board, screen, config)
+    "p4-4in-angled": ("p4", "4", "angled"), "p4-4in-flat": ("p4", "4", "flat"),
+    "p4-2.8in-angled": ("p4", "2.8", "angled"), "p4-2.8in-flat": ("p4", "2.8", "flat"),
+    "a1s-angled": ("a1s", "2.8", "angled"), "a1s-flat": ("a1s", "2.8", "flat"),
+}
+if "FREEDJ_VARIANT" in os.environ:
+    _v = os.environ["FREEDJ_VARIANT"]
+    assert _v in VARIANTS, f"FREEDJ_VARIANT={_v}: one of {', '.join(VARIANTS)}"
+    for _k, _x in zip(("FREEDJ_BOARD", "FREEDJ_SCREEN", "FREEDJ_CONFIG"), VARIANTS[_v]):
+        os.environ[_k] = _x   # so subprocesses and late imports agree
 CONFIG = os.environ.get("FREEDJ_CONFIG", "angled")
 assert CONFIG in ("angled", "flat"), CONFIG
 # Screen, picked by FREEDJ_SCREEN: "4" (MSP4031, 480x320) or "2.8" (MSP2834, 320x240).
@@ -26,8 +42,16 @@ A1S = BOARD == "a1s"
 SCREEN = os.environ.get("FREEDJ_SCREEN", "2.8" if A1S else "4")
 assert SCREEN in ("4", "2.8"), SCREEN
 assert not A1S or SCREEN == "2.8", "the A1S deck is built around the 2.8\""
-SUFFIX = ("" if CONFIG == "angled" else "_flat") + ("_a1s" if A1S else "" if SCREEN == "4" else "_28")
-NAME = "freedj_esp" + SUFFIX   # output file stem
+VARIANT = f"{BOARD}-{CONFIG}" if A1S else f"{BOARD}-{SCREEN}in-{CONFIG}"
+assert VARIANT in VARIANTS, VARIANT
+OUT = os.path.join("build", VARIANT)      # this variant's parts and assemblies
+COMMON = os.path.join("build", "common")  # parts that are the same in every variant
+
+def out(name, common=False):
+    """Path for an output file, creating its folder: build/<variant>/name or build/common/name."""
+    d = COMMON if common else OUT
+    os.makedirs(os.path.dirname(os.path.join(d, name)), exist_ok=True)
+    return os.path.join(d, name)
 
 # Body
 # Width and depth are derived below from the jog, buttons, slider and screen layout.
@@ -185,8 +209,9 @@ PANEL_BEZEL = (0.75 * 25.4, 2.5)   # 19.05 dia (listing), height above the top (
 PANEL_BODY = (16.0, 22.0)          # dia, depth below the top's underside (incl. lugs)
 PANEL_NUT = (22.0, 3.0)            # across the corners, thickness
 PANEL_MAX_T = None                 # the button's max panel thickness, if under TOP_T: the top is thinned to it locally from below
-SHELL_SUFFIX = SUFFIX + ("_panel" if PANEL else "")   # only the shell (and the assembly) differ
-NAME = "freedj_esp" + SHELL_SUFFIX
+SHELL_NAME = "shell_panel" if PANEL else "shell"   # only the shell (and the assembly) differ
+# assembly file stem in build/<variant>/: deck.glb, or deck_panel / deck_plain / deck_pioneer ...
+NAME = "deck" + ("" if BUTTONS == "lit" else "_" + BUTTONS) + ("" if PLATTER == "knurled" else "_pioneer")
 _BX = 17.5 if PANEL else 16.0   # panel: 1.5 mm right, so PLAY's body clears the front-left corner post
 PLAY_C = (_BX, 16.0)
 CUE_C = (_BX, 40.0)          # ~4 mm clear of the jog well
@@ -239,7 +264,6 @@ KNOB_TOP = (12.0, 5.5)       # flat top: x, y. Tapers from the base, CDJ tempo-k
 KNOB_SCOOP = (14.0, 1.3)     # finger scoops in the front and back faces: radius, depth
 KNOB_LIFT = 1.0              # knob underside above the top
 KNOB_SOCKET = (LEVER[0] + 0.4, 4.3, 7.2)   # lever socket: across, along, depth (the lever goes in 7.0)
-KNOB_SUFFIX = "" if POT == "pta6043" else "_" + POT   # slider_knob{_sc6080}.stl
 KNOB_Y = SLIDER_C - 4.0      # rendered at +1.25 % (pitch range is firmware's business)
 TICKS_X = 6.0                # tick scale starts this far right of the slot; long 3.5, short 2
 TEMPO_LED_X = 11.0           # tempo-zero LED, right of the slot: clear of the 2 mm edge round

@@ -3,8 +3,8 @@
 """machine.py: the whole freedj-esp, every part placed by its mates, exported as a GLB
 for rendering (metres, Y-up) plus a cutaway through the jog axis.
 
-python3 machine.py -> build/freedj_esp.glb, build/freedj_esp_cut.glb
-(machine_flat.py builds the flat-top configuration: build/freedj_esp_flat*.glb)
+python3 machine.py -> build/<variant>/deck.glb, deck_cut.glb  (FREEDJ_VARIANT picks it)
+(machine_flat.py is the same with FREEDJ_CONFIG=flat)
 """
 import os, sys
 import numpy as np
@@ -127,7 +127,7 @@ def screen_mesh():
     pts = []
     for x, y in ((-aw / 2, -ah / 2), (aw / 2, -ah / 2), (aw / 2, ah / 2), (-aw / 2, ah / 2)):
         p = (loc * Pos(x, y, 0)).position; pts.append((p.X, p.Y, p.Z))
-    img = Image.open("build/screen.png").convert("RGB")
+    img = Image.open("build/common/screen.png").convert("RGB")
     mat = PBRMaterial(name="screen", baseColorTexture=img, emissiveTexture=img,
                       emissiveFactor=[1.0, 1.0, 1.0], metallicFactor=0, roughnessFactor=0.2)
     uv = np.array([(0, 0), (1, 0), (1, 1), (0, 1)])
@@ -144,7 +144,7 @@ def export(parts, path, with_screen=True, look=None):
     look = {**LOOK, **(look or {})}
     scene = trimesh.Scene()
     for name, solid, lk in parts:
-        f = f"build/viz_{name}.stl"
+        f = M.out(f"viz/{name}.stl")   # scratch meshes, per variant so builds don't overwrite each other
         export_stl(solid, f, tolerance=0.02, angular_tolerance=0.08)
         m = trimesh.load(f)
         rgba, metal, rough, emis = look[lk]
@@ -166,11 +166,10 @@ def manifest(parts):
     print(f"{len(parts)} parts, assembly bbox {np.round(hi - lo, 1)} mm (min {np.round(lo, 1)})")
 
 def build():
-    os.makedirs("build", exist_ok=True)
-    print("config:", M.CONFIG)
+    print("variant:", M.VARIANT, "| buttons:", M.BUTTONS, "| platter:", M.PLATTER)
     parts = scene_parts()
     manifest(parts)
-    export(parts, f"build/{M.NAME}.glb")
+    export(parts, M.out(M.NAME + ".glb"))
     # cutaway: keep x <= jog axis, i.e. a section through the jog module
     keep = Pos(M.JOG_C[0], M.D / 2, 0) * Box(400, 400, 200, align=(Align.MAX, Align.CENTER, Align.CENTER))
     cut = []
@@ -180,8 +179,8 @@ def build():
         if bb.max.X <= M.JOG_C[0]: cut.append((name, solid, look)); continue
         s = solid & keep
         if s.volume > 0.01: cut.append((name, s, look))
-    export(cut, f"build/{M.NAME}_cut.glb", with_screen=False, look=CUT_LOOK)
-    print(f"wrote build/{M.NAME}.glb, build/{M.NAME}_cut.glb")
+    export(cut, M.out(M.NAME + "_cut.glb"), with_screen=False, look=CUT_LOOK)
+    print(f"wrote {M.out(M.NAME + '.glb')}, {M.out(M.NAME + '_cut.glb')}")
 
 if __name__ == "__main__":
     build()

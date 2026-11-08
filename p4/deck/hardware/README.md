@@ -12,9 +12,9 @@ renders 0001–0004 show that version.)
 |---|---|
 | Footprint | **160 × 185 mm** (angled; 186 mm flat). Angled: 34 mm tall at the front, 48 mm at the back of the bezel. Flat: 38 mm all over. The top shell fits a 256 mm bed in one piece. The depth is derived from the layout (jog well, an 8 mm gap, the glass with 4 and 5 mm margins), so moving the jog or changing the screen resizes the deck |
 | Screen | **Hosyond 4.0" 320×480 capacitive** (ST7796S, FT6336U touch), the panel on the bench. It's the LCDwiki/QDtech **MSP4031** module ([drawing](https://www.lcdwiki.com/res/MSP4030_MSP4031/4.0inch_SPI_Module_MSP4031_Size.pdf)): 108.00 × 60.88 mm board, 60.88 × 94.57 mm glass centred on it, 4.85 mm of glass and tape above the board, 14.8 mm deep with the header. The screen sits **behind the top**: a window shows only the visible area (active area + 0.5 mm, 2.88 mm off-centre away from the header end, as on the panel), straight for 1 mm then chamfered 45° so a finger reaches the edges of the touch area. A 0.5 mm foam gasket sits between the glass and the top. **Four bosses come down from the top to the board** on its four Ø3.2 mounting holes (102.00 × 54.88 mm apart): 6.8 mm OD, with 2.5 mm pilots 6 mm deep for M3 × 5 thread-forming screws (about 3.3 mm of plastic left under the face). The **window is centred on the deck** (and over the jog); the module sits 2.88 mm left of it to make up for its off-centre active area |
-| Jog | 100 mm printed platter, knurled rim, with its **shaft printed in one piece** (Ø8.1, a press fit in the 608's 8 mm bore; 7.95 and 8.0 printed loose. `fit_gauge.stl` has 8.05–8.20 pins to tune it). The shaft runs through **two 608 skateboard bearings** pressed into a boss under the top, and the platter's hub sits on the upper inner race. A **DIN 6799 size-6 e-clip** (for 7–9 mm shafts, 11.3 mm OD, so it bears on the inner race only) snaps into a groove just under the lower bearing (z 13.10–13.85) and holds the platter captive between its hub and the clip. The lower bearing sits at z 13.9–20.9 to make room for it (it was at 10–17), so the bearing span is 22.1 mm flat and 18.1 mm angled. Shaft below the platter: **28.0 mm flat, 24.0 mm angled** (the flat shell is 4 mm taller). The hub spacer holds the platter 1.5 mm off the well floor; 0.5 scraped at the rim when pressed. Print the platter upside down, shaft up: only the touch-plate recess needs support. Steel inertia ring (r 38–46 mm, 5 mm) in the platter's underside. Aluminium top plate, which doubles as the capacitive touch electrode. **Optional Pioneer-style platter** (`pioneer_platter.py` → `platter_pioneer.stl` / `_flat`), modelled on a reference mesh. It has a 2.5 mm base band, then a 45° shoulder with 24 oval finger dimples, then a flat top whose centre seats the same touch plate. Hollow skirt and hub from freedj-3000's jog wheel. The skirt locates the inertia ring, and the same shaft, bearings, cap and encoder are used. 38 cm³ against 61. `FREEDJ_PLATTER=pioneer` puts it in the assembly |
+| Jog | 100 mm printed platter, knurled rim, with its **shaft printed in one piece** (Ø8.1, a press fit in the 608's 8 mm bore; 7.95 and 8.0 printed loose. `fit_gauge.stl` has 8.05–8.20 pins to tune it). The shaft runs through **two 608 skateboard bearings** pressed into a boss under the top, and the platter's hub sits on the upper inner race. A **DIN 6799 size-6 e-clip** (for 7–9 mm shafts, 11.3 mm OD, so it bears on the inner race only) snaps into a groove just under the lower bearing (z 13.10–13.85) and holds the platter captive between its hub and the clip. The lower bearing sits at z 13.9–20.9 to make room for it (it was at 10–17), so the bearing span is 22.1 mm flat and 18.1 mm angled. Shaft below the platter: **28.0 mm flat, 24.0 mm angled** (the flat shell is 4 mm taller). The hub spacer holds the platter 1.5 mm off the well floor; 0.5 scraped at the rim when pressed. Print the platter upside down, shaft up: only the touch-plate recess needs support. Steel inertia ring (r 38–46 mm, 5 mm) in the platter's underside. Aluminium top plate, which doubles as the capacitive touch electrode. **Optional Pioneer-style platter** (`pioneer_platter.py` → `build/<variant>/platter_pioneer.stl`), modelled on a reference mesh. It has a 2.5 mm base band, then a 45° shoulder with 24 oval finger dimples, then a flat top whose centre seats the same touch plate. Hollow skirt and hub from freedj-3000's jog wheel. The skirt locates the inertia ring, and the same shaft, bearings, cap and encoder are used. 38 cm³ against 61. `FREEDJ_PLATTER=pioneer` puts it in the assembly |
 | Jog sensing | Ø4 × 2 mm diametric magnet (the one that came with the breakout) **glued flush into a pocket in the shaft tip** (the pocket centres it on the axis), **1.1 mm over an AS5600** breakout (WWZMDiB): 15/16" (23.8 mm) square, four Ø3.5 corner holes 5/8" (15.9 mm) apart, chip in the middle. The board sits chip up, centred under the shaft, on **four 2.3 mm bosses** (7 mm OD) on the base plate with small M3 heat-set inserts. Its two pin columns sit either side of the chip (VCC/OUT/GND left, DIR/SCL/SDA/GPO right); with right-angle headers the plugs point out to the sides and clear the bearing boss by 0.6 mm. Shallow pockets under both columns take the solder tails; the right one notches the top-right boss, leaving 0.55 mm of wall round its insert. The stack is set by the printed shell: lower bearing at z 10, shaft tip at 9.5 (0.5 mm lead-in), magnet face 9.5, chip top 8.4, board 5.3–6.9. A small Ø4 magnet probably wants a gap under 1.1 mm; the `jog_test_*` prints settle it. The AS5600's working range is 0.5–3 mm |
-| CUE / PLAY | Bottom left as on a CDJ. Each button is **a cap and a translucent light ring (amber, green), both put in from below and held by the control board**, with no glue. The ring is a Ø22 tube in the top's Ø22.4 hole, 0.6 mm proud. It has a **Ø23.6 skirt (1 mm wall)** from the top's underside down to the board: the step bears on the underside and the board clamps the skirt. The skirt carries four 0805 LEDs' light up to the ring, with notches in its foot over the LEDs. The Ø19 cap has a **Ø21 flange** under the ring tube, so it can't come out the top, and a **Ø4 nub** onto a **6 × 6 mm SMD tact switch, 7.5 mm tall** (ZX-QC66-7.5TP). It rests on the switch, 0.2 mm under the ring at rest. The flange is chamfered 45° on top, so the cap prints upside down with no supports. Assembly: cap into the ring from the skirt end, ring into the top from below, screw the board on. PLAY and CUE are 24 mm apart, so the skirts are 0.4 mm apart. **Plain version, no rings** (`play_cap_plain.stl`, `cue_cap_plain.stl`): a Ø22 cap fills the top's hole itself, and its Ø23.6 flange catches the top's underside. It uses the same shell, board, switch and nub, so the LEDs are optional. A plain cap printed in translucent filament picks up the LEDs' light, since they sit right under its flange. `FREEDJ_BUTTONS=plain` puts plain caps in the assembly and the clash check |
+| CUE / PLAY | Bottom left as on a CDJ. Each button is **a cap and a translucent light ring (amber, green), both put in from below and held by the control board**, with no glue. The ring is a Ø22 tube in the top's Ø22.4 hole, 0.6 mm proud. It has a **Ø23.6 skirt (1 mm wall)** from the top's underside down to the board: the step bears on the underside and the board clamps the skirt. The skirt carries four 0805 LEDs' light up to the ring, with notches in its foot over the LEDs. The Ø19 cap has a **Ø21 flange** under the ring tube, so it can't come out the top, and a **Ø4 nub** onto a **6 × 6 mm SMD tact switch, 7.5 mm tall** (ZX-QC66-7.5TP). It rests on the switch, 0.2 mm under the ring at rest. The flange is chamfered 45° on top, so the cap prints upside down with no supports. Assembly: cap into the ring from the skirt end, ring into the top from below, screw the board on. PLAY and CUE are 24 mm apart, so the skirts are 0.4 mm apart. **Plain version, no rings** (`common/play_cap_plain.stl`, `cue_cap_plain.stl`): a Ø22 cap fills the top's hole itself, and its Ø23.6 flange catches the top's underside. It uses the same shell, board, switch and nub, so the LEDs are optional. A plain cap printed in translucent filament picks up the LEDs' light, since they sit right under its flange. `FREEDJ_BUTTONS=plain` puts plain caps in the assembly and the clash check |
 | Pitch | **Bourns PTA6043-2015DPB103**: 60 mm travel, no centre detent (as on the CDJ-3000; zero is a firmware tempo reset, shown by the green tempo-zero LED), 15 mm metal lever, 10 kΩ linear ([datasheet](https://users.ece.utexas.edu/~valvano/mspm0/BournsPTASlidePotentiometer.pdf)). Its 75 × 9 mm frame hangs under the top on **two 3 mm pads**, held by **two M2 × 8 countersunk screws** from above into the frame's tapped holes (71 mm apart). They're flush, because a pan head would catch the knob at the ends of the travel. The slot is travel + lever + 0.6 = **64.6 mm** (was 74), centred on the jog. Each screw hole is 2 mm from the slot end (1.2 mm at the countersink rim). The knob is **CDJ-style**: 14 mm across the slot, tapering from an 11 mm base to a 12 × 5.5 mm flat top, 10 mm tall, with concave finger scoops front and back and a white index line across the top (paint it in). It's a push fit on the lever (1.4 × 4.3 mm socket, 7.2 deep), rides 1 mm above the top, and prints upright, socket down. The pot is **wired to the control board**: three wires soldered to its PC pins, with a JST-XH plug at the board end. Ticks span the 60 mm travel, starting 6 mm right of the slot. The ticks and the LED stay off the 2 mm edge round. In the angled version the frame's back end is 1.5 mm into the dev board's footprint in plan, but 9 mm above its tallest part there |
 | Control board | **One PCB under CUE / PLAY**, 42 × 58 mm, designed in [`ctrl-pcb/`](ctrl-pcb/README.md) (tscircuit, routed and DRC-clean, JLCPCB fab files in `ctrl-pcb/fab/`). A **CH32V003** I2C target does the fader ADC, button debouncing and the 8 ring LEDs; the AS5600 shares the I2C bus through the board. **Top side (all SMD, one-side assembly):** the two 6 × 6 × 7.5 mm tact switches, four 0805 LEDs per button on r 11.3 under the ring skirts (notched over them), a resistor per LED inside the skirt, and the MCU with its passives right of the buttons. **Bottom side:** three JST-XH, plugged from below: fader (3) and AS5600 (5: 3V3, GND, DIR, SCL, SDA) on the right edge, the dev board (5: 3V3, GND, SDA, SCL, INT) off the back edge, plus SWIO programming pads. On the P4, use a **separate I2C bus** from the codec/touch one. The board's top face is 6 + 7.5 mm under the top surface (z 20.5 angled, 24.5 flat). **Three bosses come down from the top** (6 mm OD), with 2.2 mm pilots for M2.5 × 6 thread-forming screws from below. The outline, holes, switch centres, LED circle and connector positions come from this CAD (`ctrl-pcb/gen_geom.py`). The board also **holds the buttons in**, so it's needed even before the electronics work |
 | Top | USB-A stick slot left of the screen (up the bezel, clear of the screen bosses) with an activity LED; "FREEDJ" engraved below it |
@@ -22,18 +22,50 @@ renders 0001–0004 show that version.)
 | Rear | The dev board's Ethernet (Pro DJ Link) and 2 × dual USB-A (DJ2Go etc.); RCA L/R line out (PCM5102A, not placed yet) to their left |
 | Assembly | The base plate screws into **four corner bosses** (M3 countersunk into M3 × 5.7 heat-set inserts). Each boss is 9 mm across and 10 mm tall, fused into the two walls, with a 45° cone above it so it prints without supports upside down; being short, they stay clear of the buttons, the USB slot, the screen and the dev board. Rubber feet |
 
-## Two versions
+## Variants
+
+Each variant builds into its own folder, `cad/build/<variant>/`, with a `PRINT.md` that lists
+exactly what to print for it. Parts that are the same in every variant (button caps, light
+rings, knobs, fit gauges) are in `cad/build/common/`. `python3 build_all.py` builds them all
+(under a minute); `python3 build_all.py a1s-flat` builds one.
+
+| Variant | Board | Screen | Top | Size (mm) |
+|---|---|---|---|---|
+| `p4-4in-angled` (default) | P4 dev kit | 4" | 12° bezel | 160 × 184.7 × 34–48 |
+| `p4-4in-flat` | P4 dev kit | 4" | flat | 160 × 186 × 38 |
+| `p4-2.8in-angled` | P4 dev kit | 2.8" | 12° bezel | 160 × 174.1 × 34 |
+| `p4-2.8in-flat` | P4 dev kit | 2.8" | flat | 160 × 175.4 × 38 |
+| `a1s-angled` | A1S Audio Kit | 2.8" | 12° bezel | 140 × 154.1 × 32–44.3 |
+| `a1s-flat` | A1S Audio Kit | 2.8" | flat | 140 × 155.4 × 32 |
+
+Pick one for any script with `FREEDJ_VARIANT=<name>` (the older `FREEDJ_BOARD`,
+`FREEDJ_SCREEN` and `FREEDJ_CONFIG` still work). Options on top of a variant change file names
+inside its folder, not the folder: `FREEDJ_BUTTONS=panel` → `shell_panel.stl`,
+`FREEDJ_PLATTER=pioneer` → `platter_pioneer.stl`, and the assembly is `deck.glb`,
+`deck_panel.glb`, `deck_pioneer.glb` and so on. The pot only changes the knob:
+`common/slider_knob_pta6043.stl` or `common/slider_knob_sc6080.stl` (the variant's `PRINT.md`
+says which).
+
+```
+cad/build/
+  common/           caps, rings, knobs, gauges, screen adapter, control board outline
+  p4-4in-angled/    shell.stl base.stl platter.stl jog_test_*.stl PRINT.md (+ deck.glb, viz/)
+  p4-4in-flat/      ...
+  a1s-flat/         ...
+```
+
+## Angled and flat
 
 | | Angled (the design) | Flat (print this one first) |
 |---|---|---|
 | Screen | On a 12° bezel, as on a CDJ | Flat in the top |
 | Height | 34 mm front, 48 mm back | 38 mm all over: 4 mm more, because the dev board's USB-A stacks (about 23 mm up) sit under the screen, and the flat top has no bezel rise to clear them |
 | Printing the shell | Upside down, but the bezel slope then needs supports under the back half | Upside down, flat on the top: no supports. The bearing boss and posts grow straight up from it |
-| Build | `python3 shell.py`, `python3 machine.py` | `FREEDJ_CONFIG=flat python3 shell.py` → `build/shell_flat.stl`, `python3 machine_flat.py` |
+| Build | `build/p4-4in-angled/` | `build/p4-4in-flat/` |
 
 Buttons, slider and connectors are the same parts in both. Three printed parts differ:
-the shell, the **base plate** (`base_flat.stl` is 1.6 mm deeper) and the **platter** (its
-printed shaft is 4 mm longer in `platter_flat.stl`). Build each with `FREEDJ_CONFIG=flat`.
+the shell, the **base plate** (the flat one is 1.6 mm deeper) and the **platter** (its
+printed shaft is 4 mm longer in the flat one), so take all three from the same variant folder.
 On the flat print, the engraved "FREEDJ" and the slider ticks are on the bed side, so
 they come out as clean as the bed surface allows.
 
@@ -89,9 +121,8 @@ the 14-pin header at the bottom.
 **The 2.8" deck** (`FREEDJ_SCREEN=2.8`, with either `FREEDJ_CONFIG`) is **160 × 174.1 mm
 angled, 175.4 flat** (from 184.7 / 186): the bezel is 10.9 mm shorter along the slope. Width
 and height don't change: the jog, the buttons and the slider set the width, and the jog
-stack and the dev board's USB-A stacks set the height. Files get a `_28` suffix
-(`shell_28.stl`, `base_28.stl`, `shell_flat_28.stl`, `base_flat_28.stl`); the platter and
-the other parts are the same. The dev board moves 10.6 mm forward with the back wall, further
+stack and the dev board's USB-A stacks set the height. Variants `p4-2.8in-angled` and
+`p4-2.8in-flat`; the platter and the other parts are the same as the 4". The dev board moves 10.6 mm forward with the back wall, further
 under the jog, and still clears everything: no clashes with the shell, the pot or the screen
 module in either version, and the screen's board is at least 1.6 mm over the USB-A stacks.
 A noticeably smaller deck needs a smaller jog: see the A1S compact deck below (80 mm
@@ -111,8 +142,8 @@ Two firmware catches with the ILI9488 over SPI:
 
 A smaller deck for the **AI-Thinker ESP32-A1S Audio Kit** and the **2.8"** screen:
 **140 × 154.1 mm angled** (155.4 flat), **32 mm tall** at the front (44.3 at the back of the
-bezel). The P4 2.8" deck is 160 × 174.1 × 34. `FREEDJ_BOARD=a1s` implies the 2.8"; files get an
-`_a1s` suffix (`shell_a1s.stl`, `base_a1s.stl`, `platter_a1s.stl`, `_flat_a1s` for flat).
+bezel). The P4 2.8" deck is 160 × 174.1 × 34. `FREEDJ_BOARD=a1s` implies the 2.8". Variants
+`a1s-angled` and `a1s-flat`.
 
 ![A1S compact deck](cad/renders/freedj_esp/0036-a1s-compact-hero.jpg)
 
@@ -123,13 +154,13 @@ bezel). The P4 2.8" deck is 160 × 174.1 × 34. `FREEDJ_BOARD=a1s` implies the 2
 | Height | Set by the jog's bearing stack: 32 mm leaves 2.1 mm between the two 608s (the params assert ≥ 1.5). It can't go lower without moving the encoder stack. The A1S has no tall USB-A stacks, so the flat version is 32 mm too (not 38) |
 | Board | Back-right under the screen, on four 3 mm standoffs with small M3 inserts; headphone and line-in jacks out the rear wall, both micro-USBs out the right wall (deep openings for the plug overmould, as on the P4) |
 | Dropped | The USB-A stick slot and the RCA jacks: the A1S has no USB host, and its own jacks are the outputs |
-| Pitch fader | **SC6080GH B10K 15C** by default here (`FREEDJ_POT=sc6080`; the P4 keeps the PTA6043, and either deck can take either). Same mount as the PTA6043: 75 × 9 frame, M2 × 0.4 tapped holes 71 apart, 60 mm travel, so the same 64.6 mm slot. Its lever's foot is 5 mm wide for 5 mm above the frame, so the pot **hangs 2.2 mm lower, on 5.2 mm pads** (on 3 mm pads the foot rose into the top plate and caught the slot ends; a longer slot would come within 0.8 mm of the countersinks). Use **M2 × 10 countersunk** (0.8 mm into the frame; × 12 if its tapped holes are deeper). The lever is 1.2 thick, so the knob is `slider_knob_sc6080.stl` (1.6 mm socket); 4.8 mm of lever goes into the knob (7.0 on the PTA). It's dual gang (6 pins + two Ø2 PCB legs), 7.0 deep; one gang is enough for pitch |
-| Panel buttons | Optional, any board: `FREEDJ_BUTTONS=panel` takes bought **16 mm panel-hole pushbuttons** (0.75" across the top) in plain 16.25 mm holes, held by their own nuts under the 4 mm top. Their bodies take the control board's space, so the board and its three bosses go; buttons and fader wire straight to the main board. Both buttons move 1.5 mm right (x 17.5) so PLAY's body clears the front-left corner post (0.6 mm). Only the shell changes: `shell{,_flat}{,_a1s}_panel.stl`. The body (16 × 22 mm deep), nut (22 mm, 3 thick) and top height are guesses in `machine_params.py`; the body has to stay above the base plate, 25 mm under the top. If the buttons take a thinner panel than 4 mm, set `PANEL_MAX_T` and the top is thinned round the nut from below |
+| Pitch fader | **SC6080GH B10K 15C** by default here (`FREEDJ_POT=sc6080`; the P4 keeps the PTA6043, and either deck can take either). Same mount as the PTA6043: 75 × 9 frame, M2 × 0.4 tapped holes 71 apart, 60 mm travel, so the same 64.6 mm slot. Its lever's foot is 5 mm wide for 5 mm above the frame, so the pot **hangs 2.2 mm lower, on 5.2 mm pads** (on 3 mm pads the foot rose into the top plate and caught the slot ends; a longer slot would come within 0.8 mm of the countersinks). Use **M2 × 10 countersunk** (0.8 mm into the frame; × 12 if its tapped holes are deeper). The lever is 1.2 thick, so the knob is `common/slider_knob_sc6080.stl` (1.6 mm socket); 4.8 mm of lever goes into the knob (7.0 on the PTA). It's dual gang (6 pins + two Ø2 PCB legs), 7.0 deep; one gang is enough for pitch |
+| Panel buttons | Optional, any board: `FREEDJ_BUTTONS=panel` takes bought **16 mm panel-hole pushbuttons** (0.75" across the top) in plain 16.25 mm holes, held by their own nuts under the 4 mm top. Their bodies take the control board's space, so the board and its three bosses go; buttons and fader wire straight to the main board. Both buttons move 1.5 mm right (x 17.5) so PLAY's body clears the front-left corner post (0.6 mm). Only the shell changes: `shell_panel.stl` in the variant folder. The body (16 × 22 mm deep), nut (22 mm, 3 thick) and top height are guesses in `machine_params.py`; the body has to stay above the base plate, 25 mm under the top. If the buttons take a thinner panel than 4 mm, set `PANEL_MAX_T` and the top is thinned round the nut from below |
 
 **The A1S geometry is a placeholder.** Ai-Thinker publishes no dimensioned drawing, so the
 outline (90 × 60), holes, jack and USB positions and part heights in `a1s_board.py` are
 guesses. Measure the board, edit the one table at the top of `a1s_board.py`, rebuild, and run
-`FREEDJ_BOARD=a1s python3 a1s_board.py`: it prints the board's placement, its tallest part
+`FREEDJ_VARIANT=a1s-flat python3 a1s_board.py` (and `a1s-angled`): it prints the board's placement, its tallest part
 against the screen module's lowest point, and any clashes with the shell, the screen, the pot
 and the control board (0 with the placeholder, both versions). The SD slot isn't reachable
 from outside yet; where it goes depends on which edge it's on.
@@ -162,8 +193,8 @@ needs a driver on that side before this deck is useful.
   the pocket and up to 1.5 mm off the axis. Stacking magnets to close that gap made it
   worse: stacked diametric magnets snap together with opposite poles, and the angle at
   rest wandered over ±330 counts.
-- **Gap test prints:** `jog_test_1_1.stl`, `jog_test_0_8.stl`, `jog_test_0_5.stl` (from
-  `python3 jog.py`). Each is a 1" disc on the real 8 mm shaft with its tip lengthened so the
+- **Gap test prints:** `jog_test_1_1.stl`, `jog_test_0_8.stl`, `jog_test_0_5.stl` in each
+  variant folder (from `jog.py`; the shaft length differs per variant). Each is a 1" disc on the real 8 mm shaft with its tip lengthened so the
   magnet sits 1.1, 0.8 or 0.5 mm from the chip, if the board sits where the CAD puts it.
   The gap is engraved on top. Fit each one and run serial `R` and `E`. Choose the one with
   the lowest AGC and a ±1–2 count spread at rest, then set `AIR_GAP` to it.
@@ -195,13 +226,14 @@ that depends on it.
 
 | File | What |
 |---|---|
-| `machine_params.py` | All shared dimensions, and `place()` |
+| `machine_params.py` | All shared dimensions, the variant table, output paths, and `place()` |
+| `build_all.py` | Builds every variant's printable parts into `build/<variant>/` and `build/common/`, with a `PRINT.md` per variant |
 | `shell.py` | Top shell: jog bearing boss, button holes, control board bosses, pitch slot with the pot's pads and countersunk M2 holes, screen opening and its 4 screw bosses, rear cutouts |
 | `base.py` | Base plate and feet |
 | `jog.py` | Platter with its printed shaft, shaft fit gauge, touch plate, centre cap, inertia ring, bearings, magnet, AS5600 board and header |
 | `controls.py` | Button caps and light rings (printable), slider knob, PTA6043 pot stand-in, LEDs |
 | `ctrlboard.py` | Control board: outline (DXF), holes, switch/LED/connector positions, stand-ins |
-| `ctrl_fit.py` | The **populated** control board (tscircuit GLB, real part models) placed in the deck: test-fit STLs (`build/ctrl_board_pop{,_flat}.stl` in the deck frame, `build/ctrl_board_pop_local.stl` alone; `build/ctrl_board_print.stl` is a printable stand-in, one solid without the connectors, printed flat), a clash check against the shell, rings, caps and base, and render scenes |
+| `ctrl_fit.py` | The **populated** control board (tscircuit GLB, real part models) placed in the deck: test-fit STLs (`build/<variant>/ctrl_board_pop.stl` in the deck frame, `build/common/ctrl_board_pop_local.stl` alone; `build/common/ctrl_board_print.stl` is a printable stand-in, one solid without the connectors, printed flat), a clash check against the shell, rings, caps and base, and render scenes |
 | `stock.py` | Bought parts as stand-ins: LCD (touch glass, TFT, board, header), screws, connectors |
 | `devboard.py` | The Waveshare dev board stand-in (board, ports, header, module), its placement in the deck and its wall openings |
 | `a1s_board.py` | The ESP32-A1S Audio Kit stand-in for `FREEDJ_BOARD=a1s` (same interface as `devboard.py`; placeholder dimensions), plus its clash check |
@@ -213,16 +245,16 @@ that depends on it.
 
 ```bash
 cd p4/deck/hardware/cad
-python3 shell.py; python3 base.py; python3 jog.py; python3 controls.py   # printable STLs in build/, each checked watertight
-FREEDJ_CONFIG=flat python3 shell.py; FREEDJ_CONFIG=flat python3 base.py; FREEDJ_CONFIG=flat python3 jog.py   # the flat set
-FREEDJ_BOARD=a1s python3 shell.py; FREEDJ_BOARD=a1s python3 base.py; FREEDJ_BOARD=a1s python3 jog.py   # the A1S compact set
-python3 screen_mock.py && python3 machine.py                            # build/freedj_esp.glb, build/freedj_esp_cut.glb
-LC_ALL=C LANG=C blender -b -P deck_render.py -- build/freedj_esp.glb build/hero.png --dist 3.4
-LC_ALL=C LANG=C blender -b -P deck_render.py -- build/freedj_esp_cut.glb build/cut.png \
+python3 build_all.py                     # every variant: build/<variant>/*.stl + PRINT.md, build/common/*.stl
+python3 build_all.py a1s-flat --panel    # one variant, plus its panel-button shell
+FREEDJ_VARIANT=a1s-flat python3 shell.py # one part of one variant (each STL is checked watertight)
+python3 screen_mock.py && FREEDJ_VARIANT=p4-4in-angled python3 machine.py   # build/p4-4in-angled/deck.glb, deck_cut.glb
+LC_ALL=C LANG=C blender -b -P deck_render.py -- build/p4-4in-angled/deck.glb build/hero.png --dist 3.4
+LC_ALL=C LANG=C blender -b -P deck_render.py -- build/p4-4in-angled/deck_cut.glb build/cut.png \
     --az 90 --el 14 --dist 2.0 --target 0.08,0.07,0.022 --exposure -0.3
 ```
 
-Renders worth keeping go in `cad/renders/freedj_esp/` with a line in its `INDEX.md`.
+Renders worth keeping go in `cad/renders/freedj_esp/` with a line in its `INDEX.md` that names the variant.
 
 ## License
 

@@ -11,6 +11,22 @@ playing (see the README's *Audio health* section). Unless noted, it's
 the panel**, so they read high. From 2026-10-31 on, "screen fps" counts
 frames LVGL actually rendered and flushed.
 
+## 2026-11-08: CAD: one output folder per variant
+
+- `cad/build/<variant>/` per deck variant (`p4-4in-angled`, `p4-4in-flat`, `p4-2.8in-angled`,
+  `p4-2.8in-flat`, `a1s-angled`, `a1s-flat`), with plain names inside (`shell.stl`, `base.stl`,
+  `platter.stl`, `jog_test_*.stl`, `deck.glb`) and a `PRINT.md` listing what to print.
+  Variant-independent parts (caps, rings, knobs by pot, gauges, screen adapter) go to
+  `cad/build/common/`. Replaces the stacked suffixes (`shell_flat_a1s_panel.stl`).
+- `FREEDJ_VARIANT=<name>` picks board, screen and config at once; the old variables still work.
+- `build_all.py` builds every variant (6 variants + panel shells in 43 s, all watertight).
+- The assemblies' scratch meshes moved to `build/<variant>/viz/`, so building one variant's
+  GLB no longer overwrites another's.
+- Geometry unchanged: shell, base, platter and knob volumes match the previous build. The old
+  `shell_a1s.stl` / `shell_flat_a1s.stl` in `build/` were stale (built before the SC6080's
+  5.2 mm pot pads); the new ones are current. Old outputs moved to `build/old/`.
+- Budget: firmware untouched (CAD only).
+
 ## 2026-11-07 (evening): A1S screen at 4 MHz
 
 - **The A1S screen's SPI clock is load-limited, not the jumpers.** A colour sweep (one full-screen colour per clock, 0.5 to 40 MHz) showed the clean clock rising with pad drive: 0.5 MHz at the weakest, 2 MHz at the strongest on SCK and MOSI, **4 MHz with CS and DC at the strongest too**. Every free header line is shared with a key, an LED or the amp enable; the same jumpers ran 40 MHz on the P4. MOSI on GPIO 18 or 22 drew nothing at all, so the pins stay as they were (SCK 21, MOSI 23, RST 22).
