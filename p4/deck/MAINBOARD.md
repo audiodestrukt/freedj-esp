@@ -74,4 +74,4 @@ the layout (see the pcb-layout workflow: real parts imported, low stock swapped 
 ## Out of scope
 
 The smallest decks (PWM or bit-banged audio on a C6 or smaller) are a separate project,
-**freedj-nano**, not started. See CONFIGS.md.
+**freedj-nano** (`../freedj-nano`, started 2026-11-08). See CONFIGS.md.

@@ -46,7 +46,7 @@ Not pursued (2026-11-08): it's the A1S's chip without the codec or the PSRAM, so
 A board with both, built for the deck, is [MAINBOARD.md](MAINBOARD.md).
 
 **Out of scope: freedj-nano.** The smallest decks (an ESP32-C6, or a chip even smaller, with PWM
-or bit-banged audio) belong to a separate project, freedj-nano, not yet started. They need a
+or bit-banged audio) belong to a separate project, freedj-nano (`../freedj-nano`, started 2026-11-08: C6, fixed-point keylock, u8g2 OLEDs and the SPI TFTs). They need a
 fixed-point audio path (no FPU), single-core scheduling and no PSRAM, so they wouldn't share
 this firmware's audio core; at most the deck events and the DJ2Go decoder from `src/`. Boards
 on hand for it: a Seeed XIAO ESP32C6 and a DFRobot Beetle ESP32-C6.
