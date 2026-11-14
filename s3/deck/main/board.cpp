@@ -9,7 +9,9 @@
 #include "esp_check.h"
 #include "esp_lcd_panel_io.h"
 #include "esp_lcd_spd2010.h"
+#include "freertos/portmacro.h"
 #include "esp_log.h"
+#include "esp_rom_sys.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
@@ -20,6 +22,10 @@ static i2c_master_bus_handle_t s_i2c;
 static i2c_master_dev_handle_t s_exp;
 static uint8_t s_expOut = 0xFF;
 static SemaphoreHandle_t s_lcdDone;
+static esp_lcd_panel_io_handle_t s_lcdIo;
+static SemaphoreHandle_t s_te;
+static volatile uint32_t s_teCount;
+static float s_teHz;
 
 // TCA9554: reg 1 output, reg 3 config (1 = input)
 static void exp_write(uint8_t reg, uint8_t v)
@@ -81,6 +87,7 @@ static void lcd_init(Board& b)
     io.flags.quad_mode = 1;
     esp_lcd_panel_io_handle_t ioh;
     ESP_ERROR_CHECK(esp_lcd_new_panel_io_spi((esp_lcd_spi_bus_handle_t)SPI2_HOST, &io, &ioh));
+    s_lcdIo = ioh;
 
     spd2010_vendor_config_t vendor = {};
     vendor.flags.use_qspi_interface = 1;
@@ -123,6 +130,52 @@ void board_lcd_rows(Board& b, int y0, int y1, const uint16_t* px)
     board_lcd_wait();
 }
 
+// ---- vsync (TE)
+
+static void IRAM_ATTR te_isr(void*)
+{
+    s_teCount = s_teCount + 1;
+    BaseType_t woke = pdFALSE;
+    xSemaphoreGiveFromISR(s_te, &woke);
+    if (woke) portYIELD_FROM_ISR();
+}
+
+static float te_measure()
+{
+    const uint32_t c0 = s_teCount;
+    vTaskDelay(pdMS_TO_TICKS(250));
+    return (s_teCount - c0) * 4.0f;
+}
+
+static void te_init()
+{
+    s_te = xSemaphoreCreateBinary();
+    gpio_config_t g = {};
+    g.pin_bit_mask = 1ULL << LCD_TE;
+    g.mode = GPIO_MODE_INPUT;
+    g.intr_type = GPIO_INTR_POSEDGE;
+    ESP_ERROR_CHECK(gpio_config(&g));
+    gpio_install_isr_service(0);
+    ESP_ERROR_CHECK(gpio_isr_handler_add(LCD_TE, te_isr, nullptr));
+    s_teHz = te_measure();
+    if (s_teHz < 1) {
+        // not on by default: TEON (0x35), V-blank only. Commands go as opcode 0x02, cmd << 8.
+        const uint8_t mode = 0x00;
+        esp_lcd_panel_io_tx_param(s_lcdIo, (0x02 << 24) | (0x35 << 8), &mode, 1);
+        s_teHz = te_measure();
+    }
+    ESP_LOGI(TAG, "vsync (TE): %.0f Hz", s_teHz);
+}
+
+bool board_vsync(int ms)
+{
+    if (s_teHz < 1) return false;
+    xSemaphoreTake(s_te, 0);                          // drop a pulse that came before the call
+    return xSemaphoreTake(s_te, pdMS_TO_TICKS(ms)) == pdTRUE;
+}
+
+float board_vsync_hz() { return s_teHz; }
+
 static void i2s_init(Board& b, uint32_t rate)
 {
     i2s_chan_config_t cc = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_0, I2S_ROLE_MASTER);
@@ -133,6 +186,10 @@ static void i2s_init(Board& b, uint32_t rate)
     i2s_std_config_t sc = {};
     sc.clk_cfg = I2S_STD_CLK_DEFAULT_CONFIG(rate);
     sc.slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_STEREO);
+    // BCK = 64 fs: with no MCLK the PCM510x's PLL locks on that (freedj-nano found this on the
+    // PCM5102A); 16-bit data in 32-bit slots, WS a full slot wide
+    sc.slot_cfg.slot_bit_width = I2S_SLOT_BIT_WIDTH_32BIT;
+    sc.slot_cfg.ws_width = 32;
     sc.gpio_cfg.mclk = I2S_GPIO_UNUSED;             // the PCM5101 makes its own from BCK
     sc.gpio_cfg.bclk = I2S_BCK;
     sc.gpio_cfg.ws = I2S_WS;
@@ -140,6 +197,18 @@ static void i2s_init(Board& b, uint32_t rate)
     sc.gpio_cfg.din = I2S_GPIO_UNUSED;
     ESP_ERROR_CHECK(i2s_channel_init_std_mode(b.i2s, &sc));
     ESP_ERROR_CHECK(i2s_channel_enable(b.i2s));
+}
+
+static uint32_t s_rate;
+
+void board_audio_rate(Board& b, uint32_t rate)
+{
+    if (!rate || rate == s_rate) return;
+    i2s_std_clk_config_t c = I2S_STD_CLK_DEFAULT_CONFIG(rate);
+    i2s_channel_disable(b.i2s);
+    i2s_channel_reconfig_std_clock(b.i2s, &c);
+    i2s_channel_enable(b.i2s);
+    s_rate = rate;
 }
 
 void board_init(Board& b, uint32_t rate)
@@ -172,6 +241,142 @@ void board_init(Board& b, uint32_t rate)
         ESP_LOGI(TAG, "i2c 0x%02X %s", a, i2c_master_probe(s_i2c, a, 50) == ESP_OK ? "found" : "missing");
 
     lcd_init(b);
+    te_init();
     i2s_init(b, rate);
+    s_rate = rate;
     ESP_LOGI(TAG, "%s up", BOARD_NAME);
+}
+
+// ---- touch: the SPD2010's touch side, at 0x53 on the I2C bus. Its protocol (from Waveshare's
+// demo): 16-bit register addresses; read the status (0x2000) for what's waiting and how much;
+// if the controller is still in its BIOS or CPU start-up, send it the commands that start
+// touch reporting; when a point is there, read the report (0x0003); then clear the interrupt.
+
+static i2c_master_dev_handle_t s_tpDev;
+static SemaphoreHandle_t s_tpIrq;
+static portMUX_TYPE s_tpLock = portMUX_INITIALIZER_UNLOCKED;
+static Touch s_touch;
+static void (*s_touchFn)(const Touch&);
+
+static esp_err_t tp_cmd(uint16_t reg, uint16_t val)
+{
+    const uint8_t b[4] = { (uint8_t)(reg >> 8), (uint8_t)reg, (uint8_t)val, (uint8_t)(val >> 8) };
+    const esp_err_t e = i2c_master_transmit(s_tpDev, b, 4, 50);
+    esp_rom_delay_us(200);
+    return e;
+}
+
+static esp_err_t tp_read(uint16_t reg, uint8_t* out, size_t n)
+{
+    const uint8_t a[2] = { (uint8_t)(reg >> 8), (uint8_t)reg };
+    const esp_err_t e = i2c_master_transmit_receive(s_tpDev, a, 2, out, n, 50);
+    esp_rom_delay_us(200);
+    return e;
+}
+
+// One poll. Returns true with *down / *x / *y when there's news.
+static bool tp_poll(bool* down, uint16_t* x, uint16_t* y)
+{
+    uint8_t st[4];
+    if (tp_read(0x2000, st, 4) != ESP_OK) return false;
+    const bool ptExist = st[0] & 0x01, gesture = st[0] & 0x02;
+    const bool inBios = st[1] & 0x40, inCpu = st[1] & 0x20, cpuRun = st[1] & 0x08;
+    const uint16_t len = (uint16_t)(st[3] << 8 | st[2]);
+    if (inBios) { tp_cmd(0x0200, 0x0001); tp_cmd(0x0400, 0x0001); return false; }      // clear INT, CPU start
+    if (inCpu) { tp_cmd(0x5000, 0x0000); tp_cmd(0x4600, 0x0000); tp_cmd(0x0200, 0x0001); return false; }   // point mode, start, clear
+    if (cpuRun && len == 0) { tp_cmd(0x0200, 0x0001); return false; }
+    const bool aux = st[0] & 0x08;
+    if (!(ptExist || gesture)) { if (cpuRun && aux) tp_cmd(0x0200, 0x0001); return false; }
+    if (len < 4) return false;
+    uint8_t d[4 + 10 * 6];
+    const size_t n = len < sizeof d ? len : sizeof d;
+    if (tp_read(0x0003, d, n) != ESP_OK) return false;
+    bool news = false;
+    if (d[4] <= 0x0A && ptExist) {                               // a point report: id, x, y, weight
+        const int pts = (int)(n - 4) / 6;
+        *down = pts > 0 && d[8] != 0;                            // weight 0: lifted
+        if (pts > 0) {
+            *x = (uint16_t)(((d[7] & 0xF0) << 4) | d[5]);
+            *y = (uint16_t)(((d[7] & 0x0F) << 8) | d[6]);
+        }
+        news = true;
+    }
+    // the status after a report: read any rest of it, then clear the interrupt
+    for (int tries = 0; tries < 4; tries++) {
+        uint8_t h[8];
+        if (tp_read(0xFC02, h, 8) != ESP_OK) break;
+        if (h[5] == 0x82) { tp_cmd(0x0200, 0x0001); break; }
+        if (h[5] != 0x00) break;
+        const uint16_t more = (uint16_t)(h[2] | h[3] << 8);
+        uint8_t rest[32];
+        if (more) tp_read(0x0003, rest, more < sizeof rest ? more : sizeof rest);
+    }
+    return news;
+}
+
+static void IRAM_ATTR tp_isr(void*)
+{
+    BaseType_t woke = pdFALSE;
+    xSemaphoreGiveFromISR(s_tpIrq, &woke);
+    if (woke) portYIELD_FROM_ISR();
+}
+
+static void touch_task(void*)
+{
+    for (;;) {
+        // INT, or a poll every 20 ms: a lift has to be seen even if INT is missed
+        const bool irq = xSemaphoreTake(s_tpIrq, pdMS_TO_TICKS(20)) == pdTRUE;
+        bool down = false; uint16_t x = 0, y = 0;
+        const bool news = tp_poll(&down, &x, &y);
+        portENTER_CRITICAL(&s_tpLock);
+        if (news) {
+            s_touch.down = down;
+            if (down) { s_touch.x = x; s_touch.y = y; }
+            s_touch.seq++;
+        } else if (!irq && gpio_get_level(TOUCH_INT)) {
+            if (s_touch.down) { s_touch.down = false; s_touch.seq++; }   // quiet and INT high: lifted
+        }
+        const Touch now = s_touch;
+        portEXIT_CRITICAL(&s_tpLock);
+        static uint32_t seen;
+        if (s_touchFn && now.seq != seen) { seen = now.seq; s_touchFn(now); }
+    }
+}
+
+Touch board_touch()
+{
+    portENTER_CRITICAL(&s_tpLock);
+    const Touch t = s_touch;
+    portEXIT_CRITICAL(&s_tpLock);
+    return t;
+}
+
+void board_touch_start(void (*fn)(const Touch&))
+{
+    s_touchFn = fn;
+    i2c_device_config_t dc = {};
+    dc.dev_addr_length = I2C_ADDR_BIT_LEN_7;
+    dc.device_address = TOUCH_ADDR;
+    dc.scl_speed_hz = 400000;
+    ESP_ERROR_CHECK(i2c_master_bus_add_device(s_i2c, &dc, &s_tpDev));
+    exp_pin(EXP_TOUCH_RST, false);
+    vTaskDelay(pdMS_TO_TICKS(50));
+    exp_pin(EXP_TOUCH_RST, true);
+    vTaskDelay(pdMS_TO_TICKS(50));
+    uint8_t ver[18] = {};
+    if (tp_read(0x2600, ver, sizeof ver) == ESP_OK)
+        ESP_LOGI(TAG, "touch: %.4s%.4s firmware %u", (const char*)ver + 14, (const char*)ver + 10, (unsigned)(ver[5] << 8 | ver[4]));
+    else
+        ESP_LOGE(TAG, "touch: no answer at 0x%02X", TOUCH_ADDR);
+
+    s_tpIrq = xSemaphoreCreateBinary();
+    gpio_config_t g = {};
+    g.pin_bit_mask = 1ULL << TOUCH_INT;
+    g.mode = GPIO_MODE_INPUT;
+    g.pull_up_en = GPIO_PULLUP_ENABLE;
+    g.intr_type = GPIO_INTR_NEGEDGE;
+    ESP_ERROR_CHECK(gpio_config(&g));
+    gpio_install_isr_service(0);
+    ESP_ERROR_CHECK(gpio_isr_handler_add(TOUCH_INT, tp_isr, nullptr));
+    xTaskCreatePinnedToCore(touch_task, "touch", 4096, nullptr, 5, nullptr, 1);
 }
