@@ -5,7 +5,7 @@ board. Round screens first:
 
 | Board | Screen | Jog | Status |
 |---|---|---|---|
-| Waveshare ESP32-S3-Touch-LCD-1.46 (`board_ws146.h`) | 412×412 round, SPD2010 (QSPI), touch | touch round the edge of the glass | the round UI runs, 38.8 fps; no audio or touch yet |
+| Waveshare ESP32-S3-Touch-LCD-1.46 (`board_ws146.h`) | 412×412 round, SPD2010 (QSPI), touch | touch round the edge of the glass | plays (speaker), touch jog, 60 fps on vsync |
 | The puck (`../../../freedj-nano/hw/puck`): XIAO S3 | 240×240 round, GC9A01 | a ring on a bearing, 240 counts a turn | layout previewed at 240 px |
 
 The Waveshare board has a PCM5101 DAC into a speaker amp and **no line or headphone out**.
@@ -35,28 +35,47 @@ The previews are drawn in the same 32-row bands as the device and checked agains
 whole-screen draw. `host/fake_track.bin` is a made-up track's waveform (`tools/fake_track.py`),
 embedded in the firmware for the demo.
 
+## Playing
+
+| Touch | |
+|---|---|
+| jog ring | hold: the platter stops; turn: scratch (1.8 s of track a turn, 33 1/3) |
+| waveform | drag: the track follows the finger |
+| title | next track |
+| CUE / PLAY | as on a CDJ |
+
+The engine is freedj-nano's (`../../../freedj-nano/components/nano`, the C6 deck's), so the
+two repos have to sit side by side. Tracks go in the `tracks` partition:
+
+```
+s3/deck/tools/flash_tracks.sh ~/Music/dj-library/a.mp3 ~/Music/dj-library/b.mp3   # 40 s of each from 1:00
+```
+
 ## Build and flash
 
 ```
-docker run --rm -v $PWD:/repo -w /repo/s3/deck espressif/idf:release-v5.5 idf.py build
-docker run --rm -v $PWD/s3/deck:/d alpine chown -R $(id -u):$(id -g) /d
+cd ..   # audiodestrukt/: freedj-nano has to be in the container too
+docker run --rm -v $PWD:/work -w /work/freedj-esp/s3/deck espressif/idf:release-v5.5 idf.py build
+docker run --rm -v $PWD/freedj-esp/s3/deck:/d alpine chown -R $(id -u):$(id -g) /d
 cd s3/deck/build && esptool --chip esp32s3 -p /dev/ttyACM0 -b 921600 write-flash $(cat flash_args)
 ```
 
 ## Speed (412 px, 240 MHz)
 
-Sending a full frame over QSPI takes 10.3 ms; drawing is overlapped with it (two 32-row
-buffers). The S3's FPU is slow for per-pixel work: a dependent multiply-add ~11 cycles,
-`sqrtf` ~80, `floorf` ~60. So the rasterisers do the square roots once per row, fill solid
-spans directly, and only anti-alias edge pixels.
+Frames start on the panel's vsync (TE, 60 Hz). Each 32-row band is drawn by both cores (16
+rows each) while the previous band is sent (a full frame sends in 10.3 ms). The S3's FPU is slow
+for per-pixel work (a dependent multiply-add ~11 cycles, `sqrtf` ~80, `floorf` ~60), so the
+rasterisers fill solid spans per row and only anti-alias edge pixels (edge distance without a
+sqrt), and whatever is the same every frame is worked out once (`round_ui::prepare`): the dot
+masks, the waveform's circle clip, the overview, the title's fit. The rasterisers run from
+IRAM: from flash they miss the cache while the audio task streams the track from flash.
 
-| | ms a frame |
+| core 0's half, ms a frame | |
 |---|---|
-| clear | 1.4 |
-| jog ring | 7.0 |
-| progress arc | 7.8 |
-| title, time, key / BPM / pitch | 2.7 |
-| waveform | 3.2 |
-| overview | 0.6 |
-| buttons | 0.6 |
-| **total drawing** | **23.4 → 38.8 fps** |
+| clear | 0.7 |
+| jog ring | 3.0 |
+| progress arc | 1.9 |
+| title, time, key / BPM / pitch | 1.3 |
+| waveform | 1.9 |
+| overview, buttons | 0.8 |
+| **frame (both cores, sending)** | **13.9 (14.5 worst): 60 fps** |

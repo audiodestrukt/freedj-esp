@@ -1,5 +1,25 @@
 # s3/deck changelog
 
+## 2026-11-14 (later): playable, 60 fps on vsync
+
+- **Plays**: freedj-nano's deck engine (`components/nano`, the C6's: transport, CDJ cue, jog
+  nudge / scratch, keylock) as an IDF component from the sibling checkout, tracks from a
+  `tracks` partition (0x310000, 12.9 MB) packed by nano's `pack_tracks.py`
+  (`tools/flash_tracks.sh`; 3 x 40 s at 44.1 kHz mono fit with room to spare). Audio task on
+  core 1 into the PCM5101 and speaker; I2S now BCK = 64 fs (32-bit slots) as the PCM510x needs
+  without MCLK.
+- **Touch** (SPD2010 touch side, ported from Waveshare's demo: Espressif's component failed its
+  version read on the I2C v2 driver). Jog ring: hold to stop, turn to scratch (1.8 s a turn);
+  drag the waveform to scratch; tap the title for the next track; CUE / PLAY as on a CDJ. The
+  touch task is the deck's control task.
+- **Vsync**: the panel's TE line (GPIO18) runs at 60 Hz; frames start on it.
+- **Ring**: the dots are a fixed scale; only the line turns (the platter, 33 1/3 rpm, so it
+  follows playing and scratching). 3-band waveform from the pack (CDJ-3000 layering).
+- **Speed**: each 32-row band drawn by both cores (16 rows each) while the last one sends;
+  dot masks, the waveform's circle clip and the overview worked out once (`round_ui::prepare`);
+  edge AA without sqrt; rasterisers in IRAM (from flash they missed the cache while audio
+  streams the track from flash): frame 23.4 -> **13.9 ms (14.5 worst), 60.0 fps locked to vsync**.
+
 ## 2026-11-14: the S3 deck starts, with a round UI
 
 - New project beside p4/deck for S3 boards. First board: Waveshare ESP32-S3-Touch-LCD-1.46
