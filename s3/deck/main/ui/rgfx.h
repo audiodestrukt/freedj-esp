@@ -8,6 +8,15 @@
 // No ESP-IDF in here: the same code builds on the PC.
 #include <stdint.h>
 
+// On the S3, the per-pixel functions run from IRAM: from flash they miss the cache while the
+// audio task streams the track from flash on the other core.
+#if defined(ESP_PLATFORM)
+#include "esp_attr.h"
+#define RGFX_HOT IRAM_ATTR
+#else
+#define RGFX_HOT
+#endif
+
 namespace rgfx {
 
 constexpr uint16_t rgb(uint8_t r, uint8_t g, uint8_t b) { return (uint16_t)((r & 0xF8) << 8 | (g & 0xFC) << 3 | b >> 3); }
@@ -44,6 +53,8 @@ public:
     void ring(float cx, float cy, float r0, float r1, uint16_t c);
     // A ring between angles a0..a1 (radians, 0 = 12 o'clock, clockwise), a1 - a0 <= 2 pi.
     void arc(float cx, float cy, float r0, float r1, float a0, float a1, uint16_t c);
+    // An alpha mask (w x h, 0..255) at (x, y), in colour c.
+    void sprite(int x, int y, const uint8_t* alpha, int w, int h, uint16_t c);
     // A line w px wide with round ends.
     void line(float x0, float y0, float x1, float y1, float w, uint16_t c);
 

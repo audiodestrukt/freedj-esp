@@ -26,6 +26,26 @@ static const uint16_t kGreen    = rgb(40, 200, 90);
 static const uint16_t kBlue     = rgb(70, 150, 255);
 
 static const float kPi = 3.14159265f;
+// 3-band waveform colours (low, mid, high), and dimmed for the part already played
+static const uint16_t kBand[3]     = { rgb(20, 90, 255), rgb(255, 150, 20), rgb(245, 245, 245) };
+static const uint16_t kBandPast[3] = { rgb(12, 40, 100), rgb(100, 62, 14), rgb(96, 96, 100) };
+
+// ---- what prepare() works out for the frame
+
+static const char* s_title = nullptr;
+static char s_fitted[96];
+static const void* s_ovSrc = nullptr;
+static size_t s_ovBins = 0;
+static int s_ovW = 0, s_ovH = 0;
+static uint8_t s_ovCol[512];
+// The ring's scale dots: each one's anti-aliased mask, worked out once per layout
+// (sin, cos and sqrt are slow on the S3; a mask is a few blends)
+static const int kDotBox = 10;
+static float s_dotD = 0;
+static int16_t s_dotX[48], s_dotY[48];
+static uint8_t s_dotMask[48][kDotBox * kDotBox];
+// the waveform's height limit per column (the content circle), once per layout
+static float s_colLim[512];
 
 Layout layout(int d)
 {
@@ -70,6 +90,7 @@ Zone hit(const Layout& l, float x, float y)
     if (r > l.ringOut + 4) return Zone::None;
     if (r >= l.ringIn - 0.01f * l.d) return Zone::Jog;     // a little forgiving on the inside
     if (y >= l.btnTop) return x < l.cx ? Zone::Cue : Zone::Play;
+    if (y < l.timeY) return Zone::Title;
     if (y >= l.ovTop - 2 && y <= l.ovTop + l.ovH + 2) return Zone::Overview;
     if (fabsf(y - l.waveY) <= l.waveH) return Zone::Wave;
     return Zone::None;
@@ -93,20 +114,14 @@ static void drawRing(rgfx::Band& b, const Layout& l, const View& v)
 {
     if (!b.rows(0, b.h())) return;
     b.ring(l.cx, l.cy, l.ringIn, l.ringOut + 1, v.jogTouched ? kRingTch : kRing);
-    // 48 dots that turn with the platter, like a turntable's strobe dots; bigger every 90
-    // degrees, and one line for the platter's marker
-    const float rd = (l.ringIn + l.ringOut) / 2;
-    const float dot = fmaxf(1.2f, 0.0065f * l.d);
+    // 48 fixed dots, bigger every 90 degrees: a scale to see the marker move against.
+    // The marker turns with the platter.
     const uint16_t dc = v.jogTouched ? kTickTch : kTick;
-    for (int i = 1; i < 48; i++) {
-        const float a = (v.platterDeg + i * 7.5f) * kPi / 180;
-        const float x = l.cx + sinf(a) * rd, y = l.cy - cosf(a) * rd;
-        if (!b.rows((int)(y - 2 * dot - 1), (int)(4 * dot + 3))) continue;
-        b.disc(x, y, i % 12 == 0 ? dot * 1.6f : dot, dc);
-    }
+    for (int i = 0; i < 48; i++)
+        if (b.rows(s_dotY[i], kDotBox)) b.sprite(s_dotX[i], s_dotY[i], s_dotMask[i], kDotBox, kDotBox, dc);
     const float a = v.platterDeg * kPi / 180, s = sinf(a), c = cosf(a);
-    const float r0 = l.ringIn + 0.014f * l.d, r1 = l.ringOut - 0.014f * l.d;
-    b.line(l.cx + s * r0, l.cy - c * r0, l.cx + s * r1, l.cy - c * r1, fmaxf(2, 0.008f * l.d), kMarker);
+    const float r0 = l.ringIn + 0.010f * l.d, r1 = l.ringOut - 0.010f * l.d;
+    b.line(l.cx + s * r0, l.cy - c * r0, l.cx + s * r1, l.cy - c * r1, fmaxf(2.5f, 0.010f * l.d), kMarker);
 }
 
 static void drawProgress(rgfx::Band& b, const Layout& l, const View& v)
@@ -118,23 +133,70 @@ static void drawProgress(rgfx::Band& b, const Layout& l, const View& v)
     if (f > 0) b.arc(l.cx, l.cy, l.progIn, l.progOut, 0, f * 2 * kPi, endWarn ? kRed : kText);
 }
 
+static uint8_t binPeak(const View& v, size_t i)
+{
+    if (v.bands) { const uint8_t* p = v.bands + 3 * i; return p[0] > p[1] ? (p[0] > p[2] ? p[0] : p[2]) : (p[1] > p[2] ? p[1] : p[2]); }
+    return v.peak ? v.peak[i] : 0;
+}
+
+static void ovGeom(const Layout& l, int* x0, int* w)
+{
+    const float half = halfChord(l, l.ovTop + l.ovH) - 0.035f * l.d;
+    *x0 = (int)(l.cx - half); *w = (int)(2 * half);
+}
+
+void prepare(const Layout& l, const View& v)
+{
+    if (s_dotD != l.d) {
+        const float rd = (l.ringIn + l.ringOut) / 2;
+        const float dot = fmaxf(1.2f, 0.0065f * l.d);
+        for (int i = 0; i < 48; i++) {
+            const float a = i * 7.5f * kPi / 180;
+            const float x = l.cx + sinf(a) * rd, y = l.cy - cosf(a) * rd;
+            const float r = i % 12 == 0 ? fminf(dot * 1.6f, kDotBox / 2 - 1) : dot;
+            s_dotX[i] = (int16_t)floorf(x) - kDotBox / 2; s_dotY[i] = (int16_t)floorf(y) - kDotBox / 2;
+            for (int py = 0; py < kDotBox; py++)
+                for (int px = 0; px < kDotBox; px++) {
+                    const float dx = s_dotX[i] + px + 0.5f - x, dy = s_dotY[i] + py + 0.5f - y;
+                    const float d = r - sqrtf(dx * dx + dy * dy);
+                    s_dotMask[i][py * kDotBox + px] = (uint8_t)(d >= 0.5f ? 255 : d <= -0.5f ? 0 : (d + 0.5f) * 255);
+                }
+        }
+        for (int x = 0; x < 512; x++) {
+            const float dx = x + 0.5f - l.cx, lim2 = l.inner * l.inner - dx * dx;
+            s_colLim[x] = lim2 > 4 ? fminf(l.waveH, sqrtf(lim2)) : 0;
+        }
+        s_dotD = l.d;
+    }
+    if (s_title != v.title) {                    // the title cut to fit: an O(n^2) search, once per title
+        s_title = v.title;
+        const float maxw = 2 * halfChord(l, l.titleY - l.title->cap) - 0.04f * l.d;
+        snprintf(s_fitted, sizeof s_fitted, "%s", v.title);
+        size_t n = strlen(s_fitted);
+        while (n > 0 && rgfx::Band::width(s_fitted, *l.title) > maxw) {
+            s_fitted[--n] = 0;
+            if (n >= 3) { char t[100]; snprintf(t, sizeof t, "%.*s...", (int)(n - 3), s_fitted); if (rgfx::Band::width(t, *l.title) <= maxw) { strcpy(s_fitted, t); break; } }
+        }
+    }
+    int x0, w;
+    ovGeom(l, &x0, &w);
+    const int h = (int)l.ovH;
+    const void* src = v.bands ? (const void*)v.bands : (const void*)v.peak;
+    if (src && (s_ovSrc != src || s_ovBins != v.bins || s_ovW != w || s_ovH != h)) {   // every bin of the track: once
+        for (int i = 0; i < w && i < 512; i++) {
+            const size_t a = (size_t)((double)i / w * v.bins), e = (size_t)((double)(i + 1) / w * v.bins);
+            uint8_t pk = 0;
+            for (size_t k = a; k < e && k < v.bins; k++) { const uint8_t p = binPeak(v, k); if (p > pk) pk = p; }
+            s_ovCol[i] = (uint8_t)(pk * h / 255);
+        }
+        s_ovSrc = src; s_ovBins = v.bins; s_ovW = w; s_ovH = h;
+    }
+}
+
 static void drawTop(rgfx::Band& b, const Layout& l, const View& v)
 {
     if (!b.rows((int)(l.titleY - 2 * l.title->cap), (int)(l.infoY - l.titleY + 3 * l.title->cap))) return;
-    // the title cut to fit: worked out once per title (it's an O(n^2) search)
-    static const char* cTitle = nullptr;
-    static char fitted[96];
-    if (cTitle != v.title) {
-        cTitle = v.title;
-        const float maxw = 2 * halfChord(l, l.titleY - l.title->cap) - 0.04f * l.d;
-        snprintf(fitted, sizeof fitted, "%s", v.title);
-        size_t n = strlen(fitted);
-        while (n > 0 && rgfx::Band::width(fitted, *l.title) > maxw) {
-            fitted[--n] = 0;
-            if (n >= 3) { char t[100]; snprintf(t, sizeof t, "%.*s...", (int)(n - 3), fitted); if (rgfx::Band::width(t, *l.title) <= maxw) { strcpy(fitted, t); break; } }
-        }
-    }
-    b.text((int)(l.cx - rgfx::Band::width(fitted, *l.title) / 2.0f), (int)l.titleY, fitted, *l.title, kText);
+    b.text((int)(l.cx - rgfx::Band::width(s_fitted, *l.title) / 2.0f), (int)l.titleY, s_fitted, *l.title, kText);
 
     char t[24];
     fmtTime(t, v.len - v.pos, true);
@@ -176,23 +238,40 @@ static void drawWave(rgfx::Band& b, const Layout& l, const View& v)
         }
     }
     // the wave: mirrored about the centre line, the part already played dimmed
+    const float secPerPx = 1 / pxPerSec;
+    const size_t span = (size_t)fmaxf(1, v.binsPerSec * secPerPx);   // bins a column covers
     for (int x = x0; x < x1; x++) {
         const float dx = x + 0.5f - l.cx;
-        const float lim2 = l.inner * l.inner - dx * dx;
-        if (lim2 <= 4) continue;
-        const float lim = fminf(l.waveH, sqrtf(lim2));
-        const float t = v.pos + dx / pxPerSec;
-        if (t < 0 || !v.peak || v.binsPerSec <= 0) continue;
+        const float lim = x >= 0 && x < 512 ? s_colLim[x] : 0;
+        if (lim <= 0) continue;
+        const float t = v.pos + dx * secPerPx;
+        if (t < 0 || v.binsPerSec <= 0 || !(v.peak || v.bands)) continue;
         const size_t bin = (size_t)(t * v.binsPerSec);
         if (bin >= v.bins) continue;
-        // the column covers several bins at this zoom: take the loudest
-        const size_t span = (size_t)fmaxf(1, v.binsPerSec / pxPerSec);
+        const bool past = dx < 0;
+        if (v.bands) {
+            // CDJ-3000 3-band: low at the back, mid, then high in front; the loudest of the
+            // bins this column covers
+            uint8_t lo = 0, mi = 0, hi = 0;
+            for (size_t i = bin; i < bin + span && i < v.bins; i++) {
+                const uint8_t* p = v.bands + 3 * i;
+                lo = p[0] > lo ? p[0] : lo; mi = p[1] > mi ? p[1] : mi; hi = p[2] > hi ? p[2] : hi;
+            }
+            const uint8_t lv[3] = { lo, mi, hi };
+            for (int k = 0; k < 3; k++) {
+                const float h = lv[k] * (1 / 255.0f) * lim;
+                if (h < 0.5f) continue;
+                const uint16_t col = past ? kBandPast[k] : kBand[k];
+                b.fill(x, (int)(l.waveY - h), 1, (int)(2 * h) + 1, col);
+            }
+            continue;
+        }
         uint8_t pk = 0; uint16_t col = v.color ? v.color[bin] : kBlue;
         for (size_t i = bin; i < bin + span && i < v.bins; i++)
             if (v.peak[i] > pk) { pk = v.peak[i]; if (v.color) col = v.color[i]; }
-        const float h = pk / 255.0f * lim;
+        const float h = pk * (1 / 255.0f) * lim;
         if (h < 0.5f) continue;
-        if (dx < 0) col = rgfx::mix(col, kBg, 150);
+        if (past) col = rgfx::mix(col, kBg, 150);
         b.fill(x, (int)(l.waveY - h), 1, (int)(2 * h) + 1, col);
     }
     // cue: an orange line and a flag at the top
@@ -211,27 +290,13 @@ static void drawOverview(rgfx::Band& b, const Layout& l, const View& v)
 {
     const int top = (int)l.ovTop, h = (int)l.ovH;
     if (!b.rows(top - 2, h + 5)) return;               // the playhead reaches 2 px past the strip
-    const float half = halfChord(l, l.ovTop + l.ovH) - 0.035f * l.d;
-    const int x0 = (int)(l.cx - half), w = (int)(2 * half);
-    if (w <= 0 || v.len <= 0 || !v.peak) return;
+    int x0, w;
+    ovGeom(l, &x0, &w);
+    if (w <= 0 || v.len <= 0 || s_ovW != w) return;
     const float played = v.pos / v.len;
-    // column heights, worked out once per track and size (it's every bin of the track)
-    static const uint8_t* cPeak = nullptr;
-    static size_t cBins = 0;
-    static int cW = 0, cH = 0;
-    static uint8_t col[512];
-    if (cPeak != v.peak || cBins != v.bins || cW != w || cH != h) {
-        for (int i = 0; i < w && i < 512; i++) {
-            const size_t a = (size_t)((double)i / w * v.bins), e = (size_t)((double)(i + 1) / w * v.bins);
-            uint8_t pk = 0;
-            for (size_t k = a; k < e && k < v.bins; k++) if (v.peak[k] > pk) pk = v.peak[k];
-            col[i] = (uint8_t)(pk * h / 255);
-        }
-        cPeak = v.peak; cBins = v.bins; cW = w; cH = h;
-    }
     const int split = (int)(played * w);
     for (int i = 0; i < w && i < 512; i++)
-        b.fill(x0 + i, top + h - col[i], 1, col[i], i < split ? rgb(70, 76, 90) : rgb(170, 178, 192));
+        b.fill(x0 + i, top + h - s_ovCol[i], 1, s_ovCol[i], i < split ? rgb(70, 76, 90) : rgb(170, 178, 192));
     b.fill((int)(x0 + v.cue / v.len * w), top - 1, 1, h + 2, kOrange);
     b.fill((int)(x0 + played * w), top - 2, 2, h + 4, kText);
 }
@@ -274,12 +339,10 @@ static void drawButtons(rgfx::Band& b, const Layout& l, const View& v)
     }
 }
 
-Prof prof;
-
-void draw(rgfx::Band& b, const Layout& l, const View& v)
+void draw(rgfx::Band& b, const Layout& l, const View& v, Prof* prof)
 {
-    int64_t t = prof.now ? prof.now() : 0;
-    auto lap = [&](int i) { if (prof.now) { const int64_t n = prof.now(); prof.us[i] += n - t; t = n; } };
+    int64_t t = prof && prof->now ? prof->now() : 0;
+    auto lap = [&](int i) { if (prof && prof->now) { const int64_t n = prof->now(); prof->us[i] += n - t; t = n; } };
     b.clear(kBg);           lap(0);
     drawRing(b, l, v);      lap(1);
     drawProgress(b, l, v);  lap(2);

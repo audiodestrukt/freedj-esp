@@ -13,7 +13,7 @@ static inline int iceil(float x) { const int i = (int)x; return i + (x > i); }
 
 static inline uint16_t sw(uint16_t v) { return (uint16_t)(v << 8 | v >> 8); }
 
-uint16_t mix(uint16_t a, uint16_t b, int al)
+RGFX_HOT uint16_t mix(uint16_t a, uint16_t b, int al)
 {
     if (al >= 255) return b;
     if (al <= 0) return a;
@@ -25,28 +25,28 @@ uint16_t mix(uint16_t a, uint16_t b, int al)
     return (uint16_t)(r << 11 | g << 5 | bl);
 }
 
-uint16_t Band::get(int x, int y) const
+RGFX_HOT uint16_t Band::get(int x, int y) const
 {
     const uint16_t v = px_[(y - y0_) * w_ + x];
     return swap_ ? sw(v) : v;
 }
 
-void Band::put(int x, int y, uint16_t c) { px_[(y - y0_) * w_ + x] = swap_ ? sw(c) : c; }
+RGFX_HOT void Band::put(int x, int y, uint16_t c) { px_[(y - y0_) * w_ + x] = swap_ ? sw(c) : c; }
 
-void Band::clear(uint16_t c)
+RGFX_HOT void Band::clear(uint16_t c)
 {
     const uint16_t v = swap_ ? sw(c) : c;
     const int n = (y1() - y0_) * w_;
     for (int i = 0; i < n; i++) px_[i] = v;
 }
 
-void Band::fill(int x, int y, int w, int h, uint16_t c)
+RGFX_HOT void Band::fill(int x, int y, int w, int h, uint16_t c)
 {
     int ya = y < y0_ ? y0_ : y, yb = y + h > y1() ? y1() : y + h;
     for (int yy = ya; yy < yb; yy++) hspan(x, x + w, yy, c);
 }
 
-void Band::hspan(int x0, int x1, int y, uint16_t c)
+RGFX_HOT void Band::hspan(int x0, int x1, int y, uint16_t c)
 {
     if (y < y0_ || y >= y1()) return;
     if (x0 < 0) x0 = 0;
@@ -56,7 +56,7 @@ void Band::hspan(int x0, int x1, int y, uint16_t c)
     for (int x = x0; x < x1; x++) p[x] = v;
 }
 
-void Band::blend(int x, int y, uint16_t c, int alpha)
+RGFX_HOT void Band::blend(int x, int y, uint16_t c, int alpha)
 {
     if (x < 0 || x >= w_ || y < y0_ || y >= y1() || alpha <= 0) return;
     put(x, y, alpha >= 255 ? c : mix(get(x, y), c, alpha));
@@ -72,7 +72,7 @@ static inline int cover(float d)
 
 void Band::ring(float cx, float cy, float r0, float r1, uint16_t c) { arc(cx, cy, r0, r1, 0, 7, c); }
 
-void Band::disc(float cx, float cy, float r, uint16_t c)
+RGFX_HOT void Band::disc(float cx, float cy, float r, uint16_t c)
 {
     const int ya = ifloor(cy - r - 1), yb = iceil(cy + r + 1);
     for (int y = ya < y0_ ? y0_ : ya; y < (yb > y1() ? y1() : yb); y++) {
@@ -92,7 +92,7 @@ void Band::disc(float cx, float cy, float r, uint16_t c)
     }
 }
 
-void Band::arc(float cx, float cy, float r0, float r1, float a0, float a1, uint16_t c)
+RGFX_HOT void Band::arc(float cx, float cy, float r0, float r1, float a0, float a1, uint16_t c)
 {
     // Per row, the span splits into: outer edge (AA) | solid | inner edge (AA) | hole |
     // inner edge | solid | outer edge. The square roots happen once per row; solid pixels are
@@ -101,6 +101,7 @@ void Band::arc(float cx, float cy, float r0, float r1, float a0, float a1, uint1
     const bool full = a1 - a0 >= 6.2831f, wide = a1 - a0 > 3.14159265f;
     const float d0x = sinf(a0), d0y = -cosf(a0), d1x = sinf(a1), d1y = -cosf(a1);
     const float hole = r0 > 0.5f ? r0 : 0;
+    const float i2r1 = 0.5f / r1, i2r0 = hole ? 0.5f / r0 : 0;
     const int ya = (int)(cy - r1 - 1), yb = (int)(cy + r1 + 2);
     const uint16_t v = swap_ ? sw(c) : c;
     for (int y = ya < y0_ ? y0_ : ya; y < (yb > y1() ? y1() : yb); y++) {
@@ -128,8 +129,9 @@ void Band::arc(float cx, float cy, float r0, float r1, float a0, float a1, uint1
                 const float dx = x + 0.5f - cx;
                 int al = 255;
                 if (!solid) {
-                    const float r = sqrtf(dx * dx + dy2);
-                    const int ao = cover(r1 - r), ai = hole ? cover(r - r0) : 255;
+                    // distance to each edge without a sqrt: near radius R, r - R ~ (r^2 - R^2) / 2R
+                    const float r2 = dx * dx + dy2;
+                    const int ao = cover((r1 * r1 - r2) * i2r1), ai = hole ? cover((r2 - r0 * r0) * i2r0) : 255;
                     al = ao < ai ? ao : ai;
                 }
                 if (!full) {
@@ -144,7 +146,7 @@ void Band::arc(float cx, float cy, float r0, float r1, float a0, float a1, uint1
     }
 }
 
-void Band::line(float x0, float y0, float x1, float ya, float w, uint16_t c)
+RGFX_HOT void Band::line(float x0, float y0, float x1, float ya, float w, uint16_t c)
 {
     const float hw = w / 2, m = hw + 1;
     const float miny = fminf(y0, ya) - m, maxy = fmaxf(y0, ya) + m;
@@ -176,7 +178,17 @@ void Band::line(float x0, float y0, float x1, float ya, float w, uint16_t c)
     }
 }
 
-int Band::text(int x, int y, const char* s, const Font& f, uint16_t c)
+RGFX_HOT void Band::sprite(int x, int y, const uint8_t* a, int w, int h, uint16_t c)
+{
+    const int ya = y < y0_ ? y0_ : y, yb = y + h > y1() ? y1() : y + h;
+    for (int yy = ya; yy < yb; yy++)
+        for (int i = 0; i < w; i++) {
+            const uint8_t al = a[(yy - y) * w + i];
+            if (al) blend(x + i, yy, c, al);
+        }
+}
+
+RGFX_HOT int Band::text(int x, int y, const char* s, const Font& f, uint16_t c)
 {
     const bool vis = rows(y - f.line, f.line * 2);
     for (; *s; s++) {

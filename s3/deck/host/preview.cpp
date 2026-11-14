@@ -32,6 +32,7 @@ static void render(const char* name, int d, round_ui::View v)
 {
     const round_ui::Layout l = round_ui::layout(d);
     std::vector<uint16_t> whole(d * d), banded(d * d);
+    round_ui::prepare(l, v);
     rgfx::Band all(whole.data(), d, d, d, false);
     round_ui::draw(all, l, v);
     const int B = 32;
