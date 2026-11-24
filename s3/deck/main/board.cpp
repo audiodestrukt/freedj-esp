@@ -11,6 +11,7 @@
 #include "esp_lcd_spd2010.h"
 #include "freertos/portmacro.h"
 #include "esp_log.h"
+#include "esp_timer.h"
 #include "esp_rom_sys.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
@@ -321,25 +322,36 @@ static void IRAM_ATTR tp_isr(void*)
     if (woke) portYIELD_FROM_ISR();
 }
 
+// A held finger is reported every so often, not on every poll (gaps of ~55 ms were seen), so a
+// lift is either a report saying so (weight 0) or no point for this long. Shorter, and a held
+// finger reads as several taps (PLAY toggled twice: play, then straight back to pause).
+static const int64_t kLiftUs = 120000;
+
 static void touch_task(void*)
 {
+    int64_t lastPoint = 0, maxGap = 0, lastLog = 0;
     for (;;) {
-        // INT, or a poll every 20 ms: a lift has to be seen even if INT is missed
-        const bool irq = xSemaphoreTake(s_tpIrq, pdMS_TO_TICKS(20)) == pdTRUE;
+        xSemaphoreTake(s_tpIrq, pdMS_TO_TICKS(10));       // INT, or poll
         bool down = false; uint16_t x = 0, y = 0;
         const bool news = tp_poll(&down, &x, &y);
+        const int64_t now = esp_timer_get_time();
         portENTER_CRITICAL(&s_tpLock);
-        if (news) {
-            s_touch.down = down;
-            if (down) { s_touch.x = x; s_touch.y = y; }
-            s_touch.seq++;
-        } else if (!irq && gpio_get_level(TOUCH_INT)) {
-            if (s_touch.down) { s_touch.down = false; s_touch.seq++; }   // quiet and INT high: lifted
+        const bool was = s_touch.down;
+        if (news && down) {
+            if (was && now - lastPoint > maxGap) maxGap = now - lastPoint;
+            lastPoint = now;
+            s_touch.down = true; s_touch.x = x; s_touch.y = y; s_touch.seq++;
+        } else if (was && ((news && !down) || now - lastPoint > kLiftUs)) {
+            s_touch.down = false; s_touch.seq++;
         }
-        const Touch now = s_touch;
+        const Touch t = s_touch;
         portEXIT_CRITICAL(&s_tpLock);
         static uint32_t seen;
-        if (s_touchFn && now.seq != seen) { seen = now.seq; s_touchFn(now); }
+        if (s_touchFn && t.seq != seen) { seen = t.seq; s_touchFn(t); }
+        if (was && !t.down && now - lastLog > 500000) {
+            ESP_LOGI(TAG, "touch lifted; longest gap between reports while down %lld ms", maxGap / 1000);
+            maxGap = 0; lastLog = now;
+        }
     }
 }
 

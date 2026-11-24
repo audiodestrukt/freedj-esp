@@ -1,5 +1,12 @@
 # s3/deck changelog
 
+## 2026-11-24: touch lift by timeout
+
+- A held finger is reported only every ~55 ms, and the old "quiet poll + INT high = lifted"
+  read those gaps as lifts: a held PLAY toggled twice (play, then straight back to pause).
+  Now a lift is a weight-0 report or 120 ms with no point; poll every 10 ms (was 20). Logs the
+  longest gap between reports while down, to tune `kLiftUs`. Not yet confirmed on the board.
+
 ## 2026-11-14 (later): playable, 60 fps on vsync
 
 - **Plays**: freedj-nano's deck engine (`components/nano`, the C6's: transport, CDJ cue, jog
