@@ -6,7 +6,7 @@ so freedj-3000 can FOLLOW it (docs/ethernet.md).  The tap, once, as root:
 
   ip tuntap add dev cdj2k0 mode tap user $USER && ip link set cdj2k0 master djlink0 && ip link set cdj2k0 up
 
-then:  python3 tools/emu_djlink.py [--app]    (console on stdout; --app: the panel and screen)
+then:  [BOARD=xdj1000mk2] python3 tools/emu_djlink.py [--app]    (console on stdout; --app: the panel and screen)
        OPENDECK_LINK_IFACE=djlink0 OPENDECK_SERVE=0 opendeck --follow 2
 PLAY: echo -n 0x10:0x01:200 > /dev/udp/127.0.0.1/47123 (CDJ_PANEL_KEYSOCK)."""
 import os, struct, subprocess, sys, time
@@ -36,7 +36,10 @@ show = "--app" in sys.argv[1:]
 EMU = os.path.expanduser(os.environ.get("CDJ_NXS2", "~/sandbox/cdj-nxs2"))
 env = dict(os.environ, CDJ_DSP_AUDIO="1", CDJ_PANEL_KEYSOCK="47123",
            CDJ_C6727_IDLE=open(os.path.join(CDJ, "build/dsp.idle")).read().strip() + ":0:0xffffffff:4")
-cmd = [QEMU, "-M", "cdj2000", "-kernel", os.path.join(CDJ, "build/main.bin"), "-monitor", "none",
+# BOARD=xdj1000mk2: that image on its machine (silent: its DSP is not ported).
+BOARD = os.environ.get("BOARD", "cdj2000")
+IMAGE = os.path.join(CDJ, "build/main.bin" if BOARD == "cdj2000" else f"build-{BOARD}/main.bin")
+cmd = [QEMU, "-M", BOARD, "-kernel", IMAGE, "-monitor", "none",
        "-serial", "stdio", "-serial", "null", "-audio", os.environ.get("AUDIODEV", "pa" if show else "none"),
        "-netdev", "tap,id=djlink,ifname=cdj2k0,script=no,downscript=no",
        "-drive", f"if=none,id=usbstk,file={stick},format=raw,snapshot=on",
@@ -48,7 +51,7 @@ env.update(CDJ_PANEL_STATESOCK="47124", CDJ_BF531_FLASH=os.path.join(CDJ, "build
 os.makedirs(os.path.join(here, "qemu-data/keymaps"), exist_ok=True)
 open(os.path.join(here, "qemu-data/keymaps/en-us"), "w").write("# empty: the panel app's keys go over its own socket\n")
 emu = subprocess.Popen(cmd + ["-L", os.path.join(here, "qemu-data"), "-display", "none", "-vnc", f"127.0.0.1:{vnc - 5900}"], env=env)
-app = subprocess.Popen([os.path.join(EMU, ".venv/bin/python"), "-m", "app.virtual_deck", "--model", "cdj2000",
+app = subprocess.Popen([os.path.join(EMU, ".venv/bin/python"), "-m", "app.virtual_deck", "--model", BOARD,
                         "--panel-port", "47123", "--state-port", "47124", "--screen", "face", "--vnc-base", str(vnc - 1)],
                        cwd=EMU, stdout=open(os.path.join(here, "emu_djlink.app.log"), "w"), stderr=subprocess.STDOUT)
 try:
