@@ -1,5 +1,7 @@
 /* Entry: the loader leaves SR = MD 1, BL 1, IMASK 15, bank 0, and SP at the
- * top of DRAM.  Set our own stack anyway, zero .bss, run main(). */
+ * top of DRAM.  Set our own stack anyway, set the FPU's mode (the loader
+ * leaves it in single precision, and GCC switches with fpchg from double),
+ * zero .bss, run main(). */
     .section .head, "a"
     .ascii  "freedj cdj2000 main image\0"
 
@@ -7,6 +9,8 @@
     .global _start
 _start:
     mov.l   stack_top, r15
+    mov.l   fpscr_init, r0      /* the FPU as GCC's SH-4 code expects it at entry: */
+    lds     r0, fpscr           /* double precision (PR), round to nearest, no traps */
     mov.l   bss_start, r1
     mov.l   bss_end, r2
     mov     #0, r0
@@ -23,6 +27,9 @@ _start:
 
     .align 2
 stack_top:  .long 0xA7FFFFC0
+fpscr_init: .long 0x00080000
 bss_start:  .long _bss_start
 bss_end:    .long _bss_end
 main_addr:  .long main
+
+    .section .note.GNU-stack, "", @progbits

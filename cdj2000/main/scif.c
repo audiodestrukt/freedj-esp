@@ -40,3 +40,13 @@ void scif_hex(int ch, uint32_t v)
     scif_puts(ch, "0x");
     for (int i = 28; i >= 0; i -= 4) scif_putc(ch, d[(v >> i) & 15]);
 }
+
+void scif_dec(int ch, int32_t v)
+{
+    char b[12];
+    int i = 0;
+    uint32_t u = v < 0 ? (uint32_t)(-(int64_t)v) : (uint32_t)v;
+    if (v < 0) scif_putc(ch, '-');
+    do { b[i++] = (char)('0' + u % 10); u /= 10; } while (u);
+    while (i) scif_putc(ch, b[--i]);
+}
