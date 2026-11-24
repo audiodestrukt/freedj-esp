@@ -66,6 +66,13 @@ A peer reads the same export over NFS to find the track's path.
 `tools/test_nfs_freedj.py` runs freedj-3000's own NFS client against it
 through a UDP relay.
 
+**FOLLOWed for real (2026-11-24):** `tools/emu_djlink.py` puts the
+emulated deck on a tap in djlink0, beside a freedj-3000 `--follow 2`. The
+mirror found track 41 in our export.pdb, read the 10.6 MB WAV over NFS in
+2.4 s (4.4 MB/s) with the stick's 120-beat grid, and its playhead stayed
+on our beat packets within ±1.2 ms; paused at 49 551 ms, it held at
+49 549.8, and it resumed with PLAY.
+
 ⚠ The USB reads run in the NFS task between yields: a 32 KB READ is 64
 sectors read while the panel and audio wait. Fine on the emulator; on a
 deck, measure it against the audio ring.
