@@ -4,14 +4,17 @@
 #   make emu        run it on cdj-nxs2-qemu's emulated CDJ-2000 (console on stdout)
 #   make test       boot it on the emulator and check the panel end to end
 # Shared with the ESP32 decks, compiled as they are (never edited from here):
-#   ../src/deck_event.{h,cpp}
+#   ../src/deck_event.{h,cpp}            the deck events
+#   ../p4/deck/main/prolink.{h,cpp}      Pro DJ Link (on shim/: ESP-IDF headers over our stack)
 IMG     ?= freedj-sh4-gcc
 DOCKER  := docker run --rm -u $(shell id -u):$(shell id -g) -v $(abspath $(CURDIR)/..):/w -w /w/cdj2000 $(IMG)
 CROSS   := sh4-linux-gnu-
-ARCH    := -m4a -ml -O2 -ffreestanding -fno-builtin -nostdlib -fno-pic -Wall -Wextra -Imain -I../src
+ARCH    := -m4a -ml -O2 -ffreestanding -fno-builtin -nostdlib -fno-pic -fno-stack-protector \
+           -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 -Wall -Wextra -Imain -Ishim -I../src -I../p4/deck/main
 CFLAGS  := $(ARCH) -std=c11
 CXXFLAGS := $(ARCH) -std=c++17 -fno-exceptions -fno-rtti -fno-threadsafe-statics -fno-use-cxa-atexit
-OBJS    := build/start.o build/main.o build/scif.o build/tmu.o build/libc.o build/panel.o build/deck_event.o
+OBJS    := build/start.o build/main.o build/scif.o build/tmu.o build/libc.o build/printf.o build/panel.o \
+           build/coop.o build/coop_switch.o build/netstack.o build/deck_event.o build/prolink.o
 
 all: build/main.bin
 
@@ -23,6 +26,8 @@ build/%.o: main/%.S | build
 	$(DOCKER) $(CROSS)gcc $(CFLAGS) -c $< -o $@
 build/deck_event.o: ../src/deck_event.cpp ../src/deck_event.h | build
 	$(DOCKER) $(CROSS)g++ $(CXXFLAGS) -c $< -o $@
+build/prolink.o: ../p4/deck/main/prolink.cpp ../p4/deck/main/prolink.h shim/*.h shim/*/*.h main/*.h | build
+	$(DOCKER) $(CROSS)g++ $(CXXFLAGS) -Wno-unused-parameter -c $< -o $@
 build/main.elf: $(OBJS) link.ld
 	$(DOCKER) $(CROSS)gcc $(ARCH) -T link.ld -Wl,--build-id=none -Wl,--no-warn-rwx-segments $(OBJS) -lgcc -o $@
 build/main.bin: build/main.elf
@@ -38,6 +43,7 @@ emu: build/main.bin
 
 test: build/main.bin
 	python3 tools/test_panel.py build/main.bin
+	python3 tools/test_link.py build/main.bin
 
 clean:
 	rm -rf build

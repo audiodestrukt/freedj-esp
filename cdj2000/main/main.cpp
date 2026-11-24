@@ -1,10 +1,16 @@
 // freedj on the CDJ-2000's main board (SH7763, SH-4A).
 // Milestone 2: the front panel drives freedj-esp's deck events, and the
 // lamps answer (a stand-in transport until there is a player).
+// Milestone 3: Pro DJ Link, freedj-esp's own (p4/deck/main/prolink.cpp,
+// compiled unchanged on shim/ and main/netstack.cpp), as a cooperative task.
 #include <stdint.h>
 #include "scif.h"
 #include "tmu.h"
 #include "panel.h"
+#include "coop.h"
+#include "con.h"
+#include "net_hw.h"
+#include "prolink.h"
 
 namespace {
 constexpr int kCon = 0;         // the console SCIF (both get the banner)
@@ -42,12 +48,18 @@ extern "C" int main()
     }
     tmu_init();
     cdj::panel_init();
+    // ⚠ A made-up, locally administered address until the deck's own is
+    // read from its flash: 169.254.32.1 on the wire.
+    static const uint8_t mac[6] = {0x02, 0xcd, 0x20, 0x00, 0x20, 0x01};
+    net_init(mac);
+    prolink::begin(2, "CDJ-2000");
 
     cdj::Frame lamps, report;
     cdj::PanelDecoder decoder;
     cdj::PanelDecoder::Out ev[16];
     bool playing = false, master_tempo = false, tempo_reset = false, linked = false;
     uint32_t good = 0, bad = 0, next = tmu_us();
+    int64_t next_summary = tmu_us64() + 5000000;
     for (;;) {
         cdj::set_lamp(lamps, cdj::kLampPlay, playing);
         cdj::set_lamp(lamps, cdj::kLampCue, !playing);
@@ -68,7 +80,16 @@ extern "C" int main()
         } else if (++bad == 1 || bad % 500 == 0) {
             say("panel: no answer ("); scif_dec(kCon, static_cast<int32_t>(bad)); say(" so far)\n");
         }
+        prolink::Ours ours;
+        ours.playing = playing;                         // no track yet: never loaded
+        prolink::publish(ours);
+        if (tmu_us64() >= next_summary) {
+            next_summary += 5000000;
+            char line[160];
+            prolink::summary(line, sizeof line);
+            con_printf("link: %s\n", line);
+        }
         next += 10000;                                  // an exchange every 10 ms
-        while (static_cast<int32_t>(tmu_us() - next) < 0) {}
+        while (static_cast<int32_t>(tmu_us() - next) < 0) coop_yield();
     }
 }

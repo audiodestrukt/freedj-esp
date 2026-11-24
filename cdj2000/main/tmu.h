@@ -5,7 +5,8 @@
 extern "C" {
 #endif
 void tmu_init(void);
-uint32_t tmu_us(void);              // microseconds since tmu_init(), wraps at ~71 minutes
+int64_t tmu_us64(void);             // microseconds since tmu_init(); call at least every 5 minutes
+uint32_t tmu_us(void);              // the same, low 32 bits
 void tmu_delay_us(uint32_t us);
 #ifdef __cplusplus
 }
