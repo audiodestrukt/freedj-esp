@@ -1,5 +1,7 @@
 // The CDJ-2000's Ethernet (the SH7763's E-DMAC + EtherC at 0xFEF00000) and
-// a small IPv4 stack on it: ARP, a link-local address, UDP sockets.  The
+// a small IPv4 stack on it: ARP, a link-local address, UDP sockets (a
+// datagram larger than a frame goes out in IP fragments; none are taken in),
+// and a reset for every TCP connection attempt (we listen on none).  The
 // sockets back the lwIP shim (shim/lwip/sockets.h) that freedj-esp's Link
 // code is written against; net:: (p4/deck/main/net.h) is implemented here.
 #pragma once

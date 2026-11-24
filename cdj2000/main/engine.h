@@ -9,7 +9,9 @@
 namespace engine {
 void begin();
 // The stick's analysed tracks (from rekordbox::scan); the first is selected.
-void add_track(const char *audio, const char *anlz, float bpm);
+// `id`: its rekordbox ID from the stick's export.pdb (main/pdb.h), 0 = none;
+// our status names it, so a peer can find the track on our stick over NFS.
+void add_track(const char *audio, const char *anlz, float bpm, uint32_t id);
 int  tracks();
 void apply(const deck::Event &e);
 // Call every pass: decode ahead (within a time budget), then fill the DSP's

@@ -79,7 +79,7 @@ uint16_t csum(const uint8_t *p, int n, uint32_t sum = 0)
 }
 
 // ── UDP sockets ──
-constexpr int kSockets = 6, kQueue = 8, kDgram = 1200;
+constexpr int kSockets = 6, kQueue = 8, kDgram = 1200, kMaxUdp = 33 * 1024;
 struct Dgram { uint32_t ip; uint16_t port; uint16_t len; uint8_t data[kDgram]; };
 struct Sock { bool open; uint16_t port; Dgram q[kQueue]; int head, count; };
 Sock socks[kSockets];
@@ -103,6 +103,35 @@ void udp_in(const uint8_t *ip, const uint8_t *u, int ulen)
     }
 }
 
+// No TCP here: answer a connection attempt with a reset (RFC 9293 §3.10.7.1,
+// a closed port), so a peer asking for our dbserver (TCP 12523) learns at
+// once that there is none instead of waiting out its connect timeout.
+void tcp_reset(const uint8_t *f, const uint8_t *ip, const uint8_t *t, int tlen)
+{
+    if (tlen < 20 || !our_ip || ld32(ip + 16) != our_ip) return;
+    const uint8_t flags = t[13];
+    if (flags & 0x04) return;                           // never answer a reset
+    const uint32_t seq = static_cast<uint32_t>(t[4]) << 24 | t[5] << 16 | t[6] << 8 | t[7];
+    const uint32_t ack = static_cast<uint32_t>(t[8]) << 24 | t[9] << 16 | t[10] << 8 | t[11];
+    const int hl = (t[12] >> 4) * 4, data = tlen - hl;
+    uint8_t o[54];
+    memcpy(o, f + 6, 6); memcpy(o + 6, our_mac, 6); put16(o + 12, 0x0800);
+    uint8_t *oi = o + 14, *ot = oi + 20;
+    oi[0] = 0x45; oi[1] = 0; put16(oi + 2, 40); put16(oi + 4, 0); put16(oi + 6, 0x4000); oi[8] = 64; oi[9] = 6; put16(oi + 10, 0);
+    memcpy(oi + 12, &our_ip, 4); memcpy(oi + 16, ip + 12, 4);
+    put16(oi + 10, csum(oi, 20));
+    memcpy(ot, t + 2, 2); memcpy(ot + 2, t, 2);
+    uint32_t oseq = 0, oack = 0;
+    uint8_t ofl;
+    if (flags & 0x10) { oseq = ack; ofl = 0x04; }       // ACK set: RST with its ack as our seq
+    else { oack = seq + static_cast<uint32_t>(data) + ((flags & 0x02) ? 1 : 0) + ((flags & 0x01) ? 1 : 0); ofl = 0x14; }   // RST|ACK
+    for (int i = 0; i < 4; i++) { ot[4 + i] = static_cast<uint8_t>(oseq >> (24 - 8 * i)); ot[8 + i] = static_cast<uint8_t>(oack >> (24 - 8 * i)); }
+    ot[12] = 5 << 4; ot[13] = ofl; put16(ot + 14, 0); put16(ot + 16, 0); put16(ot + 18, 0);
+    const uint32_t ps = be16(oi + 12) + be16(oi + 14) + be16(oi + 16) + be16(oi + 18) + 6 + 20;
+    put16(ot + 16, csum(ot, 20, ps));
+    eth_send(o, 54);
+}
+
 void frame_in(const uint8_t *f, int len)
 {
     if (len < 14) return;
@@ -119,6 +148,7 @@ void frame_in(const uint8_t *f, int len)
     if ((ip[0] >> 4) != 4 || tot > len - 14 || (be16(ip + 6) & 0x3FFF)) return;   // no fragments
     arp_learn(ld32(ip + 12), f + 6);
     if (ip[9] == 17) udp_in(ip, ip + ihl, tot - ihl);
+    if (ip[9] == 6) tcp_reset(f, ip, ip + ihl, tot - ihl);
 }
 } // namespace
 
@@ -179,28 +209,42 @@ extern "C" int udp_bind(int s, uint16_t port)
 
 extern "C" int udp_send(int s, uint32_t dst, uint16_t port, const void *data, int len)
 {
-    if (s < 0 || s >= kSockets || !our_ip || len > 1472) return -1;
+    if (s < 0 || s >= kSockets || !our_ip || len > kMaxUdp) return -1;
     if (!socks[s].port) socks[s].port = __builtin_bswap16(next_ephemeral++);
     const uint8_t *mac = nullptr;
     const bool bcast = dst == 0xFFFFFFFFu || (dst | our_mask) == 0xFFFFFFFFu;
     if (bcast) mac = kBcast;
     else for (auto &e : arp) if (e.ip == dst) { mac = e.mac; break; }
     if (!mac) { arp_send(1, kBcast, dst); return -1; }  // not resolved yet: ask, drop this one
-    static uint8_t f[1514];
-    memcpy(f, mac, 6); memcpy(f + 6, our_mac, 6); put16(f + 12, 0x0800);
-    uint8_t *ip = f + 14, *u = ip + 20;
-    static uint16_t ident;
-    ip[0] = 0x45; ip[1] = 0; put16(ip + 2, static_cast<uint16_t>(28 + len)); put16(ip + 4, ident++);
-    put16(ip + 6, 0x4000); ip[8] = 64; ip[9] = 17; put16(ip + 10, 0);
-    memcpy(ip + 12, &our_ip, 4); memcpy(ip + 16, &dst, 4);
-    put16(ip + 10, csum(ip, 20));
+    // The whole datagram (UDP header + payload), then as many IP fragments
+    // as it takes (RFC 791): an NFS READ answers 8 KB or more at once.
+    static uint8_t u[8 + kMaxUdp];
     memcpy(u, &socks[s].port, 2); memcpy(u + 2, &port, 2); put16(u + 4, static_cast<uint16_t>(8 + len)); put16(u + 6, 0);
     memcpy(u + 8, data, len);
     // The UDP checksum over the pseudo-header (0 would also be legal on IPv4).
-    uint32_t ps = be16(ip + 12) + be16(ip + 14) + be16(ip + 16) + be16(ip + 18) + 17 + 8 + len;
-    uint16_t c = csum(u, 8 + len, ps);
+    uint8_t sd[8];
+    memcpy(sd, &our_ip, 4); memcpy(sd + 4, &dst, 4);
+    const uint32_t ps = be16(sd) + be16(sd + 2) + be16(sd + 4) + be16(sd + 6) + 17 + 8 + len;
+    const uint16_t c = csum(u, 8 + len, ps);
     put16(u + 6, c ? c : 0xFFFF);
-    eth_send(f, 42 + len);
+    static uint8_t f[1514];
+    static uint16_t ident;
+    const uint16_t id = ident++;
+    const int total = 8 + len, per = 1480;              // fragment payloads: multiples of 8
+    for (int off = 0; off < total; off += per) {
+        const int n = total - off < per ? total - off : per;
+        const bool more = off + n < total;
+        memcpy(f, mac, 6); memcpy(f + 6, our_mac, 6); put16(f + 12, 0x0800);
+        uint8_t *ip = f + 14;
+        ip[0] = 0x45; ip[1] = 0; put16(ip + 2, static_cast<uint16_t>(20 + n)); put16(ip + 4, id);
+        // DF on a whole datagram, as before; MF and the offset on fragments.
+        put16(ip + 6, static_cast<uint16_t>(total <= per ? 0x4000 : (more ? 0x2000 : 0) | off / 8));
+        ip[8] = 64; ip[9] = 17; put16(ip + 10, 0);
+        memcpy(ip + 12, &our_ip, 4); memcpy(ip + 16, &dst, 4);
+        put16(ip + 10, csum(ip, 20));
+        memcpy(ip + 20, u + off, n);
+        eth_send(f, 34 + n);
+    }
     return len;
 }
 

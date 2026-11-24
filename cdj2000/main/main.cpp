@@ -16,6 +16,11 @@
 #include "dsp.h"
 #include "engine.h"
 #include "screen.h"
+#include "pdb.h"
+#include "nfsd.h"
+#include <string.h>
+#include <string>
+#include <vector>
 
 namespace {
 void print_event(const cdj::PanelDecoder::Out &o)
@@ -53,13 +58,23 @@ extern "C" int main()
         if (!fat::mount()) {
             con_printf("usb: no FAT file system on the stick\n");
         } else {
+            // The export's IDs by analysis path: our status names the loaded
+            // track by the ID a peer finds in the same export.pdb over NFS.
+            struct Id { std::string anlz; uint32_t id; };
+            std::vector<Id> ids;
+            const bool pdb = pdb::tracks("/usb/PIONEER/rekordbox/export.pdb", [&](uint32_t id, const char *anlz) { ids.push_back(Id{anlz, id}); });
+            con_printf(pdb ? "usb: export.pdb, %d track%s\n" : "usb: no export.pdb\n", static_cast<int>(ids.size()), ids.size() == 1 ? "" : "s");
             int n = 0;
             rekordbox::scan("/usb", [&](const char *audio, const char *anlz, float bpm) {
-                con_printf("track %d: %s  (%.2f BPM; analysis %s)\n", ++n, audio, static_cast<double>(bpm), anlz);
-                engine::add_track(audio, anlz, bpm);   // the first one is loaded
+                uint32_t id = 0;
+                const char *rel = anlz + 4;    // past "/usb"
+                for (const auto &i : ids) if (!strcasecmp(i.anlz.c_str(), rel)) { id = i.id; break; }
+                con_printf("track %d: %s  (%.2f BPM; analysis %s; id %u)\n", ++n, audio, static_cast<double>(bpm), anlz, static_cast<unsigned>(id));
+                engine::add_track(audio, anlz, bpm, id);   // the first one is loaded
                 return true;
             });
             con_printf("usb: %d analysed track%s on the stick\n", n, n == 1 ? "" : "s");
+            nfsd::begin();
         }
     }
 

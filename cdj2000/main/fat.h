@@ -14,4 +14,11 @@ bool open(const char *path, File &f);           // a file (not a directory)
 int  read(File &f, void *dst, uint32_t n);      // bytes read, -1 on an error
 bool opendir(const char *path, Dir &d);
 bool readdir(Dir &d, Dirent &e);                // false at the end
+// By first cluster, as an NFS file handle carries them (main/nfsd.cpp):
+// cluster 0 is the root directory.
+Dir  dir_at(uint32_t cluster);
+bool lookup(uint32_t dir_cluster, const char *name, Dirent &e);   // one name, no slashes
+inline File file_at(uint32_t first, uint32_t size) { return File{first, size, 0, first, 0}; }
+uint32_t cluster_bytes();
+uint32_t total_clusters();
 } // namespace fat

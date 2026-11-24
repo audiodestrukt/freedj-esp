@@ -34,6 +34,9 @@ struct Ours {
     float    pitch = 1.0f;      // speed multiplier
     uint32_t beat = 0;          // beat number from the track start (1-based), 0 = none
     uint8_t  beatInBar = 0;     // 1..4, 0 = none
+    // The loaded track's rekordbox ID (export.pdb), named in our status so a
+    // peer can find it on our media; 0 = not known (the status's old value).
+    uint32_t trackId = 0;
     // The next beat as it will be heard, for our beat packets: when
     // (esp_timer us; 0 = none), its number and position in the bar.
     int64_t  nextBeatUs = 0;

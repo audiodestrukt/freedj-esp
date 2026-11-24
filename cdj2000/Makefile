@@ -23,7 +23,7 @@ OBJS    := build/start.o build/main.o build/scif.o build/tmu.o build/libc.o buil
            build/coop.o build/coop_switch.o build/netstack.o build/usb.o build/fat.o build/files.o build/runtime.o \
            build/dsp.o build/dsp_blob.o build/engine.o build/screen.o \
            build/stream.o build/wsola.o build/mp3.o \
-           build/deck_event.o build/prolink.o build/rekordbox.o
+           build/deck_event.o build/prolink.o build/rekordbox.o build/pdb.o build/nfsd.o
 
 all: build/main.bin build/gui.flash
 
@@ -99,6 +99,8 @@ test: build/main.bin build/gui.flash
 	python3 tools/test_audio.py build/main.bin
 	python3 tools/test_deck_link.py build/main.bin
 	python3 tools/test_screen.py build/main.bin
+	python3 tools/test_nfs.py build/main.bin
+	python3 tools/test_nfs_freedj.py build/main.bin
 
 clean:
 	rm -rf build

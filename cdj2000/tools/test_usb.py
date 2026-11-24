@@ -39,7 +39,7 @@ def main(image):
     check("reads its capacity (32 MB)", "usb: stick ready, 65536 blocks of 512 bytes (32 MB)" in out)
     for audio, bpm, where in TRACKS:
         check(f"lists {audio} at {bpm:.2f} BPM (long names, nested folders, a 2-cluster ANLZ)",
-              f"/usb{audio}  ({bpm:.2f} BPM; analysis /usb/PIONEER/USBANLZ/{where}/ANLZ0000.DAT)" in out)
+              f"/usb{audio}  ({bpm:.2f} BPM; analysis /usb/PIONEER/USBANLZ/{where}/ANLZ0000.DAT; id 0)" in out)   # no export.pdb: no ID
     check("two tracks in all", "usb: 2 analysed tracks on the stick" in out)
     check("no fault", "fatal" not in out and "BL-masked" not in p.stderr)
     print("\n--- console\n" + out.strip())

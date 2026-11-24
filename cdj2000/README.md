@@ -77,6 +77,13 @@ uncached), with SP at the top of DRAM.
      the DIRECTION lever; the select knob and its push browse and load. On
      Link it is a modern player: beat packets on the heard beat, its tempo
      and place in the bar (an original CDJ-2000 sends none of that).
+   - **The stick on Link** ✅ (2026-11-24): the status names the loaded
+     track by its rekordbox ID (from the stick's `export.pdb`), and the
+     stick is served read-only over NFS as a player serves its USB (portmap
+     111, mount + NFSv2 on 2049, `/C/`), so freedj-3000's FOLLOW (and so
+     Overdeck's `follow = N`) loads the track this deck is playing. No
+     dbserver yet (it needs TCP): a stock CDJ can't browse the stick, and
+     a TCP connection is reset at once.
 6. **Screen**: our program on the Blackfin, drawing the deck.
    - **The boot splash** ✅ (2026-11-23): the display board boots our
      program from its flash and shows audiodestrukt's splash

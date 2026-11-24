@@ -179,6 +179,22 @@ bool readdir(Dir &d, Dirent &e)
     }
 }
 
+Dir dir_at(uint32_t cluster)
+{
+    return Dir{cluster ? cluster : root_cluster, 0, cluster == 0 && type != 32};
+}
+
+bool lookup(uint32_t dir_cluster, const char *name, Dirent &e)
+{
+    Dir d = dir_at(dir_cluster);
+    const int n = static_cast<int>(strlen(name));
+    while (readdir(d, e)) if (same(e.name, name, n)) return true;
+    return false;
+}
+
+uint32_t cluster_bytes() { return spc * 512; }
+uint32_t total_clusters() { return clusters; }
+
 bool open(const char *path, File &f)
 {
     Dirent e;

@@ -27,7 +27,11 @@ Renesas SH7763 manual describes it; our own notes for our own driver
 ## Our stack
 
 ARP (answers, a gratuitous announce at start, learns from every IPv4 frame),
-IPv4 without fragments, UDP with checksums, six sockets. The address is
+IPv4, UDP with checksums, six sockets. A datagram too big for one frame
+goes out in IP fragments (an NFS READ answers 8 or 32 KB); none are taken
+in (requests are small). Any TCP segment to us is answered with a reset,
+as a host with no listener does, so a peer asking for a dbserver on TCP
+12523 learns at once there is none. The address is
 link-local, **169.254.x.y from the MAC** (what a player on a cable with no
 DHCP server ends up with); ⚠ no clash probe or DHCP yet. ⚠ The MAC is made
 up (02:cd:20:00:20:01) until the deck's own is read from its flash.
@@ -41,6 +45,30 @@ headers over our stack) as a cooperative task beside the main loop
 segment (multicast on loopback only) beside an XDJ-1000MK2 played from a
 real one's packets, and checks the announce, the keep-alives, ARP, our
 status to it, and that we follow it as the tempo master.
+
+## The stick over NFS
+
+`main/nfsd.cpp` serves the stick the way a player serves its USB: portmap
+on UDP 111 names mountd v1 and nfsd v2, both on UDP 2049; EXPORT lists
+"/C/" (UTF-16LE) for 169.254.0.0/255.255.0.0; MNT of any name gives the
+root. NFS: NULL, GETATTR, LOOKUP (names in UTF-16LE, or plain bytes;
+matched without regard to case), READ (up to 32 KB), READDIR, STATFS.
+A file handle is "FDJ2", the entry's first cluster (0 = the root), its
+size and a directory flag: no table to keep. One read position is kept
+between READs so a file read front to back doesn't walk its cluster chain
+from the start each time.
+
+The status names the loaded track by its rekordbox ID, which
+`main/pdb.cpp` reads from the stick's `PIONEER/rekordbox/export.pdb` (the
+track table: ID and analysis path, matched to rekordbox::scan's tracks).
+A peer reads the same export over NFS to find the track's path.
+`tools/test_nfs.py` checks it all from a peer on the segment;
+`tools/test_nfs_freedj.py` runs freedj-3000's own NFS client against it
+through a UDP relay.
+
+⚠ The USB reads run in the NFS task between yields: a 32 KB READ is 64
+sectors read while the panel and audio wait. Fine on the emulator; on a
+deck, measure it against the audio ring.
 
 ## Traps found on the way
 

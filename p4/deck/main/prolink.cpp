@@ -351,6 +351,7 @@ static int buildStatus(uint8_t* p, const Ours& o, uint32_t counter)
     p[0x28] = o.loaded ? s_player : 0;
     p[0x29] = o.loaded ? 0x03 : 0;
     p[0x2a] = o.loaded ? 0x01 : 0;
+    if (o.loaded && o.trackId) put32(p + 0x2c, o.trackId);
     // Our USB and SD slots read as empty. The template came from an XDJ with a
     // stick in (0x6f = 0x00, "USB loaded"), so peers listed our USB under LINK
     // and then failed to browse it ("link error"): we answer neither media

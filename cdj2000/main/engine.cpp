@@ -31,7 +31,7 @@ constexpr double kScrubFramesPerCount = 24.5;   // a turn moves a record's 1.8 s
 constexpr double kScratchChase = 4.0 * 256, kScratchMaxSpeed = 8.0;
 constexpr int64_t kDecodeBudgetUs = 4000;       // per pass, after the DSP is fed
 
-struct Track { std::string audio, anlz; float bpm; };
+struct Track { std::string audio, anlz; float bpm; uint32_t id; };   // id: rekordbox's (export.pdb), 0 = none
 std::vector<Track> list;
 
 struct HotCue { bool set = false, loop = false; double start = 0, end = 0; };
@@ -77,10 +77,13 @@ void tempoFromFader()
     d.tempo = d.tempoReset ? 1.0f : 1.0f + (d.fader - 0.5f) * 2.0f * kRanges[d.range];
 }
 
+uint32_t loaded_id;      // the loaded track's rekordbox ID, for Link
+
 bool load(int i)
 {
     if (i < 0 || i >= static_cast<int>(list.size())) return false;
     const Track &t = list[i];
+    loaded_id = 0;
     d.playing = d.previewing = d.looping = d.loopInSet = d.scratching = false;
     d.loaded = false;
     dsp::flush();
@@ -103,6 +106,7 @@ bool load(int i)
     d.cue = !d.mem.empty() ? d.mem.front() : !grid.empty() ? grid.beats.front().ms * r / 1000.0 : 0;
     seek(d.cue);
     d.loaded = true;
+    loaded_id = t.id;
     generation++;
     con_printf("deck: loaded %s (%.1f s, %u Hz, %u beats, %u cues)\n", stream.name(), static_cast<double>(stream.seconds()),
                static_cast<unsigned>(stream.sampleRate()), static_cast<unsigned>(grid.beats.size()),
@@ -208,6 +212,7 @@ void publish()
     o.loaded = d.loaded;
     o.playing = d.playing;
     o.pitch = d.tempo;
+    o.trackId = d.loaded ? loaded_id : 0;
     if (d.loaded && !grid.empty()) {
         const double ms = heardMs(), b = grid.beatAt(ms);
         o.trackBpm = grid.bpmAt(ms);
@@ -229,9 +234,9 @@ void begin()
     ws.begin(2);
 }
 
-void add_track(const char *audio, const char *anlz, float bpm)
+void add_track(const char *audio, const char *anlz, float bpm, uint32_t id)
 {
-    list.push_back(Track{audio, anlz, bpm});
+    list.push_back(Track{audio, anlz, bpm, id});
     if (list.size() == 1) load(0);
 }
 
