@@ -1,7 +1,7 @@
 /* Entry: the loader leaves SR = MD 1, BL 1, IMASK 15, bank 0, and SP at the
  * top of DRAM.  Set our own stack anyway, set the FPU's mode (the loader
  * leaves it in single precision, and GCC switches with fpchg from double),
- * zero .bss, run main(). */
+ * zero .bss, run the static constructors, run main(). */
     .section .head, "a"
     .ascii  "freedj cdj2000 main image\0"
 
@@ -19,7 +19,10 @@ _start:
     mov.l   r0, @r1
     bra     1b
     add     #4, r1
-2:  mov.l   main_addr, r0
+2:  mov.l   ctors_addr, r0  /* static constructors */
+    jsr     @r0
+    nop
+    mov.l   main_addr, r0
     jsr     @r0
     nop
 3:  bra     3b          /* main returned: stay here */
@@ -31,5 +34,6 @@ fpscr_init: .long 0x00080000
 bss_start:  .long _bss_start
 bss_end:    .long _bss_end
 main_addr:  .long main
+ctors_addr: .long run_constructors
 
     .section .note.GNU-stack, "", @progbits

@@ -12,6 +12,7 @@ SECTIONS
     .head 0xA4000000 : { KEEP(*(.head)) . = 0x800; } > dram
     .text 0xA4000800 : { KEEP(*(.text.start)) *(.text .text.*) } > dram
     .rodata : { *(.rodata .rodata.*) } > dram
+    .init_array : ALIGN(4) { __init_array_start = .; KEEP(*(SORT(.init_array.*))) KEEP(*(.init_array)) __init_array_end = .; } > dram
     /* libgcc is built position-independent: its calls between its own
      * routines go through the GOT, which must be in the image. */
     .data : ALIGN(4) { *(.data .data.*) *(.got.plt) *(.got) *(.data.rel .data.rel.*) } > dram

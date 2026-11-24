@@ -11,6 +11,9 @@
 #include "con.h"
 #include "net_hw.h"
 #include "prolink.h"
+#include "usb.h"
+#include "fat.h"
+#include "rekordbox.h"
 
 namespace {
 constexpr int kCon = 0;         // the console SCIF (both get the banner)
@@ -53,6 +56,19 @@ extern "C" int main()
     static const uint8_t mac[6] = {0x02, 0xcd, 0x20, 0x00, 0x20, 0x01};
     net_init(mac);
     prolink::begin(2, "CDJ-2000");
+    // Milestone 4: the USB stick, its FAT, and freedj-esp's rekordbox scan of it.
+    if (usb::open_stick(3000)) {
+        if (!fat::mount()) {
+            con_printf("usb: no FAT file system on the stick\n");
+        } else {
+            int n = 0;
+            rekordbox::scan("/usb", [&](const char *audio, const char *anlz, float bpm) {
+                con_printf("track %d: %s  (%.2f BPM; analysis %s)\n", ++n, audio, static_cast<double>(bpm), anlz);
+                return true;
+            });
+            con_printf("usb: %d analysed track%s on the stick\n", n, n == 1 ? "" : "s");
+        }
+    }
 
     cdj::Frame lamps, report;
     cdj::PanelDecoder decoder;

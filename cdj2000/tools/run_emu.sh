@@ -7,6 +7,11 @@ img=${1:-build/main.bin}
 qemu=${CDJ_QEMU:-$HOME/sandbox/cdj-nxs2-build/qemu-build/qemu-system-sh4}
 [ -x "$qemu" ] || { echo "no qemu-system-sh4 with the cdj2000 machine (set CDJ_QEMU)" >&2; exit 1; }
 mkdir -p build
+stick=${CDJ_STICK:-$HOME/sandbox/cdj-nxs2/extract/usbmedia3.img}
 set -- "$qemu" -M cdj2000 -kernel "$img" -display none -monitor none \
     -serial stdio -serial file:build/scif1.log
+# The USB stick: a FAT image (cdj-nxs2-qemu's setup.sh makes one from a folder
+# of music), attached straight to the root port (port=1: no hub), never written.
+[ -f "$stick" ] && set -- "$@" -drive if=none,id=usbstk,file="$stick",format=raw,snapshot=on \
+    -device usb-storage,drive=usbstk,port=1
 if [ -n "$SECONDS_LIMIT" ]; then exec timeout "$SECONDS_LIMIT" "$@"; else exec "$@"; fi

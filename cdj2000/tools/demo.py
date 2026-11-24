@@ -14,6 +14,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from test_link import QEMU, Segment, udp_frame, STATUS, BEAT, OUR_MAC, OUR_IP, PEER_MAC, PEER_IP, MAGIC
 
 EMU = os.path.expanduser(os.environ.get("CDJ_NXS2", "~/sandbox/cdj-nxs2"))
+# The USB stick: cdj-nxs2-qemu's (its setup.sh images a folder of music), if there is one.
+STICK = os.path.expanduser(os.environ.get("CDJ_STICK", os.path.join(EMU, "extract/usbmedia3.img")))
 
 
 def free_port():
@@ -28,7 +30,9 @@ def main(image):
     os.makedirs("build", exist_ok=True)
     emu = subprocess.Popen([QEMU, "-M", "cdj2000", "-kernel", image, "-display", "none", "-monitor", "none",
                             "-serial", "stdio", "-serial", "null",
-                            "-netdev", f"socket,id=djlink,mcast={seg.group}:{seg.port},localaddr=127.0.0.1"],
+                            "-netdev", f"socket,id=djlink,mcast={seg.group}:{seg.port},localaddr=127.0.0.1"]
+                           + (["-drive", f"if=none,id=usbstk,file={STICK},format=raw,snapshot=on",
+                               "-device", "usb-storage,drive=usbstk,port=1"] if os.path.exists(STICK) else []),
                            stdout=subprocess.PIPE, stderr=open("build/demo.qemu.log", "w"), stdin=subprocess.DEVNULL, env=env)
     app = subprocess.Popen([os.path.join(EMU, ".venv/bin/python"), "-m", "app.virtual_deck", "--model", "cdj2000",
                             "--panel-port", str(keys), "--state-port", str(state), "--screen", "face"],
