@@ -2,8 +2,9 @@
  * top of DRAM.  Set our own stack anyway, set the FPU's mode (the loader
  * leaves it in single precision, and GCC switches with fpchg from double),
  * zero .bss, run the static constructors, run main(). */
+#include "board.h"
     .section .head, "a"
-    .ascii  "freedj cdj2000 main image\0"
+    .ascii  "freedj main image for the " BOARD_NAME "\0"
 
     .section .text.start, "ax"
     .global _start
@@ -29,7 +30,7 @@ _start:
     nop
 
     .align 2
-stack_top:  .long 0xA7FFFFC0
+stack_top:  .long BOARD_STACK_TOP
 fpscr_init: .long 0x00080000
 bss_start:  .long _bss_start
 bss_end:    .long _bss_end

@@ -7,12 +7,13 @@
 // received length), word 2 the buffer's physical address.  We run from the
 // uncached P2 alias, so the rings and buffers need no cache maintenance.
 #include "net_hw.h"
+#include "board.h"
 #include "net.h"            // freedj-esp's net:: interface (p4/deck/main)
 #include <string.h>
 
 namespace {
 // ── E-DMAC + EtherC ──
-constexpr uint32_t kEth = 0xFEF00000u;
+constexpr uint32_t kEth = BOARD_ETH_BASE;
 inline volatile uint32_t &reg(uint32_t o) { return *reinterpret_cast<volatile uint32_t *>(kEth + o); }
 constexpr uint32_t EDMR = 0x000, EDTRR = 0x008, EDRRR = 0x010, TDLAR = 0x018, RDLAR = 0x020, EESR = 0x028,
                    RMCR = 0x058, ECMR = 0x100, ECSR = 0x110, PSR = 0x128, MAHR = 0x1C0, MALR = 0x1C8;
@@ -270,5 +271,5 @@ void begin() {}
 uint32_t ip() { return our_ip; }
 uint32_t netmask() { return our_mask; }
 void mac(uint8_t out[6]) { memcpy(out, our_mac, 6); }
-bool linkUp() { return !(reg(PSR) & 1); }   // LMON reads 0 with a cable in on the SH7763 boards
+bool linkUp() { return BOARD_ETH_LMON_LOW ? !(reg(PSR) & 1) : (reg(PSR) & 1); }   // LMON's sense is per board (board.h)
 } // namespace net

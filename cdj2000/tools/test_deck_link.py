@@ -11,7 +11,7 @@ beats close up to 493.8 ms and the pitch field says +1.25 %.
 import os, re, select, shutil, socket, struct, subprocess, sys, time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from fatimage import make_image, anlz
-from test_link import QEMU, Segment, OUR_MAC, MAGIC
+from test_link import QEMU, Segment, OUR_MAC, MAGIC, MACHINE, IMAGE
 
 
 def track():
@@ -34,7 +34,7 @@ def main(image):
     keys = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); keys.bind(("127.0.0.1", 0)); kport = keys.getsockname()[1]; keys.close()
     env = dict(os.environ, CDJ_DSP_AUDIO="1", CDJ_PANEL_KEYSOCK=str(kport),
                CDJ_C6727_IDLE=open("build/dsp.idle").read().strip() + ":0:0xffffffff:4")
-    p = subprocess.Popen([QEMU, "-M", "cdj2000", "-kernel", image, "-display", "none", "-monitor", "none",
+    p = subprocess.Popen([QEMU, "-M", MACHINE, "-kernel", image, "-display", "none", "-monitor", "none",
                           "-serial", "stdio", "-serial", "null", "-audio", "none",
                           "-netdev", f"socket,id=djlink,mcast={seg.group}:{seg.port},localaddr=127.0.0.1",
                           "-drive", f"if=none,id=usbstk,file={stick},format=raw,snapshot=on",
@@ -112,4 +112,4 @@ def main(image):
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1] if len(sys.argv) > 1 else "build/main.bin"))
+    sys.exit(main(sys.argv[1] if len(sys.argv) > 1 else IMAGE))

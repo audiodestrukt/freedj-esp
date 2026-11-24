@@ -3,11 +3,12 @@
 #pragma once
 #include <stdint.h>
 #include "deck_event.h"
+#include "board.h"
 
 namespace cdj {
 
-constexpr int kFrame = 24;      // bytes each way per exchange
-constexpr int kPayload = 22;    // then a checksum and the sync byte
+constexpr int kFrame = BOARD_PANEL_FRAME;   // bytes each way per exchange (24 on the CDJ-2000, 32 on the XDJ-1000MK2)
+constexpr int kPayload = kFrame - 2;        // then a checksum and the sync byte
 constexpr uint8_t kSync = 0x8F;
 
 struct Frame { uint8_t b[kPayload] = {}; };

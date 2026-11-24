@@ -12,7 +12,14 @@ hears the peer as the tempo master.
 import os, random, re, select, socket, struct, subprocess, sys, time
 
 QEMU = os.environ.get("CDJ_QEMU", os.path.expanduser("~/sandbox/cdj-nxs2-build/qemu-build/qemu-system-sh4"))
-OUR_MAC, OUR_IP = bytes.fromhex("02cd20002001"), bytes([169, 254, 32, 1])
+# The board under test (BOARD=xdj1000mk2 for that image; main/board.h): its
+# emulated machine, the name it announces, and the address it makes up.
+BOARD = os.environ.get("BOARD", "cdj2000")
+MACHINE, NAME, OUR_MAC, OUR_IP = {
+    "cdj2000":    ("cdj2000",    b"CDJ-2000",    bytes.fromhex("02cd20002001"), bytes([169, 254, 32, 1])),
+    "xdj1000mk2": ("xdj1000mk2", b"XDJ-1000MK2", bytes.fromhex("02cd10001001"), bytes([169, 254, 16, 1])),
+}[BOARD]
+IMAGE = "build/main.bin" if BOARD == "cdj2000" else f"build-{BOARD}/main.bin"
 PEER_MAC, PEER_IP = bytes.fromhex("020000000002"), bytes([169, 254, 0, 2])
 MAGIC = b"Qspt1WmJOL"
 # A playing tempo master's status and one of its beats: XDJ-1000MK2 firmware
@@ -61,7 +68,7 @@ class Segment:
 
 def main(image):
     seg = Segment()
-    p = subprocess.Popen([QEMU, "-M", "cdj2000", "-kernel", image, "-display", "none", "-monitor", "none",
+    p = subprocess.Popen([QEMU, "-M", MACHINE, "-kernel", image, "-display", "none", "-monitor", "none",
                           "-serial", "stdio", "-serial", "null",
                           "-netdev", f"socket,id=djlink,mcast={seg.group}:{seg.port},localaddr=127.0.0.1"],
                          stdout=subprocess.PIPE, stderr=open("build/test_link.qemu.log", "w"), stdin=subprocess.DEVNULL)
@@ -133,11 +140,11 @@ def main(image):
     kas = [(t, d) for t, ip, port, d in ours if port == 50000 and d[:10] == MAGIC and d[0x0a] == 0x06]
     sts = [(t, ip, d) for t, ip, port, d in ours if port == 50002 and d[:10] == MAGIC and d[0x0a] == 0x0a]
     gaps = [b[0] - a[0] for a, b in zip(kas, kas[1:])]
-    check("boots and comes up on the network", "on the network as 169.254.32.1, player 2" in out)
+    check("boots and comes up on the network", f"on the network as {'.'.join(map(str, OUR_IP))}, player 2" in out)
     check("answers ARP for its address", arp_replies >= 1)
     k = kas[0][1] if kas else b""
-    check("announces as player 2 \"CDJ-2000\", its MAC and IP in the packet",
-          len(k) == 0x36 and k[0x0c:0x14] == b"CDJ-2000" and k[0x24] == 2 and k[0x26:0x2c] == OUR_MAC and k[0x2c:0x30] == OUR_IP)
+    check(f"announces as player 2 \"{NAME.decode()}\", its MAC and IP in the packet",
+          len(k) == 0x36 and k[0x0c:0x0c + len(NAME) + 1] == NAME + b"\0" and k[0x24] == 2 and k[0x26:0x2c] == OUR_MAC and k[0x2c:0x30] == OUR_IP)
     check("a keep-alive every 1.5 s", len(gaps) >= 4 and all(1.3 < g < 1.7 for g in gaps),
           ", ".join(f"{g:.2f}" for g in gaps))
     check("sends the peer its status (to 169.254.0.2:50002, as player 2)",
@@ -151,4 +158,4 @@ def main(image):
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1] if len(sys.argv) > 1 else "build/main.bin"))
+    sys.exit(main(sys.argv[1] if len(sys.argv) > 1 else IMAGE))

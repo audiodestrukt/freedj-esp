@@ -19,21 +19,44 @@ CFLAGS  := $(ARCH) -ffreestanding -std=c11
 # nothing from the system: main/runtime.cpp gives it a heap and its error
 # hooks, and instantiates std::string here instead of taking it from libstdc++.
 CXXFLAGS := $(ARCH) -std=c++17 -fno-exceptions -fno-rtti -fno-threadsafe-statics -fno-use-cxa-atexit
-OBJS    := build/start.o build/main.o build/scif.o build/tmu.o build/libc.o build/printf.o build/panel.o \
-           build/coop.o build/coop_switch.o build/netstack.o build/usb.o build/fat.o build/files.o build/runtime.o \
-           build/dsp.o build/dsp_blob.o build/engine.o build/screen.o \
-           build/stream.o build/wsola.o build/mp3.o \
-           build/deck_event.o build/prolink.o build/rekordbox.o build/pdb.o build/nfsd.o
+# BOARD=cdj2000 (the default, into build/) or xdj1000mk2 (build-xdj1000mk2/):
+# main/board.h holds what differs.
+BOARD   ?= cdj2000
+ifeq ($(BOARD),cdj2000)
+B       := build
+BOARD_OBJS := $(B)/dsp.o $(B)/dsp_blob.o $(B)/screen.o
+LINK_ORG := 0xA4000000
+LINK_ENT := 0xA4000800
+LINK_LEN := 64M
+EXTRA   := build/gui.flash
+else ifeq ($(BOARD),xdj1000mk2)
+B       := build-xdj1000mk2
+ARCH    += -DBOARD_XDJ1000MK2
+CFLAGS  += -DBOARD_XDJ1000MK2
+CXXFLAGS += -DBOARD_XDJ1000MK2
+BOARD_OBJS := $(B)/dsp_null.o $(B)/screen_null.o
+LINK_ORG := 0xA8000000
+LINK_ENT := 0xA8000800
+LINK_LEN := 256M
+EXTRA   :=
+else
+$(error BOARD is cdj2000 or xdj1000mk2)
+endif
+OBJS    := $(B)/start.o $(B)/main.o $(B)/scif.o $(B)/tmu.o $(B)/libc.o $(B)/printf.o $(B)/panel.o \
+           $(B)/coop.o $(B)/coop_switch.o $(B)/netstack.o $(B)/usb.o $(B)/fat.o $(B)/files.o $(B)/runtime.o \
+           $(BOARD_OBJS) $(B)/engine.o \
+           $(B)/stream.o $(B)/wsola.o $(B)/mp3.o \
+           $(B)/deck_event.o $(B)/prolink.o $(B)/rekordbox.o $(B)/pdb.o $(B)/nfsd.o
 
-all: build/main.bin build/gui.flash
+all: $(B)/main.bin $(EXTRA)
 
-build/%.o: main/%.c main/*.h | build
+$(B)/%.o: main/%.c main/*.h | $(B)
 	$(DOCKER) $(CROSS)gcc $(CFLAGS) -c $< -o $@
-build/%.o: main/%.cpp main/*.h common/*.h | build
+$(B)/%.o: main/%.cpp main/*.h common/*.h | $(B)
 	$(DOCKER) $(CROSS)g++ $(CXXFLAGS) -c $< -o $@
 # glibc's headers mark FILE* and DIR* arguments nonnull; ours check anyway.
-build/files.o: CXXFLAGS += -Wno-nonnull-compare
-build/%.o: main/%.S | build
+$(B)/files.o: CXXFLAGS += -Wno-nonnull-compare
+$(B)/%.o: main/%.S | $(B)
 	$(DOCKER) $(CROSS)gcc $(CFLAGS) -c $< -o $@
 # The DSP's program: GNU binutils for the C6000, from their own image (tools/Dockerfile.c6x).
 C6X_IMG ?= freedj-c6x-as
@@ -43,7 +66,7 @@ build/dsp.bin: dsp/audio.s | build
 	  tic6x-elf-ld -EL -Ttext 0x10002000 -e _start build/dsp_audio.o -o build/dsp.elf && \
 	  tic6x-elf-objcopy -O binary build/dsp.elf build/dsp.bin && \
 	  tic6x-elf-nm build/dsp.elf | awk '\$$3 == \"loop\" { print \"0x\" \$$1 }' > build/dsp.idle"
-build/dsp_blob.o: main/dsp_blob.S build/dsp.bin | build
+$(B)/dsp_blob.o: main/dsp_blob.S build/dsp.bin | $(B)
 	$(DOCKER) $(CROSS)gcc $(CFLAGS) -c $< -o $@
 # The display processor's program (gui/, GNU GCC for the Blackfin, from
 # tools/Dockerfile.bfin) and its flash: an LDR stream and the boot splash.
@@ -59,48 +82,67 @@ build/splash.rgb555: tools/splash.py | build
 	python3 tools/splash.py build/splash.rgb555 build/splash.png
 build/gui.flash: build/gui.elf build/splash.rgb555 tools/mkflash.py
 	python3 tools/mkflash.py build/gui.elf build/splash.rgb555 build/gui.flash
-build/deck_event.o: ../src/deck_event.cpp ../src/deck_event.h | build
+$(B)/deck_event.o: ../src/deck_event.cpp ../src/deck_event.h | $(B)
 	$(DOCKER) $(CROSS)g++ $(CXXFLAGS) -c $< -o $@
 # The P4 deck's track stream (WAV, and MP3 through minimp3, MP3 only and no
 # stdio, as the P4 builds it) and the shared WSOLA, unchanged.
 MP3DEFS := -DMINIMP3_ONLY_MP3 -DMINIMP3_NO_STDIO -I../p4/deck/main/third_party/minimp3
-build/stream.o: ../p4/deck/main/stream.cpp ../p4/deck/main/stream.h | build
+$(B)/stream.o: ../p4/deck/main/stream.cpp ../p4/deck/main/stream.h | $(B)
 	$(DOCKER) $(CROSS)g++ $(CXXFLAGS) $(MP3DEFS) -c $< -o $@
-build/mp3.o: ../p4/deck/main/mp3_impl.c | build
+$(B)/mp3.o: ../p4/deck/main/mp3_impl.c | $(B)
 	$(DOCKER) $(CROSS)gcc $(CFLAGS) $(MP3DEFS) -w -c $< -o $@
-build/wsola.o: ../src/wsola.cpp ../src/wsola.h | build
+$(B)/wsola.o: ../src/wsola.cpp ../src/wsola.h | $(B)
 	$(DOCKER) $(CROSS)g++ $(CXXFLAGS) -DWSOLA_NATIVE -c $< -o $@
-build/engine.o: main/engine.cpp main/*.h | build
+$(B)/engine.o: main/engine.cpp main/*.h | $(B)
 	$(DOCKER) $(CROSS)g++ $(CXXFLAGS) -DWSOLA_NATIVE $(MP3DEFS) -c $< -o $@
-build/rekordbox.o: ../p4/deck/main/rekordbox.cpp ../p4/deck/main/rekordbox.h | build
+$(B)/rekordbox.o: ../p4/deck/main/rekordbox.cpp ../p4/deck/main/rekordbox.h | $(B)
 	$(DOCKER) $(CROSS)g++ $(CXXFLAGS) -c $< -o $@
-build/prolink.o: ../p4/deck/main/prolink.cpp ../p4/deck/main/prolink.h shim/*.h shim/*/*.h main/*.h | build
+$(B)/prolink.o: ../p4/deck/main/prolink.cpp ../p4/deck/main/prolink.h shim/*.h shim/*/*.h main/*.h | $(B)
 	$(DOCKER) $(CROSS)g++ $(CXXFLAGS) -Wno-unused-parameter -c $< -o $@
-build/main.elf: $(OBJS) link.ld
-	$(DOCKER) $(CROSS)gcc $(ARCH) -T link.ld -Wl,--build-id=none -Wl,--no-warn-rwx-segments $(OBJS) -lgcc -o $@
-build/main.bin: build/main.elf
+# The link script at this board's DRAM base (link.ld is the CDJ-2000's).
+$(B)/link.ld: link.ld Makefile | $(B)
+	sed -e 's/0xA4000800/$(LINK_ENT)/' -e 's/0xA4000000/$(LINK_ORG)/g' -e 's/LENGTH = 64M/LENGTH = $(LINK_LEN)/' $< > $@
+$(B)/main.elf: $(OBJS) $(B)/link.ld
+	$(DOCKER) $(CROSS)gcc $(ARCH) -T $(B)/link.ld -Wl,--build-id=none -Wl,--no-warn-rwx-segments $(OBJS) -lgcc -o $@
+$(B)/main.bin: $(B)/main.elf
 	$(DOCKER) $(CROSS)objcopy -O binary $< $@
+$(B):
+	mkdir -p $(B)
+ifneq ($(B),build)
 build:
 	mkdir -p build
+endif
 
 image:
 	docker build -t $(IMG) tools
 	docker build -t $(C6X_IMG) -f tools/Dockerfile.c6x tools
 	docker build -t $(BFIN_IMG) -f tools/Dockerfile.bfin tools
 
-emu: build/main.bin build/gui.flash
-	tools/run_emu.sh build/main.bin
+emu: $(B)/main.bin build/gui.flash
+	tools/run_emu.sh $(B)/main.bin
 
-test: build/main.bin build/gui.flash
-	python3 tools/test_splash.py build/main.bin
-	python3 tools/test_panel.py build/main.bin
-	python3 tools/test_link.py build/main.bin
-	python3 tools/test_usb.py build/main.bin
-	python3 tools/test_audio.py build/main.bin
-	python3 tools/test_deck_link.py build/main.bin
-	python3 tools/test_screen.py build/main.bin
-	python3 tools/test_nfs.py build/main.bin
-	python3 tools/test_nfs_freedj.py build/main.bin
+# The CDJ-2000 runs every test; the XDJ-1000MK2 those that need no DSP or
+# Blackfin program (its audio and screen are not ported yet).
+ifeq ($(BOARD),cdj2000)
+test: $(B)/main.bin build/gui.flash
+	python3 tools/test_splash.py $(B)/main.bin
+	python3 tools/test_panel.py $(B)/main.bin
+	python3 tools/test_link.py $(B)/main.bin
+	python3 tools/test_usb.py $(B)/main.bin
+	python3 tools/test_audio.py $(B)/main.bin
+	python3 tools/test_deck_link.py $(B)/main.bin
+	python3 tools/test_screen.py $(B)/main.bin
+	python3 tools/test_nfs.py $(B)/main.bin
+	python3 tools/test_nfs_freedj.py $(B)/main.bin
+else
+test: $(B)/main.bin
+	BOARD=$(BOARD) python3 tools/test_panel.py $(B)/main.bin
+	BOARD=$(BOARD) python3 tools/test_link.py $(B)/main.bin
+	BOARD=$(BOARD) python3 tools/test_usb.py $(B)/main.bin
+	BOARD=$(BOARD) python3 tools/test_deck_link.py $(B)/main.bin
+	BOARD=$(BOARD) python3 tools/test_nfs.py $(B)/main.bin
+	BOARD=$(BOARD) python3 tools/test_nfs_freedj.py $(B)/main.bin
+endif
 
 clean:
 	rm -rf build

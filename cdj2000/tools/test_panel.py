@@ -10,7 +10,7 @@ import os, re, select, socket, struct, subprocess, sys, time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from fatimage import make_image, anlz
 
-QEMU = os.environ.get("CDJ_QEMU", os.path.expanduser("~/sandbox/cdj-nxs2-build/qemu-build/qemu-system-sh4"))
+from test_link import QEMU, MACHINE, IMAGE
 
 
 def free_port():
@@ -34,7 +34,7 @@ class Rig:
         self.state = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.state.bind(("127.0.0.1", 0)); self.state.setblocking(False)
         env = dict(os.environ, CDJ_PANEL_KEYSOCK=str(self.keys), CDJ_PANEL_STATESOCK=str(self.state.getsockname()[1]))
-        self.p = subprocess.Popen([QEMU, "-M", "cdj2000", "-kernel", image, "-display", "none", "-monitor", "none",
+        self.p = subprocess.Popen([QEMU, "-M", MACHINE, "-kernel", image, "-display", "none", "-monitor", "none",
                                    "-serial", "stdio", "-serial", "null",
                                    "-drive", f"if=none,id=usbstk,file={stick()},format=raw,snapshot=on",
                                    "-device", "usb-storage,drive=usbstk,port=1"], stdout=subprocess.PIPE,
@@ -101,8 +101,11 @@ def main(image):
         check("jog counter +80 is jog 80", rig.expect(r"panel: jog 80\b"))
         rig.send("0x14:0x01:200")
         check("a key with no deck event yet (BROWSE) comes back raw", rig.expect(r"panel: key 0x14/0x01 down"))
-        rig.send("0x0F:0x02:0:hold")
-        check("DIRECTION lever to REV is reverse", rig.expect(r"panel: reverse down"))
+        if MACHINE == "cdj2000":
+            rig.send("0x0F:0x02:0:hold")
+            check("DIRECTION lever to REV is reverse", rig.expect(r"panel: reverse down"))
+        else:   # the XDJ model holds its lever at FWD (the bit set) in every frame: REV can't be sent
+            check("the DIRECTION lever reads FWD: the deck never went into reverse", "panel: reverse" not in rig.out)
         check("every exchange answered", "no answer" not in rig.out)
     finally:
         rig.close()
@@ -112,4 +115,4 @@ def main(image):
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1] if len(sys.argv) > 1 else "build/main.bin"))
+    sys.exit(main(sys.argv[1] if len(sys.argv) > 1 else IMAGE))

@@ -11,7 +11,7 @@ client.  Skipped when freedj-3000 is not beside this repository.
 import os, select, socket, struct, subprocess, sys, time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import test_nfs
-from test_link import QEMU, OUR_MAC, OUR_IP, Segment, udp_frame
+from test_link import QEMU, OUR_MAC, OUR_IP, Segment, udp_frame, MACHINE, IMAGE
 from fatimage import make_image, anlz
 from pdbimage import export_pdb
 
@@ -35,7 +35,7 @@ def main(image):
     stick = "build/test_nfs_freedj_stick.img"
     make_image(stick, files)
     seg = Segment()
-    p = subprocess.Popen([QEMU, "-M", "cdj2000", "-kernel", image, "-display", "none", "-monitor", "none",
+    p = subprocess.Popen([QEMU, "-M", MACHINE, "-kernel", image, "-display", "none", "-monitor", "none",
                           "-serial", "stdio", "-serial", "null",
                           "-drive", f"if=none,id=usbstk,file={stick},format=raw,snapshot=on",
                           "-device", "usb-storage,drive=usbstk,port=1",
@@ -85,4 +85,4 @@ def main(image):
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1] if len(sys.argv) > 1 else "build/main.bin"))
+    sys.exit(main(sys.argv[1] if len(sys.argv) > 1 else IMAGE))

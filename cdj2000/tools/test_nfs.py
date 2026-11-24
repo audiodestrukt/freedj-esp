@@ -14,7 +14,7 @@ import os, random, re, select, struct, subprocess, sys, time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from fatimage import make_image, anlz
 from pdbimage import export_pdb
-from test_link import QEMU, OUR_MAC, OUR_IP, PEER_MAC, PEER_IP, MAGIC, Segment, udp_frame, csum
+from test_link import QEMU, OUR_MAC, OUR_IP, PEER_MAC, PEER_IP, MAGIC, Segment, udp_frame, csum, MACHINE, IMAGE
 
 TRACKS = [   # rekordbox ID, audio, analysis
     (41, "/Contents/Test Artist/A long track name, with spaces.wav", "/PIONEER/USBANLZ/P001/00000001/ANLZ0000.DAT"),
@@ -120,7 +120,7 @@ def main(image):
     os.makedirs("build", exist_ok=True)
     make_image(stick, files)
     seg = Segment()
-    p = subprocess.Popen([QEMU, "-M", "cdj2000", "-kernel", image, "-display", "none", "-monitor", "none",
+    p = subprocess.Popen([QEMU, "-M", MACHINE, "-kernel", image, "-display", "none", "-monitor", "none",
                           "-serial", "stdio", "-serial", "null",
                           "-drive", f"if=none,id=usbstk,file={stick},format=raw,snapshot=on",
                           "-device", "usb-storage,drive=usbstk,port=1",
@@ -220,4 +220,4 @@ def main(image):
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1] if len(sys.argv) > 1 else "build/main.bin"))
+    sys.exit(main(sys.argv[1] if len(sys.argv) > 1 else IMAGE))

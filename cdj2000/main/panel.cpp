@@ -108,7 +108,7 @@ int PanelDecoder::feed(const Frame &r, Out *out, int max)
     if (const int8_t d = static_cast<int8_t>(r.b[0x0E] - last_.b[0x0E])) {
         Out o; o.ev.type = deck::Type::Browse; o.ev.delta = d; push(o);
     }
-    const uint16_t pos = be16(r, 0x04), centre = be16(r, 0x06);
+    const uint16_t pos = be16(r, 0x04), centre = BOARD_TEMPO_CENTRE_REF ? be16(r, 0x06) : 0x8000;
     if (centre) {                                       // no centre reference, no tempo
         float t = 0.5f + (static_cast<float>(pos) - static_cast<float>(centre)) / 65536.0f;
         t = t < 0.0f ? 0.0f : t > 1.0f ? 1.0f : t;

@@ -6,13 +6,14 @@
 // PID = BUF, the status stage with CCPL.  Bulk runs on pipe 1 (OUT) and
 // pipe 2 (IN), one ≤1 KB buffer at a time (a pipe's buffer: see docs/usb.md).
 #include "usb.h"
+#include "board.h"
 #include "tmu.h"
 #include "con.h"
 #include <string.h>
 
 namespace usb {
 namespace {
-constexpr uint32_t kBase = 0xFE400000u;
+constexpr uint32_t kBase = BOARD_USB_BASE;
 inline volatile uint16_t &r16(uint32_t o) { return *reinterpret_cast<volatile uint16_t *>(kBase + o); }
 inline volatile uint32_t &r32(uint32_t o) { return *reinterpret_cast<volatile uint32_t *>(kBase + o); }
 constexpr uint32_t SYSCFG = 0x00, SYSSTS0 = 0x04, DVSTCTR0 = 0x08, CFIFO = 0x14, CFIFOSEL = 0x20, CFIFOCTR = 0x22,

@@ -16,6 +16,7 @@
 #include "dsp.h"
 #include "engine.h"
 #include "screen.h"
+#include "board.h"
 #include "pdb.h"
 #include "nfsd.h"
 #include <string.h>
@@ -41,7 +42,7 @@ extern "C" int main()
 {
     for (int ch = 0; ch < 2; ch++) {
         scif_init(ch);
-        scif_puts(ch, "\nfreedj cdj2000: main board up (SCIF");
+        scif_puts(ch, "\nfreedj " BOARD_NAME ": main board up (SCIF");
         scif_putc(ch, static_cast<char>('0' + ch));
         scif_puts(ch, ")\n");
     }
@@ -49,9 +50,14 @@ extern "C" int main()
     cdj::panel_init();
     // ⚠ A made-up, locally administered address until the deck's own is
     // read from its flash: 169.254.32.1 on the wire.
+    // One per board, so both can share a segment: 169.254.32.1 / .16.1.
+#if BOARD_CDJ2000
     static const uint8_t mac[6] = {0x02, 0xcd, 0x20, 0x00, 0x20, 0x01};
+#else
+    static const uint8_t mac[6] = {0x02, 0xcd, 0x10, 0x00, 0x10, 0x01};
+#endif
     net_init(mac);
-    prolink::begin(2, "CDJ-2000");
+    prolink::begin(2, BOARD_NAME);
     con_printf(dsp::boot() ? "dsp: running\n" : "dsp: did not start\n");
     engine::begin();
     if (usb::open_stick(3000)) {

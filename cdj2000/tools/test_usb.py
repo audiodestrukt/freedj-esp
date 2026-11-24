@@ -9,7 +9,7 @@ it, and list its tracks through freedj-esp's rekordbox scan.
 import os, re, subprocess, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from fatimage import make_image, anlz
-from test_link import QEMU
+from test_link import QEMU, MACHINE, IMAGE
 
 TRACKS = [
     ("/Contents/Test Artist/A long track name, with spaces.wav", 120.0, "P001/00000001"),
@@ -25,7 +25,7 @@ def main(image):
     stick = "build/test_stick.img"
     os.makedirs("build", exist_ok=True)
     make_image(stick, files)
-    p = subprocess.run(["timeout", "20", QEMU, "-M", "cdj2000", "-kernel", image, "-display", "none", "-monitor", "none",
+    p = subprocess.run(["timeout", "20", QEMU, "-M", MACHINE, "-kernel", image, "-display", "none", "-monitor", "none",
                         "-serial", "stdio", "-serial", "null",
                         "-drive", f"if=none,id=usbstk,file={stick},format=raw,snapshot=on",
                         "-device", "usb-storage,drive=usbstk,port=1"],
@@ -48,4 +48,4 @@ def main(image):
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1] if len(sys.argv) > 1 else "build/main.bin"))
+    sys.exit(main(sys.argv[1] if len(sys.argv) > 1 else IMAGE))

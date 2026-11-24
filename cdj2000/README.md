@@ -22,6 +22,30 @@ together with the chips' public manuals (Renesas SH7763, TI C6727, Wolfson
 WM8740). We never read Pioneer's firmware, its unpacked images, or the
 emulator repositories' firmware analysis, and copy no emulator code here.
 
+## The second board: the XDJ-1000MK2
+
+The same image builds for the XDJ-1000MK2 (`make BOARD=xdj1000mk2`, into
+`build-xdj1000mk2/`), against cdj-nxs2-qemu's `xdj1000mk2` machine. Its
+main CPU is an SH7724, also SH-4A; `main/board.h` holds what differs:
+
+| | CDJ-2000 | XDJ-1000MK2 |
+|---|---|---|
+| DRAM, entry | 64 MB at 0x04000000, 0xA4000800 | 256 MB at 0x08000000, 0xA8000800 |
+| Peripheral clock (TMU0 at a quarter) | 54 MHz | 41.67 MHz |
+| Ethernet | 0xFEF00000, LMON 0 = link | 0xA4600000 (the SH7724's), LMON 1 = link |
+| USB stick | 0xFE400000 | 0xA4D90000 (the second of two blocks) |
+| Panel frame | 24 bytes | 32 bytes, the same sync and checksum |
+| DSP | C6727: our program | C6747: not ported, a silent sink at 44.1 kHz (`main/dsp_null.cpp`) |
+| Screen | the Blackfin: our program | the SH7724's own LCDC: not drawn yet |
+
+`make test BOARD=xdj1000mk2` (2026-11-24): the panel (PLAY, CUE, MASTER
+TEMPO, jog, select knob, tempo slider), Link beside a played XDJ, the USB
+stick, the deck's beat packets at +0 and +1.25 %, NFS and freedj-3000's
+client all pass. ⚠ The tempo slider is read against mid travel because the
+emulator gives the XDJ no centre reference; the lever can only be checked
+at FWD there. Next: the LCDC screen, then the C6747's audio. Nothing has
+run on a real XDJ.
+
 ## Build and run
 
 The SH-4 compiler comes in a Docker image, so the host needs only Docker:

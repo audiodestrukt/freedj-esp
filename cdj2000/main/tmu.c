@@ -1,9 +1,22 @@
 // TMU0 counting down from 0xFFFFFFFF at Pphi/4: 54 MHz / 4 = 13.5 MHz on the
-// CDJ-2000 (its peripheral clock, as its board model gives it).  TSTR 0x04,
+// CDJ-2000, 41.67 MHz / 4 on the XDJ-1000MK2 (their peripheral clocks, as
+// their board models give them).  TSTR 0x04,
 // TCOR0 0x08, TCNT0 0x0C, TCR0 0x10 from 0xFFD80000.  The counter wraps
 // every 318 s; tmu_us64() carries the wraps, so it must be called more
 // often than that (the main loop and every yield do).
 #include "tmu.h"
+#include "board.h"
+
+// Ticks to microseconds as an exact fraction of the tick rate (Pphi/4).
+#if BOARD_PCLK_HZ == 54000000
+#define TICK_NUM 2u      /* 13.5 ticks a microsecond */
+#define TICK_DEN 27u
+#elif BOARD_PCLK_HZ == 41666667
+#define TICK_NUM 12u     /* 10.4167 ticks a microsecond (125/12) */
+#define TICK_DEN 125u
+#else
+#error "no tick fraction for this clock"
+#endif
 
 #define TMU      0xFFD80000u
 #define TSTR     (*(volatile uint8_t *)(TMU + 0x04))
@@ -30,8 +43,8 @@ int64_t tmu_us64(void)
     uint32_t lo = 0xFFFFFFFFu - TCNT0;
     if (lo < last_lo) ticks_hi += 0x100000000ull;
     last_lo = lo;
-    uint64_t t = ticks_hi + lo;         // 13.5 ticks a microsecond: × 2 / 27
-    return (int64_t)(t * 2u / 27u);
+    uint64_t t = ticks_hi + lo;
+    return (int64_t)(t * TICK_NUM / TICK_DEN);
 }
 
 uint32_t tmu_us(void) { return (uint32_t)tmu_us64(); }

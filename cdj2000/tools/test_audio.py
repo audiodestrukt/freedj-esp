@@ -16,7 +16,7 @@ every frame in it must be the WAV's, in order.
 import math, os, re, socket, struct, subprocess, sys, time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from fatimage import make_image, anlz
-from test_link import QEMU
+from test_link import QEMU, MACHINE, IMAGE
 
 AUDIO = "/Contents/Tones/440 and 660.wav"
 SECONDS = 45
@@ -67,7 +67,7 @@ def main(image):
     keys = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); keys.bind(("127.0.0.1", 0)); kport = keys.getsockname()[1]; keys.close()
     mon = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), f"cdj2000-test-{os.getpid()}.mon")
     env = dict(os.environ, CDJ_DSP_AUDIO="1", CDJ_C6727_IDLE=f"{idle}:0:0xffffffff:4", CDJ_PANEL_KEYSOCK=str(kport))
-    p = subprocess.Popen([QEMU, "-M", "cdj2000", "-kernel", image, "-display", "none", "-monitor", f"unix:{mon},server,nowait",
+    p = subprocess.Popen([QEMU, "-M", MACHINE, "-kernel", image, "-display", "none", "-monitor", f"unix:{mon},server,nowait",
                           "-serial", "stdio", "-serial", "null", "-audio", "none",
                           "-drive", f"if=none,id=usbstk,file={stick},format=raw,snapshot=on",
                           "-device", "usb-storage,drive=usbstk,port=1"],
@@ -164,4 +164,4 @@ def main(image):
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1] if len(sys.argv) > 1 else "build/main.bin"))
+    sys.exit(main(sys.argv[1] if len(sys.argv) > 1 else IMAGE))

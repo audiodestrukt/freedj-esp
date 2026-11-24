@@ -11,13 +11,14 @@
 // we link no libstdc++, so they are made here.
 template class std::__cxx11::basic_string<char>;
 
+#include "board.h"
 extern "C" char _end[];
 
 namespace {
 // First fit over a free list, merging neighbours on free.  The heap runs from
 // the end of the image to 1 MB under the top of DRAM (the main stack's).
 struct Block { size_t size; Block *next; bool free; };
-constexpr uintptr_t kHeapTop = 0xA7F00000u;
+constexpr uintptr_t kHeapTop = BOARD_HEAP_TOP;
 Block *head;
 
 void heap_init()
