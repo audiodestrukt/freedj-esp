@@ -6,6 +6,7 @@
 namespace dsp {
 bool boot();                                    // true once the program says it runs
 int  room();                                    // stereo frames the ring can take now
+int  queued();                                  // stereo frames in the ring, not yet played
 void push(const int16_t *lr, int frames);       // interleaved 16-bit stereo
 void flush();                                   // drop what is queued (a cue)
 uint32_t halves();                              // 16-frame halves the DAC has been sent

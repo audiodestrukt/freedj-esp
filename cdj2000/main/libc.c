@@ -124,3 +124,25 @@ void *memchr(const void *s, int c, size_t n)
     for (; n; n--, p++) if (*p == (unsigned char)c) return (void *)p;
     return 0;
 }
+
+// sin and cos: the argument folded to [-pi/4, pi/4], then Taylor series to
+// double precision.  (WSOLA builds its window with them once.)
+static double sin_core(double x) { double x2 = x * x; return x * (1 - x2 / 6 * (1 - x2 / 20 * (1 - x2 / 42 * (1 - x2 / 72 * (1 - x2 / 110 * (1 - x2 / 156)))))); }
+static double cos_core(double x) { double x2 = x * x; return 1 - x2 / 2 * (1 - x2 / 12 * (1 - x2 / 30 * (1 - x2 / 56 * (1 - x2 / 90 * (1 - x2 / 132))))); }
+static double trig(double x, int want_cos)
+{
+    const double pi2 = 1.57079632679489661923;
+    double k = floor(x / pi2 + 0.5);
+    double r = x - k * pi2;
+    int q = ((long long)k + (want_cos ? 1 : 0)) & 3;
+    double v = (q & 1) ? cos_core(r) : sin_core(r);
+    return (q & 2) ? -v : v;
+}
+double sin(double x) { return trig(x, 0); }
+double cos(double x) { return trig(x, 1); }
+float sinf(float x) { return (float)trig(x, 0); }
+float cosf(float x) { return (float)trig(x, 1); }
+float fabsf(float x) { return x < 0 ? -x : x; }
+
+int abs(int x) { return x < 0 ? -x : x; }
+long lroundf(float x) { return x < 0 ? -(long)(0.5f - x) : (long)(x + 0.5f); }

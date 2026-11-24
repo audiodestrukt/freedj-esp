@@ -1,5 +1,5 @@
 // vsnprintf for freestanding code: %d %i %u %x %X %o %c %s %p %f %%, with
-// flags '-', '0', width, precision and the l, ll, z, h, hh lengths.
+// flags '-', '0', '+', ' ', width, precision and the l, ll, z, h, hh lengths.
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -12,6 +12,8 @@ static void put(Out *o, char c) { if (o->len + 1 < o->n) o->p[o->len] = c; o->le
 
 static void pad(Out *o, int n, char c) { while (n-- > 0) put(o, c); }
 
+static int sign_flag;     /* '+' or ' ' for the conversion being formatted, else 0 */
+
 static void num(Out *o, unsigned long long v, int neg, unsigned base, int upper, int width, int prec, int zero, int left)
 {
     char b[24];
@@ -19,9 +21,10 @@ static void num(Out *o, unsigned long long v, int neg, unsigned base, int upper,
     const char *d = upper ? "0123456789ABCDEF" : "0123456789abcdef";
     do { b[i++] = d[v % base]; v /= base; } while (v);
     while (i < prec) b[i++] = '0';
-    int len = i + neg;
+    const char sign = neg ? '-' : (char)sign_flag;
+    int len = i + (sign ? 1 : 0);
     if (!left && !zero) pad(o, width - len, ' ');
-    if (neg) put(o, '-');
+    if (sign) put(o, sign);
     if (!left && zero) pad(o, width - len, '0');
     while (i) put(o, b[--i]);
     if (left) pad(o, width - len, ' ');
@@ -33,7 +36,13 @@ int vsnprintf(char *buf, size_t n, const char *f, va_list ap)
     for (; *f; f++) {
         if (*f != '%') { put(&o, *f); continue; }
         int left = 0, zero = 0, width = 0, prec = -1, lng = 0;
-        for (f++; *f == '-' || *f == '0'; f++) { if (*f == '-') left = 1; else zero = 1; }
+        sign_flag = 0;
+        for (f++; *f == '-' || *f == '0' || *f == '+' || *f == ' '; f++) {
+            if (*f == '-') left = 1;
+            else if (*f == '0') zero = 1;
+            else if (*f == '+') sign_flag = '+';
+            else if (!sign_flag) sign_flag = ' ';
+        }
         if (*f == '*') { width = va_arg(ap, int); f++; } else while (*f >= '0' && *f <= '9') width = width * 10 + (*f++ - '0');
         if (*f == '.') { prec = 0; f++; if (*f == '*') { prec = va_arg(ap, int); f++; } else while (*f >= '0' && *f <= '9') prec = prec * 10 + (*f++ - '0'); }
         for (;; f++) {
@@ -46,6 +55,7 @@ int vsnprintf(char *buf, size_t n, const char *f, va_list ap)
             break;
         }
         case 'u': case 'x': case 'X': case 'o': {
+            sign_flag = 0;
             unsigned long long v = lng >= 2 ? va_arg(ap, unsigned long long) : lng ? va_arg(ap, unsigned long) : va_arg(ap, unsigned);
             num(&o, v, 0, *f == 'u' ? 10 : *f == 'o' ? 8 : 16, *f == 'X', width, prec, zero, left);
             break;
@@ -74,9 +84,10 @@ int vsnprintf(char *buf, size_t n, const char *f, va_list ap)
             if (frac >= scale) { whole++; frac -= scale; }
             int wlen = 1;
             for (unsigned long long t = whole; t >= 10; t /= 10) wlen++;
-            int total = neg + wlen + (prec ? prec + 1 : 0);
+            int total = (neg || sign_flag) + wlen + (prec ? prec + 1 : 0);
             if (!left) pad(&o, width - total, zero ? '0' : ' ');
             num(&o, whole, neg, 10, 0, 0, 0, 0, 0);
+            sign_flag = 0;
             if (prec) { put(&o, '.'); num(&o, frac, 0, 10, 0, 0, prec, 0, 0); }
             if (left) pad(&o, width - total, ' ');
             break;

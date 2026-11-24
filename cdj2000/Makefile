@@ -7,6 +7,8 @@
 #   ../src/deck_event.{h,cpp}            the deck events
 #   ../p4/deck/main/prolink.{h,cpp}      Pro DJ Link (on shim/: ESP-IDF headers over our stack)
 #   ../p4/deck/main/rekordbox.{h,cpp}    the stick's rekordbox analysis (stdio/dirent on main/files.cpp)
+#   ../p4/deck/main/stream.{h,cpp}       the track stream: WAV, MP3 (minimp3) into a window round the playhead
+#   ../src/wsola.{h,cpp}                 time stretching for MASTER TEMPO
 IMG     ?= freedj-sh4-gcc
 DOCKER  := docker run --rm -u $(shell id -u):$(shell id -g) -v $(abspath $(CURDIR)/..):/w -w /w/cdj2000 $(IMG)
 CROSS   := sh4-linux-gnu-
@@ -19,7 +21,8 @@ CFLAGS  := $(ARCH) -ffreestanding -std=c11
 CXXFLAGS := $(ARCH) -std=c++17 -fno-exceptions -fno-rtti -fno-threadsafe-statics -fno-use-cxa-atexit
 OBJS    := build/start.o build/main.o build/scif.o build/tmu.o build/libc.o build/printf.o build/panel.o \
            build/coop.o build/coop_switch.o build/netstack.o build/usb.o build/fat.o build/files.o build/runtime.o \
-           build/dsp.o build/dsp_blob.o build/player.o \
+           build/dsp.o build/dsp_blob.o build/engine.o \
+           build/stream.o build/wsola.o build/mp3.o \
            build/deck_event.o build/prolink.o build/rekordbox.o
 
 all: build/main.bin
@@ -44,6 +47,17 @@ build/dsp_blob.o: main/dsp_blob.S build/dsp.bin | build
 	$(DOCKER) $(CROSS)gcc $(CFLAGS) -c $< -o $@
 build/deck_event.o: ../src/deck_event.cpp ../src/deck_event.h | build
 	$(DOCKER) $(CROSS)g++ $(CXXFLAGS) -c $< -o $@
+# The P4 deck's track stream (WAV, and MP3 through minimp3, MP3 only and no
+# stdio, as the P4 builds it) and the shared WSOLA, unchanged.
+MP3DEFS := -DMINIMP3_ONLY_MP3 -DMINIMP3_NO_STDIO -I../p4/deck/main/third_party/minimp3
+build/stream.o: ../p4/deck/main/stream.cpp ../p4/deck/main/stream.h | build
+	$(DOCKER) $(CROSS)g++ $(CXXFLAGS) $(MP3DEFS) -c $< -o $@
+build/mp3.o: ../p4/deck/main/mp3_impl.c | build
+	$(DOCKER) $(CROSS)gcc $(CFLAGS) $(MP3DEFS) -w -c $< -o $@
+build/wsola.o: ../src/wsola.cpp ../src/wsola.h | build
+	$(DOCKER) $(CROSS)g++ $(CXXFLAGS) -DWSOLA_NATIVE -c $< -o $@
+build/engine.o: main/engine.cpp main/*.h | build
+	$(DOCKER) $(CROSS)g++ $(CXXFLAGS) -DWSOLA_NATIVE $(MP3DEFS) -c $< -o $@
 build/rekordbox.o: ../p4/deck/main/rekordbox.cpp ../p4/deck/main/rekordbox.h | build
 	$(DOCKER) $(CROSS)g++ $(CXXFLAGS) -c $< -o $@
 build/prolink.o: ../p4/deck/main/prolink.cpp ../p4/deck/main/prolink.h shim/*.h shim/*/*.h main/*.h | build
@@ -67,6 +81,7 @@ test: build/main.bin
 	python3 tools/test_link.py build/main.bin
 	python3 tools/test_usb.py build/main.bin
 	python3 tools/test_audio.py build/main.bin
+	python3 tools/test_deck_link.py build/main.bin
 
 clean:
 	rm -rf build

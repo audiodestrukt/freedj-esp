@@ -37,6 +37,12 @@ int room()
     return static_cast<int>(((r - w - 1) & kMask) / 2);
 }
 
+int queued()
+{
+    const uint32_t w = word(kCtl + 4), r = word(kCtl + 8);
+    return static_cast<int>(((w - r) & kMask) / 2);
+}
+
 void push(const int16_t *lr, int frames)
 {
     uint32_t w = word(kCtl + 4);

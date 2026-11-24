@@ -6,7 +6,9 @@ and (b) the lamps it lights, read back from the emulator's panel-state socket.
 
   python3 tools/test_panel.py build/main.bin      (CDJ_QEMU= another qemu)
 """
-import os, re, select, socket, subprocess, sys, time
+import os, re, select, socket, struct, subprocess, sys, time
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from fatimage import make_image, anlz
 
 QEMU = os.environ.get("CDJ_QEMU", os.path.expanduser("~/sandbox/cdj-nxs2-build/qemu-build/qemu-system-sh4"))
 
@@ -16,6 +18,16 @@ def free_port():
     p = s.getsockname()[1]; s.close(); return p
 
 
+def stick():
+    """A stick with one short WAV (PLAY needs a track, as on a CDJ)."""
+    pcm = b"\0\0\0\0" * 44100 * 4
+    fmt = struct.pack("<HHIIHH", 1, 2, 44100, 44100 * 4, 4, 16)
+    wav = b"RIFF" + struct.pack("<I", 36 + len(pcm)) + b"WAVEfmt " + struct.pack("<I", 16) + fmt + b"data" + struct.pack("<I", len(pcm)) + pcm
+    os.makedirs("build", exist_ok=True)
+    make_image("build/test_panel_stick.img", {"/Contents/a.wav": wav, "/PIONEER/USBANLZ/P001/00000001/ANLZ0000.DAT": anlz("/Contents/a.wav", 120)})
+    return "build/test_panel_stick.img"
+
+
 class Rig:
     def __init__(self, image):
         self.keys = free_port()
@@ -23,7 +35,9 @@ class Rig:
         self.state.bind(("127.0.0.1", 0)); self.state.setblocking(False)
         env = dict(os.environ, CDJ_PANEL_KEYSOCK=str(self.keys), CDJ_PANEL_STATESOCK=str(self.state.getsockname()[1]))
         self.p = subprocess.Popen([QEMU, "-M", "cdj2000", "-kernel", image, "-display", "none", "-monitor", "none",
-                                   "-serial", "stdio", "-serial", "null"], stdout=subprocess.PIPE,
+                                   "-serial", "stdio", "-serial", "null",
+                                   "-drive", f"if=none,id=usbstk,file={stick()},format=raw,snapshot=on",
+                                   "-device", "usb-storage,drive=usbstk,port=1"], stdout=subprocess.PIPE,
                                   stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL, env=env)
         os.set_blocking(self.p.stdout.fileno(), False)
         self.out, self.lamps = "", None
@@ -69,7 +83,8 @@ def main(image):
         print(("ok   " if ok else "FAIL ") + name)
         if not ok: fails.append(name)
     try:
-        check("boots and the panel link comes up", rig.expect(r"panel: link up", 10))
+        check("boots and the panel link comes up", rig.expect(r"panel: link up", 15))
+        check("a track is loaded", rig.expect(r"deck: loaded a.wav", 5))
         check("idle: CUE lit, PLAY dark", rig.lamp(0x01, 0x10, True) and rig.lamp(0x01, 0x20, False))
         rig.send("0x10:0x01:200")
         check("PLAY press is a play/pause event", rig.expect(r"panel: play/pause down") and rig.expect(r"panel: play/pause up"))
@@ -85,7 +100,7 @@ def main(image):
         rig.send("0x09:0x50:0:lvl")
         check("jog counter +80 is jog 80", rig.expect(r"panel: jog 80\b"))
         rig.send("0x14:0x01:200")
-        check("a key with no deck event yet (BROWSE) comes back raw", rig.expect(r"panel: key 0x00000014/0x00000001 down"))
+        check("a key with no deck event yet (BROWSE) comes back raw", rig.expect(r"panel: key 0x14/0x01 down"))
         rig.send("0x0F:0x02:0:hold")
         check("DIRECTION lever to REV is reverse", rig.expect(r"panel: reverse down"))
         check("every exchange answered", "no answer" not in rig.out)

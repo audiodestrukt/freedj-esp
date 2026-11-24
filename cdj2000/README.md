@@ -37,8 +37,11 @@ python3 tools/demo.py   # see it: the panel app wired to it, its console, a fake
 
 Shared with the ESP32 decks and compiled unchanged: `../src/deck_event.*`
 (the deck events every input speaks), `../p4/deck/main/prolink.*` (Pro DJ
-Link, on `shim/`: just enough ESP-IDF headers over our own network stack) and
-`../p4/deck/main/rekordbox.*` (the stick's analysis, on stdio over our FAT).
+Link, on `shim/`: just enough ESP-IDF headers over our own network stack),
+`../p4/deck/main/rekordbox.*` (the stick's analysis, on stdio over our FAT),
+`../p4/deck/main/stream.*` with minimp3 (WAV and MP3 decoded into a window
+round the playhead) and `../src/wsola.*` (MASTER TEMPO). The deck's
+transport (`main/engine.cpp`) is this target's own, written after the P4's.
 Nothing outside `cdj2000/` is edited for this target.
 
 `make emu` needs cdj-nxs2-qemu's `qemu-system-sh4` (its `setup.sh` builds
@@ -64,9 +67,16 @@ uncached), with SP at the top of DRAM.
    stick's analysed tracks with their tempo. ⚠ Two sectors per read for now.
 5. **Audio** ✅ (2026-11-23): our own DSP program (C6000 assembly) streams
    a ring of PCM to the DAC through the dMAX; the main board boots it and
-   plays a WAV from the stick into it, PLAY/PAUSE and CUE. Real time and bit
-   exact on the emulator. ⚠ The McASP's clocks and format are not set up
-   yet (the emulator doesn't need them; a real deck will).
+   feeds it. Real time and bit exact on the emulator. ⚠ The McASP's clocks
+   and format are not set up yet (the emulator doesn't need them; a real
+   deck will).
+   - **The deck engine** ✅ (2026-11-23, [docs/engine.md](docs/engine.md)):
+     WAV and MP3 from the stick through freedj-esp's track stream; CUE as on
+     a CDJ, hot cues, loops, memory cue call, the tempo slider and its
+     ranges, TEMPO RESET, MASTER TEMPO (WSOLA), the jog (bend, scratch),
+     the DIRECTION lever; the select knob and its push browse and load. On
+     Link it is a modern player: beat packets on the heard beat, its tempo
+     and place in the bar (an original CDJ-2000 sends none of that).
 6. **Screen**: our program on the Blackfin, drawing the deck.
 7. **Packaging**: an update file the deck's updater takes, and a checked way
    back to the stock firmware, before anything is flashed on a real deck.

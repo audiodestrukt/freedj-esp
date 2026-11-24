@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""Milestone 5, end to end on the emulated CDJ-2000: a stick with a WAV of two
-known tones; PLAY must start our DSP program streaming it to the DAC
-(McASP1, through the dMAX) in real time and bit for bit, PLAY again must
-pause it (silence, the position held), CUE must take it back to the start.
+"""Milestones 5 and 6, end to end on the emulated CDJ-2000: a stick with a WAV
+of two known tones; PLAY must start the deck streaming it through our DSP
+program to the DAC (McASP1, through the dMAX) in real time and bit for bit,
+PLAY again must pause it (silence, the position held), PLAY resume it, the
+tempo slider speed it up by its range, and CUE while playing take it back to
+the cue point and stop.
 
 The rate comes from the DSP's own count of halves sent and the player's
 position, each over 5 s of the deck's time; the content from the DSP's
@@ -17,17 +19,17 @@ from fatimage import make_image, anlz
 from test_link import QEMU
 
 AUDIO = "/Contents/Tones/440 and 660.wav"
-SECONDS = 20
+SECONDS = 45
 
 
 def tones():
     frames = []
     for i in range(44100 * SECONDS):
-        # Two tones, with the frame's number in their low 10 bits (left: bits
-        # 0-9 of it, right: bits 10-19), so every frame in the file is distinct
-        # and says where it is.
-        l = (int(12000 * math.sin(2 * math.pi * 440 * i / 44100)) & ~1023) | (i & 1023)
-        r = (int(12000 * math.sin(2 * math.pi * 660 * i / 44100 + 0.5)) & ~1023) | (i >> 10 & 1023)
+        # Two tones, with the frame's number in their low 11 bits (left: bits
+        # 0-10 of it, right: bits 11-21), so every frame in the file is
+        # distinct and says where it is.
+        l = (int(12000 * math.sin(2 * math.pi * 440 * i / 44100)) & ~2047) | (i & 2047)
+        r = (int(12000 * math.sin(2 * math.pi * 660 * i / 44100 + 0.5)) & ~2047) | (i >> 11 & 2047)
         frames.append((l, r))
     pcm = b"".join(struct.pack("<hh", l, r) for l, r in frames)
     fmt = struct.pack("<HHIIHH", 1, 2, 44100, 44100 * 4, 4, 16)
@@ -95,11 +97,11 @@ def main(image):
         if not ok: fails.append(name)
     try:
         check("the DSP runs our program", wait_for(r"dsp: running", 10) is not None)
-        check("the WAV is loaded", wait_for(r"player: /usb" + re.escape(AUDIO) + r", 20 s", 15) is not None)
+        check("the WAV is loaded, cued at its first beat", wait_for(r"deck: loaded 440 and 660.wav \(45\.0 s, 44100 Hz, 400 beats", 15) is not None)
         wait_for(r"panel: link up", 10)
         m = Monitor(mon)
         key("0x10:0x01:200")
-        check("PLAY plays", wait_for(r"player: play at 0 ms", 5) is not None)
+        check("PLAY plays", wait_for(r"deck: play at 0 ms", 5) is not None)
         start = len(out[0])
         pump(12)
         r = reports(start)
@@ -126,7 +128,7 @@ def main(image):
         at_ms = min(i for i in where if i is not None) * 1000 / 44100 if all(i is not None for i in where) else -1
         check("from where the track is now (within the reports' 5 s)", 0 <= at_ms - now_ms <= 5500, f"buffer at {at_ms:.0f} ms, last report {now_ms} ms")
         key("0x10:0x01:200")
-        check("PLAY again pauses", wait_for(r"player: pause at \d+ ms", 5) is not None)
+        check("PLAY again pauses", wait_for(r"deck: pause at \d+ ms", 5) is not None)
         start = len(out[0])
         pump(11)
         r = reports(start)
@@ -135,11 +137,21 @@ def main(image):
         silent = all(v == 0 for v in m.words(0x0C0C6000, 64))
         check("and the DAC gets silence (the ring runs dry)", silent)
         check("the DAC is still clocked while paused", len(r) >= 2 and r[-1][0] > r[-2][0])
+        key("0x10:0x01:200")
+        check("PLAY again resumes where it paused", wait_for(r"deck: play at %d ms" % r[-1][1], 5) is not None if r else False)
+        key("0x04:0x90:0:lvl")                       # the slider 1/16 of its travel up: +1.25 % at the 10 % range
+        check("the tempo slider reads +1.25 %", wait_for(r"deck: .*\+1\.25 %", 8) is not None)
+        start = len(out[0])
+        pump(11)
+        r = reports(start)
+        moved = r[-1][1] - r[-2][1] if len(r) >= 2 else 0
+        check("and the track moves 1.25 % faster", abs(moved - 5062.5) < 40, f"{moved} ms in 5 s")
         key("0x10:0x02:200")
-        check("CUE goes back to the start", wait_for(r"player: cue", 5) is not None)
+        check("CUE while playing goes back to the cue and stops", wait_for(r"deck: pause at 0 ms", 5) is not None)
+        start = len(out[0])
         pump(6)
         r = reports(start)
-        check("at 0 ms", bool(r) and r[-1][1] == 0, str(r[-1:]))
+        check("and stays at 0 ms", bool(r) and r[-1][1] == 0, str(r[-1:]))
         log = open("build/test_audio.qemu.log").read()
         check("no fault on either processor", "BL-masked" not in log and "fatal" not in out[0])
     finally:

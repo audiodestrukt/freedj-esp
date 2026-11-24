@@ -52,6 +52,9 @@ int fseek(FILE *fp, long off, int whence)
     return 0;
 }
 
+// Reads go straight to the FAT reader's sector cache: no stdio buffer to size.
+int setvbuf(FILE *, char *, int, size_t) { return 0; }
+
 long ftell(FILE *fp) { return fp ? static_cast<long>(reinterpret_cast<OurFile *>(fp)->f.pos) : -1; }
 
 int fclose(FILE *fp)
