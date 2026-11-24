@@ -6,8 +6,8 @@ an XDJ-1000MK2 (played from a real one's packets) beside it on a private
 network segment so Link has a tempo master to follow.  With a stick (the
 emulator's own, CDJ_STICK= another), PLAY plays its first WAV through our DSP
 program to this PC's speakers (AUDIODEV= another QEMU -audio, e.g. none).
-The screen stays dark: drawing it is milestone 6.  Close the app window or
-Ctrl-C to stop.
+The screen shows our display processor's output (the boot splash, for
+now).  Close the app window or Ctrl-C to stop.
 
   python3 tools/demo.py [build/main.bin]
 """
@@ -21,6 +21,18 @@ EMU = os.path.expanduser(os.environ.get("CDJ_NXS2", "~/sandbox/cdj-nxs2"))
 STICK = os.path.expanduser(os.environ.get("CDJ_STICK", os.path.join(EMU, "extract/usbmedia3.img")))
 
 
+def free_tcp_port(lo, hi):
+    for port in range(lo, hi):
+        s = socket.socket()
+        try:
+            s.bind(("127.0.0.1", port)); return port
+        except OSError:
+            continue
+        finally:
+            s.close()
+    raise SystemExit("no free VNC port")
+
+
 def free_port():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.bind(("127.0.0.1", 0))
     p = s.getsockname()[1]; s.close(); return p
@@ -32,16 +44,21 @@ def main(image):
     env = dict(os.environ, CDJ_PANEL_KEYSOCK=str(keys), CDJ_PANEL_STATESOCK=str(state),
                # The DSP's DAC output to this PC's speakers, and the emulator's
                # skip of our DSP program's wait loop (it runs in real time then).
-               CDJ_DSP_AUDIO="1", CDJ_C6727_IDLE=open("build/dsp.idle").read().strip() + ":0:0xffffffff:4")
+               CDJ_DSP_AUDIO="1", CDJ_C6727_IDLE=open("build/dsp.idle").read().strip() + ":0:0xffffffff:4",
+               # Our display processor's flash: the screen, on VNC for the app.
+               CDJ_BF531_FLASH="build/gui.flash")
+    vnc = free_tcp_port(5940, 5999)
     os.makedirs("build", exist_ok=True)
     emu = subprocess.Popen([QEMU, "-M", "cdj2000", "-kernel", image, "-display", "none", "-monitor", "none",
+                            "-vnc", f"127.0.0.1:{vnc - 5900}",
                             "-serial", "stdio", "-serial", "null", "-audio", os.environ.get("AUDIODEV", "pa"),
                             "-netdev", f"socket,id=djlink,mcast={seg.group}:{seg.port},localaddr=127.0.0.1"]
                            + (["-drive", f"if=none,id=usbstk,file={STICK},format=raw,snapshot=on",
                                "-device", "usb-storage,drive=usbstk,port=1"] if os.path.exists(STICK) else []),
                            stdout=subprocess.PIPE, stderr=open("build/demo.qemu.log", "w"), stdin=subprocess.DEVNULL, env=env)
     app = subprocess.Popen([os.path.join(EMU, ".venv/bin/python"), "-m", "app.virtual_deck", "--model", "cdj2000",
-                            "--panel-port", str(keys), "--state-port", str(state), "--screen", "face"],
+                            "--panel-port", str(keys), "--state-port", str(state), "--screen", "face",
+                            "--vnc-base", str(vnc - 1)],                     # deck 1's screen is base + 1
                            cwd=EMU, stdout=open("build/demo.app.log", "w"), stderr=subprocess.STDOUT)
     os.set_blocking(emu.stdout.fileno(), False)
     print(f"CDJ-2000 (our firmware) on a private segment {seg.group}:{seg.port}; "

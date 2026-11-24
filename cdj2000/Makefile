@@ -25,7 +25,7 @@ OBJS    := build/start.o build/main.o build/scif.o build/tmu.o build/libc.o buil
            build/stream.o build/wsola.o build/mp3.o \
            build/deck_event.o build/prolink.o build/rekordbox.o
 
-all: build/main.bin
+all: build/main.bin build/gui.flash
 
 build/%.o: main/%.c main/*.h | build
 	$(DOCKER) $(CROSS)gcc $(CFLAGS) -c $< -o $@
@@ -45,6 +45,18 @@ build/dsp.bin: dsp/audio.s | build
 	  tic6x-elf-nm build/dsp.elf | awk '\$$3 == \"loop\" { print \"0x\" \$$1 }' > build/dsp.idle"
 build/dsp_blob.o: main/dsp_blob.S build/dsp.bin | build
 	$(DOCKER) $(CROSS)gcc $(CFLAGS) -c $< -o $@
+# The display processor's program (gui/, GNU GCC for the Blackfin, from
+# tools/Dockerfile.bfin) and its flash: an LDR stream and the boot splash.
+BFIN_IMG ?= freedj-bfin-gcc
+BFIN    := docker run --rm -u $(shell id -u):$(shell id -g) -v $(CURDIR):/w -w /w $(BFIN_IMG)
+build/gui.elf: gui/gui.c gui/crt0.S gui/link.ld | build
+	$(BFIN) sh -c "bfin-elf-gcc -mcpu=bf531 -O2 -ffreestanding -nostdlib -Wall -c gui/gui.c -o build/gui.o && \
+	  bfin-elf-gcc -mcpu=bf531 -c gui/crt0.S -o build/gui_crt0.o && \
+	  bfin-elf-ld -T gui/link.ld build/gui_crt0.o build/gui.o -o build/gui.elf"
+build/splash.rgb555: tools/splash.py | build
+	python3 tools/splash.py build/splash.rgb555 build/splash.png
+build/gui.flash: build/gui.elf build/splash.rgb555 tools/mkflash.py
+	python3 tools/mkflash.py build/gui.elf build/splash.rgb555 build/gui.flash
 build/deck_event.o: ../src/deck_event.cpp ../src/deck_event.h | build
 	$(DOCKER) $(CROSS)g++ $(CXXFLAGS) -c $< -o $@
 # The P4 deck's track stream (WAV, and MP3 through minimp3, MP3 only and no
@@ -72,11 +84,13 @@ build:
 image:
 	docker build -t $(IMG) tools
 	docker build -t $(C6X_IMG) -f tools/Dockerfile.c6x tools
+	docker build -t $(BFIN_IMG) -f tools/Dockerfile.bfin tools
 
-emu: build/main.bin
+emu: build/main.bin build/gui.flash
 	tools/run_emu.sh build/main.bin
 
-test: build/main.bin
+test: build/main.bin build/gui.flash
+	python3 tools/test_splash.py build/main.bin
 	python3 tools/test_panel.py build/main.bin
 	python3 tools/test_link.py build/main.bin
 	python3 tools/test_usb.py build/main.bin

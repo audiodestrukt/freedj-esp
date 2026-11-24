@@ -14,7 +14,7 @@ from `../src` and `../p4`, but nothing here changes those builds.
 | Ethernet | the SH7763's E-DMAC + EtherC at 0xFEF00000, an RTL8201CP PHY ([docs/ethernet.md](docs/ethernet.md)) | `main/netstack.cpp`, Link |
 | USB | the SH7763's R8A66597-family host at 0xFE400000 ([docs/usb.md](docs/usb.md)) | `main/usb.cpp`, `main/fat.cpp`: the stick |
 | DSP | TI C6727 (floating point) → WM8740 DAC ([docs/audio.md](docs/audio.md)) | `dsp/audio.s` (ours, GNU binutils), `main/dsp.cpp`, `main/player.cpp` |
-| Display board | Analog Devices Blackfin BF531, 16 MB, draws 480×234 over its PPI | the screen (later) |
+| Display board | Analog Devices Blackfin BF531, 16 MB, 2 MB flash, draws 480×234 over its PPI ([docs/screen.md](docs/screen.md)) | `gui/` (GNU GCC for the Blackfin), its flash from `tools/mkflash.py` |
 | Front panel | its own MCU, a serial report link to the main board ([docs/panel.md](docs/panel.md)) | `main/panel.*`: controls and lamps |
 
 The hardware reference is the emulators' QEMU board models and docs,
@@ -28,8 +28,8 @@ The SH-4 compiler comes in a Docker image, so the host needs only Docker:
 
 ```sh
 cd cdj2000
-make image      # once: the sh4-linux-gnu GCC image and the C6000 binutils image (tools/)
-make            # build/main.bin: a flat image for the main board
+make image      # once: the toolchain images (tools/): SH-4 GCC, C6000 binutils, Blackfin GCC
+make            # build/main.bin for the main board, build/gui.flash for the display board
 make emu        # run it on the emulated CDJ-2000; SCIF0 on stdout, SCIF1 in build/scif1.log
 make test       # on the emulator: the panel, Pro DJ Link beside a played XDJ, a USB stick's tracks, audio
 python3 tools/demo.py   # see it: the panel app wired to it, its console, a fake XDJ, the stick
@@ -78,6 +78,12 @@ uncached), with SP at the top of DRAM.
      Link it is a modern player: beat packets on the heard beat, its tempo
      and place in the bar (an original CDJ-2000 sends none of that).
 6. **Screen**: our program on the Blackfin, drawing the deck.
+   - **The boot splash** ✅ (2026-11-23): the display board boots our
+     program from its flash and shows audiodestrukt's splash
+     ([docs/splash.png](docs/splash.png)) from the first frame; pixel exact
+     on the emulator.
+   - Next: the deck's screen, drawn on the Blackfin from what the main board
+     sends (the link is too slow to send frames).
 7. **Packaging**: an update file the deck's updater takes, and a checked way
    back to the stock firmware, before anything is flashed on a real deck.
 

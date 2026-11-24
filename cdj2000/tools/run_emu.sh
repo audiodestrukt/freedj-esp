@@ -1,6 +1,8 @@
 #!/bin/sh
-# Run a main board image on cdj-nxs2-qemu's emulated CDJ-2000.  SCIF0's
-# output goes to stdout, SCIF1's to build/scif1.log.  Ctrl-C (or SECONDS=n)
+# Run a main board image on cdj-nxs2-qemu's emulated CDJ-2000, with our
+# display processor flash (build/gui.flash) when it is built: its screen in
+# a QEMU window (DISPLAY_UI=gtk, the default here; none for headless).
+# SCIF0's output goes to stdout, SCIF1's to build/scif1.log.  Ctrl-C (or SECONDS=n)
 # ends it.  QEMU: CDJ_QEMU, else cdj-nxs2-qemu's build beside this repo's
 # parent (setup.sh --build-dir), else ~/sandbox/cdj-nxs2-build.
 img=${1:-build/main.bin}
@@ -8,7 +10,8 @@ qemu=${CDJ_QEMU:-$HOME/sandbox/cdj-nxs2-build/qemu-build/qemu-system-sh4}
 [ -x "$qemu" ] || { echo "no qemu-system-sh4 with the cdj2000 machine (set CDJ_QEMU)" >&2; exit 1; }
 mkdir -p build
 stick=${CDJ_STICK:-$HOME/sandbox/cdj-nxs2/extract/usbmedia3.img}
-set -- "$qemu" -M cdj2000 -kernel "$img" -display none -monitor none \
+[ -f build/gui.flash ] && export CDJ_BF531_FLASH=build/gui.flash
+set -- "$qemu" -M cdj2000 -kernel "$img" -display "${DISPLAY_UI:-gtk}" -monitor none \
     -serial stdio -serial file:build/scif1.log
 # The USB stick: a FAT image (cdj-nxs2-qemu's setup.sh makes one from a folder
 # of music), attached straight to the root port (port=1: no hub), never written.
