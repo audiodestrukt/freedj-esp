@@ -14,6 +14,8 @@
 #include "usb.h"
 #include "fat.h"
 #include "rekordbox.h"
+#include "dsp.h"
+#include "player.h"
 
 namespace {
 constexpr int kCon = 0;         // the console SCIF (both get the banner)
@@ -56,7 +58,10 @@ extern "C" int main()
     static const uint8_t mac[6] = {0x02, 0xcd, 0x20, 0x00, 0x20, 0x01};
     net_init(mac);
     prolink::begin(2, "CDJ-2000");
+    // Milestone 5: the DSP, with our program on it, feeding the DAC.
+    con_printf(dsp::boot() ? "dsp: running\n" : "dsp: did not start\n");
     // Milestone 4: the USB stick, its FAT, and freedj-esp's rekordbox scan of it.
+    float track_bpm = 0;
     if (usb::open_stick(3000)) {
         if (!fat::mount()) {
             con_printf("usb: no FAT file system on the stick\n");
@@ -64,6 +69,8 @@ extern "C" int main()
             int n = 0;
             rekordbox::scan("/usb", [&](const char *audio, const char *anlz, float bpm) {
                 con_printf("track %d: %s  (%.2f BPM; analysis %s)\n", ++n, audio, static_cast<double>(bpm), anlz);
+                // Milestone 5: the first track that is a plain WAV goes in the player.
+                if (!player::loaded() && player::load(audio)) track_bpm = bpm;
                 return true;
             });
             con_printf("usb: %d analysed track%s on the stick\n", n, n == 1 ? "" : "s");
@@ -88,22 +95,31 @@ extern "C" int main()
             for (int i = 0; i < n; i++) {
                 print_event(ev[i]);
                 const deck::Event &e = ev[i].ev;
-                if (e.type == deck::Type::PlayPause && e.pressed) playing = !playing;
-                if (e.type == deck::Type::Cue && e.pressed) playing = false;
+                if (e.type == deck::Type::PlayPause && e.pressed) {
+                    playing = !playing;
+                    player::play(playing);
+                    con_printf("player: %s at %u ms\n", playing ? "play" : "pause", player::position_ms());
+                }
+                if (e.type == deck::Type::Cue && e.pressed) { playing = false; player::cue(); con_printf("player: cue\n"); }
                 if (e.type == deck::Type::KeyLock && e.pressed) master_tempo = !master_tempo;
                 if (e.type == deck::Type::TempoReset && e.pressed) tempo_reset = !tempo_reset;
             }
         } else if (++bad == 1 || bad % 500 == 0) {
             say("panel: no answer ("); scif_dec(kCon, static_cast<int32_t>(bad)); say(" so far)\n");
         }
+        player::pump();
+        if (playing && player::loaded() && !player::playing()) { playing = false; con_printf("player: end of track\n"); }
         prolink::Ours ours;
-        ours.playing = playing;                         // no track yet: never loaded
+        ours.loaded = player::loaded();
+        ours.playing = playing;
+        ours.trackBpm = track_bpm;
         prolink::publish(ours);
         if (tmu_us64() >= next_summary) {
             next_summary += 5000000;
             char line[160];
             prolink::summary(line, sizeof line);
             con_printf("link: %s\n", line);
+            con_printf("dsp: %u halves sent to the DAC, at %u ms\n", dsp::halves(), player::position_ms());
         }
         next += 10000;                                  // an exchange every 10 ms
         while (static_cast<int32_t>(tmu_us() - next) < 0) coop_yield();

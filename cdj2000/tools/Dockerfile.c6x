@@ -1,0 +1,10 @@
+# GNU binutils for the TI C6000 (tic6x-elf): the assembler and linker for the
+# CDJ-2000's DSP program (a C6727).  No TI download needed.
+#   docker build -t freedj-c6x-as -f tools/Dockerfile.c6x tools
+FROM ubuntu:24.04
+RUN apt-get update && apt-get install -y --no-install-recommends build-essential wget ca-certificates texinfo bison flex \
+    && rm -rf /var/lib/apt/lists/*
+RUN wget -q https://ftp.gnu.org/gnu/binutils/binutils-2.42.tar.xz && tar xf binutils-2.42.tar.xz \
+    && cd binutils-2.42 && ./configure --target=tic6x-elf --prefix=/opt/c6x --disable-nls --disable-werror -q \
+    && make -j8 >/dev/null && make install >/dev/null && cd / && rm -rf binutils-2.42*
+ENV PATH=/opt/c6x/bin:$PATH

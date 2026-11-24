@@ -19,6 +19,7 @@ CFLAGS  := $(ARCH) -ffreestanding -std=c11
 CXXFLAGS := $(ARCH) -std=c++17 -fno-exceptions -fno-rtti -fno-threadsafe-statics -fno-use-cxa-atexit
 OBJS    := build/start.o build/main.o build/scif.o build/tmu.o build/libc.o build/printf.o build/panel.o \
            build/coop.o build/coop_switch.o build/netstack.o build/usb.o build/fat.o build/files.o build/runtime.o \
+           build/dsp.o build/dsp_blob.o build/player.o \
            build/deck_event.o build/prolink.o build/rekordbox.o
 
 all: build/main.bin
@@ -27,7 +28,19 @@ build/%.o: main/%.c main/*.h | build
 	$(DOCKER) $(CROSS)gcc $(CFLAGS) -c $< -o $@
 build/%.o: main/%.cpp main/*.h | build
 	$(DOCKER) $(CROSS)g++ $(CXXFLAGS) -c $< -o $@
+# glibc's headers mark FILE* and DIR* arguments nonnull; ours check anyway.
+build/files.o: CXXFLAGS += -Wno-nonnull-compare
 build/%.o: main/%.S | build
+	$(DOCKER) $(CROSS)gcc $(CFLAGS) -c $< -o $@
+# The DSP's program: GNU binutils for the C6000, from their own image (tools/Dockerfile.c6x).
+C6X_IMG ?= freedj-c6x-as
+C6X     := docker run --rm -u $(shell id -u):$(shell id -g) -v $(CURDIR):/w -w /w $(C6X_IMG)
+build/dsp.bin: dsp/audio.s | build
+	$(C6X) sh -c "tic6x-elf-as -mlittle-endian -march=c67x+ dsp/audio.s -o build/dsp_audio.o && \
+	  tic6x-elf-ld -EL -Ttext 0x10002000 -e _start build/dsp_audio.o -o build/dsp.elf && \
+	  tic6x-elf-objcopy -O binary build/dsp.elf build/dsp.bin && \
+	  tic6x-elf-nm build/dsp.elf | awk '\$$3 == \"loop\" { print \"0x\" \$$1 }' > build/dsp.idle"
+build/dsp_blob.o: main/dsp_blob.S build/dsp.bin | build
 	$(DOCKER) $(CROSS)gcc $(CFLAGS) -c $< -o $@
 build/deck_event.o: ../src/deck_event.cpp ../src/deck_event.h | build
 	$(DOCKER) $(CROSS)g++ $(CXXFLAGS) -c $< -o $@
@@ -44,6 +57,7 @@ build:
 
 image:
 	docker build -t $(IMG) tools
+	docker build -t $(C6X_IMG) -f tools/Dockerfile.c6x tools
 
 emu: build/main.bin
 	tools/run_emu.sh build/main.bin
@@ -52,6 +66,7 @@ test: build/main.bin
 	python3 tools/test_panel.py build/main.bin
 	python3 tools/test_link.py build/main.bin
 	python3 tools/test_usb.py build/main.bin
+	python3 tools/test_audio.py build/main.bin
 
 clean:
 	rm -rf build

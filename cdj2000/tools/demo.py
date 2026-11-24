@@ -3,8 +3,11 @@
 in cdj-nxs2-qemu's virtual deck app (click keys, drag the jog and the tempo
 slider; the lamps are lit by our firmware), its console in this terminal, and
 an XDJ-1000MK2 (played from a real one's packets) beside it on a private
-network segment so Link has a tempo master to follow.  The screen stays dark:
-drawing it is milestone 6.  Close the app window or Ctrl-C to stop.
+network segment so Link has a tempo master to follow.  With a stick (the
+emulator's own, CDJ_STICK= another), PLAY plays its first WAV through our DSP
+program to this PC's speakers (AUDIODEV= another QEMU -audio, e.g. none).
+The screen stays dark: drawing it is milestone 6.  Close the app window or
+Ctrl-C to stop.
 
   python3 tools/demo.py [build/main.bin]
 """
@@ -26,10 +29,13 @@ def free_port():
 def main(image):
     keys, state = free_port(), free_port()
     seg = Segment()
-    env = dict(os.environ, CDJ_PANEL_KEYSOCK=str(keys), CDJ_PANEL_STATESOCK=str(state))
+    env = dict(os.environ, CDJ_PANEL_KEYSOCK=str(keys), CDJ_PANEL_STATESOCK=str(state),
+               # The DSP's DAC output to this PC's speakers, and the emulator's
+               # skip of our DSP program's wait loop (it runs in real time then).
+               CDJ_DSP_AUDIO="1", CDJ_C6727_IDLE=open("build/dsp.idle").read().strip() + ":0:0xffffffff:4")
     os.makedirs("build", exist_ok=True)
     emu = subprocess.Popen([QEMU, "-M", "cdj2000", "-kernel", image, "-display", "none", "-monitor", "none",
-                            "-serial", "stdio", "-serial", "null",
+                            "-serial", "stdio", "-serial", "null", "-audio", os.environ.get("AUDIODEV", "pa"),
                             "-netdev", f"socket,id=djlink,mcast={seg.group}:{seg.port},localaddr=127.0.0.1"]
                            + (["-drive", f"if=none,id=usbstk,file={STICK},format=raw,snapshot=on",
                                "-device", "usb-storage,drive=usbstk,port=1"] if os.path.exists(STICK) else []),
