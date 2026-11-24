@@ -5,6 +5,7 @@
 // time).  One 512-byte packet at a time (screen_link.h).
 #include "screen.h"
 #include "screen_link.h"
+#include "screen_state.h"
 #include "engine.h"
 #include "tmu.h"
 #include "con.h"
@@ -54,14 +55,7 @@ void service()
     const engine::View v = engine::view();
     if (!v.loaded) return;                                  // the display keeps its splash
     if (v.generation != generation) {                       // a new track: its title, length and grid first
-        sl_track t{};
-        t.length_ms = v.length_ms;
-        t.first_beat_ms = v.first_beat_ms;
-        t.beat_us = v.beat_us;
-        t.peak_frames = v.peak_frames;
-        t.rate = v.rate;
-        t.peaks = v.peaks;
-        strncpy(t.title, v.title ? v.title : "", sizeof t.title - 1);
+        const sl_track t = track_of(v);
         if (!send(SL_TRACK, &t, sizeof t)) return;
         generation = v.generation;
         peaks_sent = 0;
@@ -70,20 +64,7 @@ void service()
     const int64_t now = tmu_us64();
     if (now >= next_state) {
         next_state = now + 33333;
-        sl_state s{};
-        s.pos_ms = v.pos_ms;
-        s.cue_ms = v.cue_ms;
-        s.loop_in_ms = v.loop_in_ms;
-        s.loop_out_ms = v.loop_out_ms;
-        s.speed_ppm = static_cast<int32_t>(v.speed * 1e6f);
-        s.tempo_c = static_cast<int16_t>((v.tempo - 1.0f) * 10000.0f + (v.tempo >= 1.0f ? 0.5f : -0.5f));
-        s.bpm_c = static_cast<uint16_t>(v.bpm * 100.0f + 0.5f);
-        s.flags = static_cast<uint16_t>(SL_LOADED | (v.playing ? SL_PLAYING : 0) | (v.keylock ? SL_KEYLOCK : 0) |
-                                        (v.looping ? SL_LOOPING : 0) | (v.reverse ? SL_REVERSE : 0) |
-                                        (v.tempo_reset ? SL_RESET : 0));
-        s.beat_in_bar = v.beat_in_bar;
-        s.range = v.range_pct;
-        for (int k = 0; k < 3; k++) s.hot_ms[k] = v.hot_ms[k];
+        const sl_state s = state_of(v);
         send(SL_STATE, &s, sizeof s);
     }
     // The waveform's peaks as the stream decodes them, a few packets a pass

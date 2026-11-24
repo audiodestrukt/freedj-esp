@@ -34,7 +34,7 @@ B       := build-xdj1000mk2
 ARCH    += -DBOARD_XDJ1000MK2
 CFLAGS  += -DBOARD_XDJ1000MK2
 CXXFLAGS += -DBOARD_XDJ1000MK2
-BOARD_OBJS := $(B)/dsp_null.o $(B)/screen_null.o
+BOARD_OBJS := $(B)/dsp_null.o $(B)/screen_lcdc.o $(B)/deck_draw.o
 LINK_ORG := 0xA8000000
 LINK_ENT := 0xA8000800
 LINK_LEN := 256M
@@ -74,12 +74,18 @@ BFIN_IMG ?= freedj-bfin-gcc
 BFIN    := docker run --rm -u $(shell id -u):$(shell id -g) -v $(CURDIR):/w -w /w $(BFIN_IMG)
 build/font.h: tools/font.py | build
 	python3 tools/font.py build/font.h
-build/gui.elf: gui/gui.c gui/crt0.S gui/link.ld common/screen_link.h build/font.h | build
+build/gui.elf: gui/gui.c common/deck_draw.c common/deck_draw.h gui/crt0.S gui/link.ld common/screen_link.h build/font.h | build
 	$(BFIN) sh -c "bfin-elf-gcc -mcpu=bf531 -O2 -ffreestanding -nostdlib -Wall -Icommon -Ibuild -c gui/gui.c -o build/gui.o && \
 	  bfin-elf-gcc -mcpu=bf531 -c gui/crt0.S -o build/gui_crt0.o && \
 	  bfin-elf-gcc -mcpu=bf531 -nostdlib -T gui/link.ld build/gui_crt0.o build/gui.o -lgcc -o build/gui.elf"
 build/splash.rgb555: tools/splash.py | build
 	python3 tools/splash.py build/splash.rgb555 build/splash.png
+# The XDJ-1000MK2 draws the same screen on its main board, at 800x480 RGB565,
+# with the fonts baked 1.7 times the size.
+$(B)/font.h: tools/font.py | $(B)
+	python3 tools/font.py $@ 1.7
+$(B)/deck_draw.o: common/deck_draw.c common/deck_draw.h common/screen_link.h $(B)/font.h | $(B)
+	$(DOCKER) $(CROSS)gcc $(CFLAGS) -DDD_RGB565 -I$(B) -c $< -o $@
 build/gui.flash: build/gui.elf build/splash.rgb555 tools/mkflash.py
 	python3 tools/mkflash.py build/gui.elf build/splash.rgb555 build/gui.flash
 $(B)/deck_event.o: ../src/deck_event.cpp ../src/deck_event.h | $(B)
@@ -142,6 +148,7 @@ test: $(B)/main.bin
 	BOARD=$(BOARD) python3 tools/test_deck_link.py $(B)/main.bin
 	BOARD=$(BOARD) python3 tools/test_nfs.py $(B)/main.bin
 	BOARD=$(BOARD) python3 tools/test_nfs_freedj.py $(B)/main.bin
+	BOARD=$(BOARD) python3 tools/test_screen.py $(B)/main.bin
 endif
 
 clean:

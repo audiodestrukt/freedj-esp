@@ -15,10 +15,18 @@ playing and while paused, checked for what a deck's screen must do:
 import math, os, re, socket, struct, subprocess, sys, time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from fatimage import make_image, anlz
-from test_link import QEMU
+from test_link import QEMU, MACHINE, IMAGE
 
-W, H = 480, 255
-HEAD_X, WAVE_Y0, WAVE_Y1, OV_Y0, OV_Y1, INFO_Y = 200, 26, 126, 132, 156, 164
+# The screen's geometry (common/deck_draw.c's layouts): the CDJ-2000's display
+# processor at 480x255 (234 shown), the XDJ-1000MK2's LCDC at 800x480.
+if MACHINE == "cdj2000":
+    W, H = 480, 255
+    HEAD_X, WAVE_Y0, WAVE_Y1, OV_Y0, OV_Y1, INFO_Y = 200, 26, 126, 132, 156, 164
+    BIG = (14, 50); BEAT = (184, 18, 14, 24); TITLE = (8, 150, 4, 18)
+else:
+    W, H = 800, 480
+    HEAD_X, WAVE_Y0, WAVE_Y1, OV_Y0, OV_Y1, INFO_Y = 330, 48, 268, 282, 330, 346
+    BIG = (24, 85); BEAT = (300, 32, 26, 42); TITLE = (14, 250, 8, 32)
 SECONDS = 60
 
 
@@ -38,7 +46,7 @@ def ppm(path):
     head, rest = d.split(b"\n", 1)
     size, rest = rest.split(b"\n", 1)
     _, px = rest.split(b"\n", 1)
-    assert head == b"P6" and size == b"480 255"
+    assert head == b"P6" and size == f"{W} {H}".encode(), size
     return px
 
 
@@ -58,9 +66,11 @@ def main(image):
                        "/PIONEER/USBANLZ/P001/00000001/ANLZ0000.DAT": anlz("/Contents/Kick Test.wav", 120.0, beats=120)})
     keys = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); keys.bind(("127.0.0.1", 0)); kport = keys.getsockname()[1]; keys.close()
     mon = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), f"cdj2000-screen-{os.getpid()}.mon")
-    env = dict(os.environ, CDJ_BF531_FLASH="build/gui.flash", CDJ_DSP_AUDIO="1", CDJ_PANEL_KEYSOCK=str(kport),
-               CDJ_C6727_IDLE=open("build/dsp.idle").read().strip() + ":0:0xffffffff:4")
-    p = subprocess.Popen([QEMU, "-M", "cdj2000", "-kernel", image, "-display", "none", "-monitor", f"unix:{mon},server,nowait",
+    env = dict(os.environ, CDJ_PANEL_KEYSOCK=str(kport))
+    if MACHINE == "cdj2000":
+        env.update(CDJ_BF531_FLASH="build/gui.flash", CDJ_DSP_AUDIO="1",
+                   CDJ_C6727_IDLE=open("build/dsp.idle").read().strip() + ":0:0xffffffff:4")
+    p = subprocess.Popen([QEMU, "-M", MACHINE, "-kernel", image, "-display", "none", "-monitor", f"unix:{mon},server,nowait",
                           "-serial", "stdio", "-serial", "null", "-audio", "none",
                           "-drive", f"if=none,id=usbstk,file={stick},format=raw,snapshot=on",
                           "-device", "usb-storage,drive=usbstk,port=1"],
@@ -110,10 +120,10 @@ def main(image):
         pump(1.5)
         a = dump("loaded")
         red = at(a, HEAD_X, (WAVE_Y0 + WAVE_Y1) // 2)
-        check("the deck's screen replaces the splash: the red playhead", red[0] > 200 and red[1] < 90 and red[2] < 90, str(red))
+        check("the deck's screen is drawn (on the CDJ-2000, in place of the splash): the red playhead", red[0] > 200 and red[1] < 90 and red[2] < 90, str(red))
         cue = at(a, HEAD_X + 3, WAVE_Y0 + 1)        # beside the playhead, which is drawn over its middle
         check("the cue marker over it (the first beat)", cue[0] > 200 and 100 < cue[1] < 190 and cue[2] < 60, str(cue))
-        title = sum(1 for x in range(8, 150) for y in range(4, 18) if min(at(a, x, y)) > 180)
+        title = sum(1 for x in range(TITLE[0], TITLE[1]) for y in range(TITLE[2], TITLE[3]) if min(at(a, x, y)) > 180)
         check("the title is written", title > 40, f"{title} bright pixels")
         blue = sum(1 for x in range(HEAD_X + 2, W) for y in range(WAVE_Y0, WAVE_Y1) if at(a, x, y)[2] > 200 and at(a, x, y)[0] < 120)
         check("the waveform ahead of the playhead is drawn", blue > 500, f"{blue} blue pixels")
@@ -126,8 +136,8 @@ def main(image):
         check("playing, the waveform scrolls", band(b, WAVE_Y0, WAVE_Y1) != band(c, WAVE_Y0, WAVE_Y1))
         mb, mc = marker_x(b), marker_x(c)
         check("the overview's marker moves on", 0 <= mb < mc, f"x {mb:.1f} then {mc:.1f}")
-        check("the time left counts down", band(b, INFO_Y + 14, INFO_Y + 50) != band(c, INFO_Y + 14, INFO_Y + 50))
-        lit = [i for i in range(4) if max(at(c, 184 + i * 18 + 7, INFO_Y + 31)) > 200]
+        check("the time left counts down", band(b, INFO_Y + BIG[0], INFO_Y + BIG[1]) != band(c, INFO_Y + BIG[0], INFO_Y + BIG[1]))
+        lit = [i for i in range(4) if max(at(c, BEAT[0] + i * BEAT[1] + BEAT[2] // 2, INFO_Y + BEAT[3] + BEAT[2] // 2)) > 200]
         check("one beat-in-bar box is lit", len(lit) == 1, str(lit))
         key("0x10:0x01:200")
         check("PLAY again pauses", wait_for(r"deck: pause at", 5))
@@ -154,4 +164,4 @@ def main(image):
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1] if len(sys.argv) > 1 else "build/main.bin"))
+    sys.exit(main(sys.argv[1] if len(sys.argv) > 1 else IMAGE))

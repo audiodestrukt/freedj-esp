@@ -10,7 +10,7 @@
 #define BOARD_NAME          "XDJ-1000MK2"
 #define BOARD_PCLK_HZ       41666667        /* the peripheral clock: TMU0 ticks at a quarter of it */
 #define BOARD_STACK_TOP     0xB7FFFFC0      /* DRAM 0x08000000, 256 MB, through P2 */
-#define BOARD_HEAP_TOP      0xB7F00000
+#define BOARD_HEAP_TOP      0xB6F00000      /* the two framebuffers above it (main/screen_lcdc.cpp) */
 #define BOARD_ETH_BASE      0xA4600000u     /* the SH7724's EtherC/E-DMAC (RMII) */
 #define BOARD_ETH_LMON_LOW  0               /* PSR.LMON reads 1 with a cable in */
 #define BOARD_USB_BASE      0xA4D90000u     /* the second USB block: the stick port */
