@@ -6,8 +6,8 @@ an XDJ-1000MK2 (played from a real one's packets) beside it on a private
 network segment so Link has a tempo master to follow.  With a stick (the
 emulator's own, CDJ_STICK= another), PLAY plays its first WAV through our DSP
 program to this PC's speakers (AUDIODEV= another QEMU -audio, e.g. none).
-The screen shows our display processor's output (the boot splash, for
-now).  Close the app window or Ctrl-C to stop.
+The screen, our display processor's output (the boot splash, for now), is
+in the app's screen, over VNC.  Close the app window or Ctrl-C to stop.
 
   python3 tools/demo.py [build/main.bin]
 """
@@ -47,10 +47,14 @@ def main(image):
                CDJ_DSP_AUDIO="1", CDJ_C6727_IDLE=open("build/dsp.idle").read().strip() + ":0:0xffffffff:4",
                # Our display processor's flash: the screen, on VNC for the app.
                CDJ_BF531_FLASH="build/gui.flash")
+    # QEMU's VNC server will not start without a keymap, and this QEMU build
+    # has none; an empty one does (the app sends keys over its own socket).
+    os.makedirs("build/qemu-data/keymaps", exist_ok=True)
+    open("build/qemu-data/keymaps/en-us", "w").write("# empty: the panel app's keys go over its own socket\n")
     vnc = free_tcp_port(5940, 5999)
     os.makedirs("build", exist_ok=True)
-    emu = subprocess.Popen([QEMU, "-M", "cdj2000", "-kernel", image, "-display", "none", "-monitor", "none",
-                            "-vnc", f"127.0.0.1:{vnc - 5900}",
+    emu = subprocess.Popen([QEMU, "-L", "build/qemu-data", "-M", "cdj2000", "-kernel", image, "-monitor", "none",
+                            "-display", "none", "-vnc", f"127.0.0.1:{vnc - 5900}",
                             "-serial", "stdio", "-serial", "null", "-audio", os.environ.get("AUDIODEV", "pa"),
                             "-netdev", f"socket,id=djlink,mcast={seg.group}:{seg.port},localaddr=127.0.0.1"]
                            + (["-drive", f"if=none,id=usbstk,file={STICK},format=raw,snapshot=on",
