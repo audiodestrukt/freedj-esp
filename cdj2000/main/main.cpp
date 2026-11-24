@@ -15,6 +15,7 @@
 #include "rekordbox.h"
 #include "dsp.h"
 #include "engine.h"
+#include "screen.h"
 
 namespace {
 void print_event(const cdj::PanelDecoder::Out &o)
@@ -92,6 +93,7 @@ extern "C" int main()
             con_printf("panel: no answer (%u so far)\n", bad);
         }
         engine::service();
+        screen::service();
         if (tmu_us64() >= next_summary) {
             next_summary += 5000000;
             char line[200];

@@ -47,6 +47,7 @@ struct Deck {
     int selected = 0;
 };
 Deck d;
+uint32_t generation;
 TrackStream stream;
 wsola::Wsola ws;
 rekordbox::Grid grid;
@@ -102,6 +103,7 @@ bool load(int i)
     d.cue = !d.mem.empty() ? d.mem.front() : !grid.empty() ? grid.beats.front().ms * r / 1000.0 : 0;
     seek(d.cue);
     d.loaded = true;
+    generation++;
     con_printf("deck: loaded %s (%.1f s, %u Hz, %u beats, %u cues)\n", stream.name(), static_cast<double>(stream.seconds()),
                static_cast<unsigned>(stream.sampleRate()), static_cast<unsigned>(grid.beats.size()),
                static_cast<unsigned>(grid.cues.size()));
@@ -376,6 +378,53 @@ void service()
     const int64_t until = tmu_us64() + kDecodeBudgetUs;
     while (tmu_us64() < until && stream.service()) {}
     publish();
+}
+
+View view()
+{
+    View v{};
+    v.loaded = d.loaded;
+    v.playing = d.playing;
+    v.keylock = d.keylock;
+    v.looping = d.looping;
+    v.reverse = d.reverse;
+    v.tempo_reset = d.tempoReset;
+    v.generation = generation;
+    v.range_pct = static_cast<uint8_t>(kRanges[d.range] * 100.0f + 0.5f);
+    v.tempo = d.tempo;
+    v.speed = d.playing ? speed() : 0.0f;
+    if (!d.loaded) return v;
+    const double r = rate();
+    const double heard = heardMs();
+    v.pos_ms = heard > 0 ? static_cast<uint32_t>(heard) : 0;
+    v.cue_ms = static_cast<uint32_t>(d.cue * 1000.0 / r);
+    v.loop_in_ms = static_cast<uint32_t>(d.loopStart * 1000.0 / r);
+    v.loop_out_ms = static_cast<uint32_t>(d.loopEnd * 1000.0 / r);
+    v.length_ms = static_cast<uint32_t>(stream.seconds() * 1000.0f);
+    for (int k = 0; k < 3; k++) v.hot_ms[k] = d.hot[k].set ? static_cast<uint32_t>(d.hot[k].start * 1000.0 / r) : 0xFFFFFFFFu;
+    if (!grid.empty()) {
+        v.bpm = grid.bpmAt(heard) * d.tempo;
+        const double b = grid.beatAt(heard);
+        v.beat_in_bar = b >= 0 ? static_cast<uint8_t>(grid.inBarAt(static_cast<long>(b))) : 0;
+        v.first_beat_ms = grid.beats.front().ms;
+        const float bpm0 = grid.beats.front().bpm100 / 100.0f;
+        v.beat_us = bpm0 > 0 ? static_cast<uint32_t>(60e6f / bpm0) : 0;
+    }
+    v.rate = stream.sampleRate();
+    v.peak_frames = TrackStream::kPeakFrames;
+    v.peaks = static_cast<uint32_t>(stream.peakBins());
+    v.title = stream.name();
+    return v;
+}
+
+uint8_t peak(uint32_t i) { return stream.peak(i); }
+
+uint32_t peaks_decoded()
+{
+    // The stream decodes ahead of the playhead it was given: what it holds
+    // ends at the playhead plus what is ahead of it.
+    const size_t end = static_cast<size_t>(d.pos) + stream.ahead();
+    return static_cast<uint32_t>(end / TrackStream::kPeakFrames);
 }
 
 bool playing() { return d.playing; }

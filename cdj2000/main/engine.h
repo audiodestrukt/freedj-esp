@@ -20,6 +20,21 @@ struct Lamps { bool play, cue, loop_in, loop_out, reloop, master_tempo, tempo_re
 bool playing();
 bool loaded();
 uint32_t position_ms();
+
+// What the screen shows (main/screen.cpp sends it to the display processor).
+struct View {
+    bool loaded, playing, keylock, looping, reverse, tempo_reset;
+    uint32_t pos_ms, cue_ms, loop_in_ms, loop_out_ms, length_ms, hot_ms[3];
+    float speed, tempo, bpm;            // bpm with the tempo; 0 = no grid
+    uint8_t beat_in_bar, range_pct;
+    uint32_t first_beat_ms, beat_us;    // the grid, as a constant tempo from its first beat
+    uint32_t rate, peak_frames, peaks;  // the waveform: a peak per peak_frames frames
+    const char *title;
+    uint32_t generation;                // goes up with every track loaded
+};
+View view();
+uint8_t peak(uint32_t i);
+uint32_t peaks_decoded();               // peaks below this have been decoded
 Lamps lamps();
 // One line for the console: track, position, tempo, beat.
 void summary(char *out, int n);

@@ -32,11 +32,53 @@ as the board boots, before the main board says anything.
 emulator has SDRAM from power-on), and the panel's own sync (the timers that
 make its HSYNC/VSYNC, PPI_DELAY) is not matched yet.
 
-## What comes next: the deck's screen
+## The deck's screen
+
+![the deck's screen, playing](screen_playing.png)
 
 The link to the main board runs at about **2.9 Mbit/s** (360 KB/s), so the
 main board can't stream frames (a full one is 245 KB). The display processor
-will draw the screen itself: the main board sends a track's waveform once
-when it loads, then small updates (the playhead ~30 times a second, the
-tempo, BPM and time as they change), and the Blackfin draws the scrolling
-waveform every frame.
+draws the screen itself from what the main board sends
+(`common/screen_link.h`, shared by both sides):
+
+| Packet (512 bytes each) | When | What |
+|---|---|---|
+| `SL_TRACK` | a track loads | its title, length, sample rate, the grid (first beat, beat length), how many peaks |
+| `SL_PEAKS` | as the track decodes, 3 a pass | the waveform: a peak (0-255, the louder channel) per 128 frames, from freedj-esp's track stream |
+| `SL_STATE` | ~30 a second | the heard position, speed, tempo and range, BPM, beat in the bar, cue, loop, hot cues, PLAY / MASTER TEMPO / TEMPO RESET / REV |
+
+The splash stays until a track is loaded. Then, at 30 frames a second into
+two framebuffers (drawn into one while the PPI shows the other):
+
+- **the waveform** round a fixed red playhead (≈4.3 s across), played part
+  grey, the grid's beats ticked (bars brighter), the cue (orange triangle),
+  hot cues A–C (lime), the loop shaded;
+- **the overview**: the whole track, played part grey, the cue, a white
+  marker where the playhead is;
+- **REMAIN**, the beat in the bar (four boxes, the bar's first red),
+  **TEMPO** with its range, MASTER TEMPO and TEMPO RESET, **BPM**;
+- **the title** at the top, with PAUSE, REV, LOOP.
+
+Between updates the display moves the playhead on by its own cycle counter
+(at the speed it was told), so the waveform scrolls smoothly. The fonts are
+DejaVu, baked by `tools/font.py` (8-bit coverage, blended on the band's
+colour).
+
+The main board's end (`main/screen.cpp`) drives the link's transmit block
+at **0xFF500000** (the buffer's address at +0x1008, its length at +0x1010,
+bit 0 of +0x1028 sends; the units it reports done at +0x1188 acknowledged).
+The Blackfin's end arms SPORT1's receive DMA (channel 3) for exactly one
+packet and polls its DONE bit. If the link doesn't take a packet in 5 ms
+(no display processor: an emulator run without its flash) the main board
+leaves it for 2 s rather than hold the deck up.
+
+`tools/test_screen.py` checks it on the emulator from screendumps: the
+splash gives way to the deck's screen, the playhead and cue are where they
+should be, the waveform scrolls while playing and stands still when paused,
+the overview's marker lands where the track stopped (to within 1.5 px), the
+time counts down, one beat box is lit.
+
+⚠ Not yet: the main board's end doesn't set up the link's serial engine
+(the emulator doesn't need it; the stock firmware's settings for it are not
+known to us yet), and the display doesn't answer (no flow control: the
+main board paces itself).

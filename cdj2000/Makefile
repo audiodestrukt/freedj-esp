@@ -13,7 +13,7 @@ IMG     ?= freedj-sh4-gcc
 DOCKER  := docker run --rm -u $(shell id -u):$(shell id -g) -v $(abspath $(CURDIR)/..):/w -w /w/cdj2000 $(IMG)
 CROSS   := sh4-linux-gnu-
 ARCH    := -m4a -ml -O2 -fno-builtin -nostdlib -fno-pic -fno-stack-protector \
-           -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 -Wall -Wextra -Imain -Ishim -I../src -I../p4/deck/main
+           -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 -Wall -Wextra -Imain -Ishim -Icommon -I../src -I../p4/deck/main
 CFLAGS  := $(ARCH) -ffreestanding -std=c11
 # C++ is compiled hosted (libstdc++'s headers refuse -ffreestanding) but links
 # nothing from the system: main/runtime.cpp gives it a heap and its error
@@ -21,7 +21,7 @@ CFLAGS  := $(ARCH) -ffreestanding -std=c11
 CXXFLAGS := $(ARCH) -std=c++17 -fno-exceptions -fno-rtti -fno-threadsafe-statics -fno-use-cxa-atexit
 OBJS    := build/start.o build/main.o build/scif.o build/tmu.o build/libc.o build/printf.o build/panel.o \
            build/coop.o build/coop_switch.o build/netstack.o build/usb.o build/fat.o build/files.o build/runtime.o \
-           build/dsp.o build/dsp_blob.o build/engine.o \
+           build/dsp.o build/dsp_blob.o build/engine.o build/screen.o \
            build/stream.o build/wsola.o build/mp3.o \
            build/deck_event.o build/prolink.o build/rekordbox.o
 
@@ -29,7 +29,7 @@ all: build/main.bin build/gui.flash
 
 build/%.o: main/%.c main/*.h | build
 	$(DOCKER) $(CROSS)gcc $(CFLAGS) -c $< -o $@
-build/%.o: main/%.cpp main/*.h | build
+build/%.o: main/%.cpp main/*.h common/*.h | build
 	$(DOCKER) $(CROSS)g++ $(CXXFLAGS) -c $< -o $@
 # glibc's headers mark FILE* and DIR* arguments nonnull; ours check anyway.
 build/files.o: CXXFLAGS += -Wno-nonnull-compare
@@ -49,10 +49,12 @@ build/dsp_blob.o: main/dsp_blob.S build/dsp.bin | build
 # tools/Dockerfile.bfin) and its flash: an LDR stream and the boot splash.
 BFIN_IMG ?= freedj-bfin-gcc
 BFIN    := docker run --rm -u $(shell id -u):$(shell id -g) -v $(CURDIR):/w -w /w $(BFIN_IMG)
-build/gui.elf: gui/gui.c gui/crt0.S gui/link.ld | build
-	$(BFIN) sh -c "bfin-elf-gcc -mcpu=bf531 -O2 -ffreestanding -nostdlib -Wall -c gui/gui.c -o build/gui.o && \
+build/font.h: tools/font.py | build
+	python3 tools/font.py build/font.h
+build/gui.elf: gui/gui.c gui/crt0.S gui/link.ld common/screen_link.h build/font.h | build
+	$(BFIN) sh -c "bfin-elf-gcc -mcpu=bf531 -O2 -ffreestanding -nostdlib -Wall -Icommon -Ibuild -c gui/gui.c -o build/gui.o && \
 	  bfin-elf-gcc -mcpu=bf531 -c gui/crt0.S -o build/gui_crt0.o && \
-	  bfin-elf-ld -T gui/link.ld build/gui_crt0.o build/gui.o -o build/gui.elf"
+	  bfin-elf-gcc -mcpu=bf531 -nostdlib -T gui/link.ld build/gui_crt0.o build/gui.o -lgcc -o build/gui.elf"
 build/splash.rgb555: tools/splash.py | build
 	python3 tools/splash.py build/splash.rgb555 build/splash.png
 build/gui.flash: build/gui.elf build/splash.rgb555 tools/mkflash.py
@@ -96,6 +98,7 @@ test: build/main.bin build/gui.flash
 	python3 tools/test_usb.py build/main.bin
 	python3 tools/test_audio.py build/main.bin
 	python3 tools/test_deck_link.py build/main.bin
+	python3 tools/test_screen.py build/main.bin
 
 clean:
 	rm -rf build

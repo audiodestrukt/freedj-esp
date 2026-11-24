@@ -82,8 +82,11 @@ uncached), with SP at the top of DRAM.
      program from its flash and shows audiodestrukt's splash
      ([docs/splash.png](docs/splash.png)) from the first frame; pixel exact
      on the emulator.
-   - Next: the deck's screen, drawn on the Blackfin from what the main board
-     sends (the link is too slow to send frames).
+   - **The deck's screen** ✅ (2026-11-24, [docs/screen_playing.png](docs/screen_playing.png)):
+     the Blackfin draws it from what the main board sends (the link is too
+     slow for frames): a scrolling waveform round the playhead with the
+     grid, cue, hot cues and loop; the overview; REMAIN, the beat in the
+     bar, TEMPO, BPM; the title. 30 frames a second, double-buffered.
 7. **Packaging**: an update file the deck's updater takes, and a checked way
    back to the stock firmware, before anything is flashed on a real deck.
 
