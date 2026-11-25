@@ -27,6 +27,7 @@ struct State {
     int32_t  rawMs = -1; // the decoder's position, before the start offset
     bool     absolute;   // follow posMs (needle drops seek)
     bool     settling;   // needle just landed: hold silent until bit lock gives a position
+    uint32_t drops = 0;  // needle drops placed so far (ABS jumps on each)
 };
 
 void begin();

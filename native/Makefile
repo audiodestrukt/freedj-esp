@@ -6,6 +6,7 @@
 #   make mediaplayer    # just the SDL GUI player
 #   make timecode_test  # synthetic-carrier smoke test
 #   make timecode_analyze
+#   make vinyl_rules_test # timecode vinyl rules + decoder fixes (self-asserting)
 #   make dj2go_test     # DJ2Go MIDI decoder unit test
 #   make xdj_test       # XDJ-1000MK2 MIDI decoder unit test
 #
@@ -44,7 +45,7 @@ WOKWI_ELF      ?= .pio/build/$(WOKWI_ENV)/firmware.elf
 WOKWI_SCENARIO ?= sim/scenario.test.yaml
 WOKWI_PROJECT  ?= sim/
 
-all: wsola_play mediaplayer timecode_test timecode_analyze vinyl_demo dj2go_test xdj_test
+all: wsola_play mediaplayer timecode_test timecode_analyze vinyl_rules_test vinyl_demo dj2go_test xdj_test
 
 wsola_play: wsola_play.cpp $(WSOLA_SRC)
 	$(CXX) $(CXXFLAGS) $^ -o $@ $(LDFLAGS)
@@ -54,6 +55,9 @@ mediaplayer: mediaplayer.cpp $(WSOLA_SRC)
 
 timecode_test: timecode_test.cpp $(TIMECODE_SRC)
 	$(CXX) $(CXXFLAGS) $^ -o $@ $(LDFLAGS)
+
+vinyl_rules_test: vinyl_rules_test.cpp $(TIMECODE_SRC) ../src/vinyl_rules.h
+	$(CXX) $(CXXFLAGS) vinyl_rules_test.cpp $(TIMECODE_SRC) -o $@ $(LDFLAGS)
 
 timecode_analyze: timecode_analyze.cpp $(TIMECODE_SRC)
 	$(CXX) $(CXXFLAGS) $^ -o $@ $(LDFLAGS)

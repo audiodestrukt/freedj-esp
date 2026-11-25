@@ -48,6 +48,7 @@
 #include "usb_stick.h"
 #include "usb_audio.h"
 #include "vinyl.h"
+#include "vinyl_rules.h"
 #include "as5600.h"
 #include "panel_gpio.h"
 #include "wsola.h"
@@ -84,17 +85,10 @@ constexpr float    kSyncBendSmooth = 0.02f;
 // speed keylock hands over to varispeed.
 constexpr float    kVinylSmooth = 0.35f;
 constexpr float    kVinylKeylockMin = 0.5f;
-// Absolute mode: jump to the record's position when the track is this far
-// off it (a needle drop), at most this often. Steady play stays within a few
-// ms (speed alone keeps it there), and a scratch is followed by speed, so only
-// a real jump seeks. Same numbers as the A1S.
-constexpr int      kVinylSeekMs = 300;
-constexpr int      kVinylSeekGapMs = 250;
-// ...and smaller steady errors (after a scratch, or a seek that had to wait
-// for the decoder) get re-synced once they've held kVinylTrimHoldMs, and only
-// when the audio there is already decoded, so the fix can't stall.
-constexpr int      kVinylTrimMs = 25;
-constexpr int      kVinylTrimHoldMs = 200;
+// Absolute mode: how the deck keeps to the needle is src/vinyl_rules.h
+// (Follow): a jump on a needle drop, the first lock, or a >=300 ms gap once
+// the record plays steadily; small gaps bend shut; a handled platter is
+// followed by speed alone.
 // What we hear lags the playhead and the record's position lags the record:
 // I2S DMA (~33 ms) + USB output ring (~23 ms) + USB input (~5 ms). Aim the
 // playhead this far ahead of the record so the sound lines up with it.
@@ -928,7 +922,7 @@ static prolink::Master s_master;     // audio task's copy, refreshed every block
 
 static uint8_t s_vinylLive;        // ui::State::vinylLive, set by the audio task
 static volatile uint32_t s_vinylSeeks;   // seeks to the record (audio task), for the report
-static volatile uint32_t s_vinylTrims;   // ...of which small re-syncs
+static volatile uint32_t s_vinylTrims;   // ...of which needle drops (and first locks)
 static volatile int s_vinylErrMs;        // playhead - (record + lead), latest while locked
 static volatile int s_vinylDriftMs;      // track vs record before the last seek
 
@@ -1065,7 +1059,7 @@ static void logVinyl()
     const usb_audio::InputStats is = usb_audio::inputStats();
     char pos[24] = "-";
     if (v.rawMs >= 0) snprintf(pos, sizeof pos, "%d:%04.1f", (int)(v.rawMs / 60000), fmodf(v.rawMs / 1000.0f, 60));
-    ESP_LOGI(TAG, "  vinyl: %s%s, %s  speed %+.3f  record at %s (start %ld)  seeks %lu (%lu re-syncs, last %d ms off)  track - record %+d ms  peak %d  bit lock %s  flags %lu"
+    ESP_LOGI(TAG, "  vinyl: %s%s, %s  speed %+.3f  record at %s (start %ld)  seeks %lu (%lu needle drops, last %d ms off)  track - record %+d ms  peak %d  bit lock %s  flags %lu"
              "  (%lu Hz, %lu packets, %lu errors, %lu overflows, %lu restarts)  thru: %lu dry, %lu trims",
              vinyl::mode() == vinyl::Mode::Thru ? "THRU" : !vinyl::enabled() ? "off (V)" : v.armed ? "driving" : "waiting for carrier", v.armed && !v.signal ? ", record stopped" : "",
              v.absolute ? "absolute" : "relative", v.speed, pos, (long)vinyl::startMs(), (unsigned long)s_vinylSeeks, (unsigned long)s_vinylTrims, s_vinylDriftMs, s_vinylErrMs,
@@ -1224,34 +1218,24 @@ static void audioTask(void*)
         s_vinylStill = vinylOn && !vs.signal && !vs.settling;
         if (vinylOn && vs.signal) d.scratching = false;   // the record moves again: it has the deck
         // Absolute: follow the needle. Not in a loop (the loop wins, as in Serato).
-        static int64_t vinylOffSinceUs;     // small error first seen (0 = none)
-        if (vinylOn && vs.absolute && vs.posMs >= 0 && d.playing && !d.looping && !d.emergency) {
-            const double target = (vs.posMs + kVinylLeadMs * vinylSpeed) * (double)s_stream.sampleRate() / 1000.0;
-            const double driftMs = fabs(d.pos - target) * 1000.0 / s_stream.sampleRate();
-            s_vinylErrMs = (int)((d.pos - target) * 1000.0 / s_stream.sampleRate());
-            static int64_t lastSeekUs;
-            const int64_t now = esp_timer_get_time();
-            bool go = false;
-            if (driftMs >= kVinylSeekMs) {
-                go = now - lastSeekUs >= kVinylSeekGapMs * 1000;    // needle drop: jump even if it has to wait
-                vinylOffSinceUs = 0;
-            } else if (driftMs >= kVinylTrimMs) {
-                if (!vinylOffSinceUs) vinylOffSinceUs = now;
-                int16_t probe[2];
-                go = now - vinylOffSinceUs >= kVinylTrimHoldMs * 1000 && s_stream.get((size_t)target, probe, 1);
-            } else {
-                vinylOffSinceUs = 0;
-            }
-            if (go && target < s_stream.frames()) {
-                s_vinylDriftMs = (int)driftMs;
-                seek(d, target);
-                lastSeekUs = now;
-                vinylOffSinceUs = 0;
+        static vinyl_rules::Follow vinylFollow;
+        if (vinylOn && vs.absolute && d.playing && !d.looping && !d.emergency) {
+            const double sr = (double)s_stream.sampleRate();
+            const bool has = vs.posMs >= 0;
+            const double targetMs = vs.posMs + kVinylLeadMs * vinylSpeed;
+            const double deckMs = d.pos * 1000.0 / sr;
+            if (has) s_vinylErrMs = (int)(deckMs - targetMs);
+            const vinyl_rules::FollowOut f = vinylFollow.step(vs.speed, vinylSpeed, esp_timer_get_time() / 1000.0,
+                                                              kBlock * 1000.0 / kRate, has, targetMs, deckMs, vs.drops);
+            if (f.seek && f.seekMs * sr / 1000.0 < s_stream.frames()) {
+                s_vinylDriftMs = (int)fabs(deckMs - f.seekMs);
+                seek(d, f.seekMs * sr / 1000.0);
                 s_vinylSeeks = s_vinylSeeks + 1;
-                if (driftMs < kVinylSeekMs) s_vinylTrims = s_vinylTrims + 1;
+                if (f.drop) s_vinylTrims = s_vinylTrims + 1;
             }
-        } else {
-            vinylOffSinceUs = 0;
+            speed += f.bend;
+        } else if (!vinylOn) {
+            vinylFollow.forget();
         }
         if (d.keylock) stepWsolaLag(speed);
         bool synced = false;

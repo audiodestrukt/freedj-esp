@@ -10,25 +10,15 @@
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "timecode.h"
+#include "vinyl_rules.h"
 #include "usb_audio.h"
 
 namespace vinyl {
 namespace {
 const char* TAG = "vinyl";
 
-// Carrier test, per ~10 ms window: loud enough and the decoder's speed in
-// a turntable's range.
-constexpr int16_t kMinPeak   = 600;       // about -35 dBFS
-constexpr float   kMaxSpeed  = 3.0f;
-constexpr float   kMinSpeed  = 0.02f;
-constexpr int     kArmMs     = 300;       // steady carrier near 1x this long arms it
-constexpr int     kDropMs    = 40;        // no carrier this long = record stopped
+// The arm / lift / settle rules are src/vinyl_rules.h (host-tested).
 constexpr int     kWindowMs  = 10;
-// Needle drop: carrier back after at least kLiftMs without it. Until bit lock
-// (a position), the speed reading is landing noise, so the deck holds silent
-// for up to kSettleMaxMs instead of scratching the old spot.
-constexpr int     kLiftMs      = 150;
-constexpr int     kSettleMaxMs = 1000;
 // Our Serato Control Vinyl's first groove reads ~24.0-24.3 s of timecode
 // (three needle drops on the bench, 2026-11-05), so that's track 0:00, as in
 // Serato's absolute mode. Serial Z re-measures it for another record.
@@ -48,11 +38,10 @@ State s_state;
 void task(void*)
 {
     static int16_t buf[512 * 2];
-    int64_t lastCarrierUs = 0, steadySinceUs = 0, windowUs = 0;
+    int64_t windowUs = 0;
     int16_t windowPeak = 0, shownPeak = 0;
     int peakAgeMs = 0;
-    bool armed = false, signal = false, settling = false;
-    int64_t landedUs = 0;
+    vinyl_rules::Window win;
     // The position table (3 MB in PSRAM): built here, before any input, or
     // the first decode builds it and the input ring overflows meanwhile.
     timecode::prebuildLut(timecode::Format::SeratoControlVinyl);
@@ -61,7 +50,7 @@ void task(void*)
         const uint32_t rate = usb_audio::inputRate();
         if (!usb_audio::inputActive() || rate == 0) {
             if (s_rate) { ESP_LOGI(TAG, "input gone"); s_rate = 0; }
-            armed = signal = false;
+            win.forget();
             portENTER_CRITICAL(&s_mux);
             s_state = State{};
             s_state.flags = s_flags;
@@ -73,7 +62,7 @@ void task(void*)
             if (s_wantFlags != 0xFFFFFFFF) { s_flags = s_wantFlags; s_wantFlags = 0xFFFFFFFF; }
             if (rate != s_rate) {
                 s_rate = rate;
-                armed = false;
+                win.forget();
                 ESP_LOGI(TAG, "decoding Serato Control Vinyl at %lu Hz (flags %lu)", (unsigned long)rate, (unsigned long)s_flags);
             }
             s_dec.begin((int)rate, timecode::Format::SeratoControlVinyl);
@@ -82,7 +71,6 @@ void task(void*)
         if (s_thru) {
             // The audio task reads the input now; leave it alone. Coming back,
             // the gap reads as a needle lift: the decoder starts fresh.
-            signal = false;
             portENTER_CRITICAL(&s_mux);
             s_state.input = true;
             s_state.signal = false;
@@ -103,52 +91,25 @@ void task(void*)
         const int64_t now = esp_timer_get_time();
         if (now - windowUs >= kWindowMs * 1000) {
             windowUs = now;
-            const float sp = s_dec.speed();
-            const float m = fabsf(sp);
-            const bool carrier = windowPeak >= kMinPeak && m >= kMinSpeed && m <= kMaxSpeed;
-            const int64_t gapUs = now - lastCarrierUs;   // before this window's carrier
-            if (carrier) lastCarrierUs = now;
-            const bool was = signal;
-            signal = now - lastCarrierUs < kDropMs * 1000;
-            if (signal && !was && gapUs >= kLiftMs * 1000 && s_absolute) {
-                settling = true;
-                landedUs = now;
-                s_dec.reset();   // or lock and position from before the lift linger for a moment
-            }
-            if (settling) {
-                const int ms = (int)((now - landedUs) / 1000);
-                if (s_dec.locked() && s_dec.position() >= 0) {
-                    settling = false;
-                    ESP_LOGI(TAG, "needle down: bit lock in %d ms", ms);
-                } else if (ms >= kSettleMaxMs || !signal) {
-                    settling = false;
-                    ESP_LOGW(TAG, "needle down: no bit lock in %d ms, following speed only", ms);
-                }
-            }
-            // Arm on a steady, roughly normal-speed carrier (a real record, not music).
-            if (carrier && m > 0.6f && m < 1.5f) {   // 33 or 45 rpm
-                if (!steadySinceUs) steadySinceUs = now;
-                if (!armed && now - steadySinceUs >= kArmMs * 1000) {
-                    armed = true;
-                    ESP_LOGI(TAG, "carrier: the record drives the deck now (peak %d, speed %.3f)", windowPeak, sp);
-                }
-            } else {
-                steadySinceUs = 0;
-            }
+            const vinyl_rules::Record& r = win.step(now, windowPeak, s_dec, s_absolute);
+            if (r.placed) ESP_LOGI(TAG, "needle down: bit lock in %d ms", r.settleMs);
+            if (r.gaveUp) ESP_LOGW(TAG, "needle down: no bit lock in %d ms, following speed only", r.settleMs);
+            if (r.armedNow) ESP_LOGI(TAG, "carrier: the record drives the deck now (peak %d, speed %.3f)", windowPeak, s_dec.speed());
             peakAgeMs += kWindowMs;
             if (windowPeak > shownPeak || peakAgeMs >= 100) { shownPeak = windowPeak; peakAgeMs = 0; }
             windowPeak = 0;
             portENTER_CRITICAL(&s_mux);
             s_state.input = true;
-            s_state.armed = armed;
-            s_state.signal = signal;
-            s_state.speed = signal && !settling ? sp : 0.0f;
-            s_state.settling = settling;
+            s_state.armed = r.armed;
+            s_state.signal = r.signal;
+            s_state.speed = r.speed;
+            s_state.settling = r.settling;
+            s_state.drops = r.drops;
             s_state.locked = s_dec.locked();
             s_state.peak = shownPeak;
             s_state.rate = rate;
             s_state.flags = s_flags;
-            s_state.rawMs = signal && s_dec.locked() && s_dec.position() >= 0
+            s_state.rawMs = r.signal && s_dec.locked() && s_dec.position() >= 0
                                 ? (int32_t)((int64_t)s_dec.position() * 1000 / s_dec.resolutionHz()) : -1;
             s_state.posMs = s_state.rawMs >= s_startMs ? s_state.rawMs - s_startMs : -1;
             portEXIT_CRITICAL(&s_mux);

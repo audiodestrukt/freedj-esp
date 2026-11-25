@@ -77,6 +77,11 @@ class Decoder {
 public:
     void begin(int sampleRate, Format fmt = Format::SeratoControlCD);
     void reset();
+    // A needle drop: forget the bit history (the next bits come from
+    // somewhere else) but keep the learned bit level and DC, so a position
+    // comes back in ~45 cycles instead of the ~200 ms reset() takes to learn
+    // the level again.
+    void relock();
 
     // Convention override. The format-table baseline covers the xwax
     // canonical decode; real-world signals (channel swaps in the codec

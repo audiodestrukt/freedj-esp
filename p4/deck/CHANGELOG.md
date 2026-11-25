@@ -11,6 +11,33 @@ playing (see the README's *Audio health* section). Unless noted, it's
 the panel**, so they read high. From 2026-10-31 on, "screen fps" counts
 frames LVGL actually rendered and flushed.
 
+## 2026-11-24: timecode vinyl: back-cueing and reverse fixed (from freedj-3000's DVS)
+
+freedj-3000's DVS runs these rules (ported from here), and on a turntable
+with Serato Control Vinyl three of them were wrong. Ported back:
+
+- **Reversed, the decoder read 19 ms ahead of the needle.** Backwards, the
+  newest bit is the oldest of the 20-bit window; the position now steps
+  back by bits-1 (`src/timecode.cpp`, the A1S too).
+- **A hand holding the platter between strokes was taken for a needle
+  lift.** The lift was 150 ms without carrier, so every back-cue stop went
+  silent until bit lock (~200 ms while the level was relearned) and then
+  jumped. Now a lift is 500 ms, and it clears only the bit history
+  (`Decoder::relock`, the level kept): placed again in ~45 cycles.
+- **ABS re-synced while the platter was handled.** Errors of 25 ms held
+  200 ms jumped, all through a back-cue. Now ABS jumps only on a needle
+  drop, the first lock, or a >=300 ms gap once the record has played
+  steadily (0.5-2x) for 300 ms; smaller gaps bend shut (<=2 %); a handled
+  platter is followed by speed alone. The report's "re-syncs" are now
+  "needle drops".
+
+The arm / lift / settle and follow rules moved out of `vinyl.cpp` and
+`main.cpp` into `src/vinyl_rules.h`, so `native/vinyl_rules_test` (35
+checks, synthetic record) tests them on the host; it fails on each of the
+three old behaviours. Not yet run on the P4 with a turntable.
+
+Image 1,480,048 B. The A1S build is unchanged apart from the decoder fix.
+
 ## 2026-11-08: CAD: one output folder per variant
 
 - `cad/build/<variant>/` per deck variant (`p4-4in-angled`, `p4-4in-flat`, `p4-2.8in-angled`,

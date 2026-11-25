@@ -275,6 +275,14 @@ void Decoder::reset() {
     locked_         = false;
 }
 
+void Decoder::relock() {
+    bitstream_    = 0;
+    expected_     = 0;
+    validCounter_ = 0;
+    position_     = -1;
+    locked_       = false;
+}
+
 void Decoder::pushFrames(const int16_t* stereo, int frames) {
     const bool swapPrimary = (flags_ & SWITCH_PRIMARY) != 0;
     for (int i = 0; i < frames; ++i) {
@@ -392,7 +400,11 @@ void Decoder::processBitstream(int32_t m) {
 
     if (validCounter_ > VALID_BITS) {
         int32_t p = lookupPosition(fmt_, bitstream_);
-        if (p >= 0) position_ = p;
+        // The table names a window by its newest bit going forward. Going
+        // backwards the newest bit is the window's oldest, bits-1 cycles
+        // earlier: without this a reversed record read 19 ms ahead of the
+        // needle (found on freedj-3000's DVS, 2026-11-24).
+        if (p >= 0) position_ = forwards_ ? p : (p >= (int32_t)(bits_ - 1) ? p - (int32_t)(bits_ - 1) : 0);
     }
 }
 
